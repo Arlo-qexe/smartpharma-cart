@@ -19,6 +19,10 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+if [ -f requirements-dev.txt ]; then
+  pip install -r requirements-dev.txt   # pytest, para tests/
+fi
+
 if [ -f assistant/requirements.txt ]; then
   if [ "${CUDA:-0}" = "1" ]; then
     echo "Instalando llama-cpp-python con build CUDA (puede tardar varios minutos)..."
