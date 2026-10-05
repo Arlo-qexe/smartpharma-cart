@@ -23,6 +23,21 @@ from protocol_constants import (  # noqa: E402
 )
 
 
+def _recv_exacto(sock, n):
+    datos = b""
+    while len(datos) < n:
+        chunk = sock.recv(n - len(datos))
+        if not chunk:
+            raise ConnectionResetError("Conexión cerrada durante recv")
+        datos += chunk
+    return datos
+
+
+def _leer_respuesta(sock):
+    (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, _recv_exacto(sock, 4))
+    return json.loads(_recv_exacto(sock, longitud).decode("utf-8"))
+
+
 def enviar_lote_de_prueba(ip="127.0.0.1", puerto=TCP_PUERTO_DEFECTO, num_imagenes=5, tamano_bytes=2000):
     sock = socket.create_connection((ip, puerto), timeout=3)
 
@@ -33,10 +48,7 @@ def enviar_lote_de_prueba(ip="127.0.0.1", puerto=TCP_PUERTO_DEFECTO, num_imagene
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(img)))
         sock.sendall(img)
 
-    raw_len = sock.recv(4)
-    (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_len)
-    payload = sock.recv(longitud)
-    respuesta = json.loads(payload.decode("utf-8"))
+    respuesta = _leer_respuesta(sock)
 
     print(f"Respuesta del servidor: {respuesta[CLAVE_RESULTADO_JSON]}")
     sock.close()
@@ -48,10 +60,7 @@ def enviar_lote_vacio(ip="127.0.0.1", puerto=TCP_PUERTO_DEFECTO):
     sin intentar OCR)."""
     sock = socket.create_connection((ip, puerto), timeout=3)
     sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, 0))
-    raw_len = sock.recv(4)
-    (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_len)
-    payload = sock.recv(longitud)
-    respuesta = json.loads(payload.decode("utf-8"))
+    respuesta = _leer_respuesta(sock)
     print(f"Respuesta del servidor (lote vacío): {respuesta[CLAVE_RESULTADO_JSON]}")
     sock.close()
 

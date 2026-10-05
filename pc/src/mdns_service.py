@@ -16,10 +16,19 @@ from zeroconf import ServiceInfo, Zeroconf
 
 
 def obtener_ip_local() -> str:
+    # connect() sobre UDP no envía tráfico: solo elige la interfaz de salida.
+    # En una LAN aislada (sin ruta por defecto) falla, así que se cae a la IP
+    # del hostname y, en último caso, a loopback.
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect(("8.8.8.8", 80))
         return s.getsockname()[0]
+    except OSError:
+        try:
+            ip = socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return "127.0.0.1"
+        return ip
     finally:
         s.close()
 
@@ -34,8 +43,10 @@ def registrar_servicio_mdns(puerto: int, nombre_servicio: str = "OCRServer"):
         port=puerto,
         properties={},
     )
-    zc.register_service(info)
-    print(f"[mDNS] Servicio registrado en {ip_local}:{puerto}")
+    # allow_name_change: si el nombre ya existe en la red (reinicio rápido u
+    # otra PC), zeroconf lo renombra en vez de lanzar NonUniqueNameException.
+    zc.register_service(info, allow_name_change=True)
+    print(f"[mDNS] Servicio registrado como {info.name} en {ip_local}:{puerto}")
     return zc, info
 
 
