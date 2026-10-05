@@ -131,5 +131,3 @@ TIEMPO_CONVERGENCIA_AUTOENFOQUE_S = 0.5    # valor inicial; calibrar con hardwar
 # Reconocimiento (contrato con el equipo de IA — ver pc/src/ocr_interface.py)
 # ---------------------------------------------------------------------------
 UMBRAL_VOTACION_MAYORIA = 0.5   # mayoría simple (>50%)
-
-# prueba notificacion telegram
