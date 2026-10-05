@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(python3 *)",
+      "Bash(pytest *)",
+      "Bash(pip install *)",
+      "Bash(pip list*)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(apt *)",
+      "Bash(apt-get *)",
+      "Bash(sudo *)",
+      "Bash(curl *)",
+      "Bash(wget *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(rm -rf *)",
+      "Read(**/.env)",
+      "Read(~/.ssh/**)"
+    ]
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PROJECT_DIR}/../scripts/hooks/session_start.sh"],
+            "timeout": 30,
+            "statusMessage": "Sincronizando con origin y verificando entorno..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash",
+            "args": ["${CLAUDE_PROJECT_DIR}/../scripts/hooks/check-shared-freshness.sh"],
+            "timeout": 15,
+            "statusMessage": "Verificando shared/..."
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git branch *)",
+      "Bash(python3 *)",
+      "Bash(pytest *)",
+      "Bash(pip install *)",
+      "Bash(pip list*)",
+      "Bash(nvidia-smi*)",
+      "Edit(./**)",
+      "Read(../**)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(apt *)",
+      "Bash(apt-get *)",
+      "Bash(sudo *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Edit(../shared/**)",
+      "Edit(../orange-pi/**)",
+      "Edit(../esp32-firmware/**)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(rm -rf *)",
+      "Read(**/.env)",
+      "Read(~/.ssh/**)"
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Arduino / PlatformIO
+.pio/
+*.hex
+*.bin
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+
+# Local (nunca compartido con el equipo)
+CLAUDE.local.md

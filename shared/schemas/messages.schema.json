@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SmartPharma Cart - Mensajes del protocolo",
+  "description": "Definición formal de cada tipo de mensaje. Debe mantenerse en sincronía con shared/protocol_constants.py y shared/protocol_constants.h. Ver docs/arquitectura_comunicacion.md para el contexto de cada uno.",
+  "definitions": {
+    "orangepi_a_esp32__introducir_objeto": {
+      "type": "object",
+      "properties": {
+        "accion": { "const": "introducir_objeto" }
+      },
+      "required": ["accion"],
+      "additionalProperties": false
+    },
+    "esp32_a_orangepi__objeto_en_posicion": {
+      "type": "object",
+      "properties": {
+        "evento": { "const": "objeto_en_posicion" }
+      },
+      "required": ["evento"],
+      "additionalProperties": false
+    },
+    "orangepi_a_esp32__girar_posicion": {
+      "type": "object",
+      "properties": {
+        "accion": { "const": "girar_posicion" },
+        "cara": { "type": "integer", "minimum": 1, "maximum": 5 }
+      },
+      "required": ["accion", "cara"],
+      "additionalProperties": false
+    },
+    "esp32_a_orangepi__en_posicion": {
+      "type": "object",
+      "properties": {
+        "evento": { "const": "en_posicion" },
+        "cara": { "type": "integer", "minimum": 1, "maximum": 5 }
+      },
+      "required": ["evento", "cara"],
+      "additionalProperties": false
+    },
+    "orangepi_a_esp32__activar_alarma_local": {
+      "type": "object",
+      "properties": {
+        "accion": { "const": "activar_alarma_local" }
+      },
+      "required": ["accion"],
+      "additionalProperties": false
+    },
+    "orangepi_a_esp32__clasificar": {
+      "type": "object",
+      "properties": {
+        "accion": { "const": "clasificar" },
+        "destino": { "type": "string" }
+      },
+      "required": ["accion", "destino"],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_clasificacion": {
+      "type": "object",
+      "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",
+      "properties": {
+        "clasificacion": {
+          "type": "string",
+          "description": "Tipo de producto identificado, o ERROR_REVISION_MANUAL si no hubo consenso o el lote llegó vacío."
+        }
+      },
+      "required": ["clasificacion"],
+      "additionalProperties": false
+    }
+  },
+  "_pendiente_de_decision": {
+    "dispensador": "Mensaje del servo del dispensador aún no definido formalmente — ver docs/arquitectura_comunicacion.md sección 5.5. No agregar aquí hasta confirmar ESP32-S3 vs. Orange Pi."
+  }
+}
