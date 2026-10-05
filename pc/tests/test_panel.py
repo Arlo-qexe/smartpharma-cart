@@ -49,6 +49,7 @@ def test_pagina_y_estaticos(panel):
     _, base = panel
     status, headers, cuerpo = _get(base + "/")
     assert status == 200 and b"SmartPharma Cart" in cuerpo
+    assert b'id="visor"' in cuerpo  # visor de fotos ampliadas
     assert "default-src 'self'" in headers["Content-Security-Policy"]
     assert _get(base + "/static/panel.js")[0] == 200
     assert _get(base + "/static/panel.css")[0] == 200

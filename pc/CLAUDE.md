@@ -88,6 +88,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - **Pendiente del equipo:** cómo se entera la Orange Pi de que el regente
   desactivó una alarma o definió un destino (hoy "Desactivar" solo marca la
   alarma como resuelta en la PC) y el botón "Iniciar recorrido" (deshabilitado:
-  no hay canal PC → Orange Pi). Requiere cambio en `shared/`.
+  no hay canal PC → Orange Pi). Requiere cambio en `shared/`. Propuesta con
+  opciones para el equipo: @../docs/propuesta_canal_regente.md.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

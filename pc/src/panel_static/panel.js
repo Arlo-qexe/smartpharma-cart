@@ -91,6 +91,13 @@ function renderInicio() {
           enlace.href = `/foto/${lote.id}/${i}`;
           enlace.target = "_blank";
           enlace.rel = "noopener";
+          // Clic normal: visor ampliado. Clic central / Ctrl+clic siguen
+          // abriendo la foto en otra pestaña gracias al href.
+          enlace.addEventListener("click", (ev) => {
+            if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button !== 0) return;
+            ev.preventDefault();
+            abrirVisor(lote.id, i, lote.n_imagenes);
+          });
           const img = crear("img");
           img.src = `/foto/${lote.id}/${i}`;
           img.alt = `Cara ${i + 1}`;
@@ -185,6 +192,48 @@ function renderConfig() {
     cuerpo.appendChild(tr);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Visor de fotos ampliadas
+const visor = { loteId: null, indice: 0, total: 0 };
+
+function mostrarVisor() {
+  const img = $("visor-img");
+  img.src = `/foto/${visor.loteId}/${visor.indice}`;
+  img.alt = `Cara ${visor.indice + 1}`;
+  $("visor-pie").textContent =
+    `Lote #${visor.loteId} · Cara ${visor.indice + 1} de ${visor.total}`;
+  $("visor-ant").disabled = visor.indice === 0;
+  $("visor-sig").disabled = visor.indice === visor.total - 1;
+}
+
+function abrirVisor(loteId, indice, total) {
+  visor.loteId = loteId;
+  visor.indice = indice;
+  visor.total = total;
+  mostrarVisor();
+  if (!$("visor").open) $("visor").showModal();
+}
+
+function moverVisor(delta) {
+  const nuevo = visor.indice + delta;
+  if (nuevo < 0 || nuevo >= visor.total) return;
+  visor.indice = nuevo;
+  mostrarVisor();
+}
+
+$("visor-ant").addEventListener("click", () => moverVisor(-1));
+$("visor-sig").addEventListener("click", () => moverVisor(1));
+$("visor-cerrar").addEventListener("click", () => $("visor").close());
+// Clic en el fondo oscuro (el propio <dialog>, no su contenido) cierra el visor.
+$("visor").addEventListener("click", (ev) => {
+  if (ev.target === $("visor")) $("visor").close();
+});
+document.addEventListener("keydown", (ev) => {
+  if (!$("visor").open) return;
+  if (ev.key === "ArrowLeft") moverVisor(-1);
+  if (ev.key === "ArrowRight") moverVisor(1);
+});
 
 const RENDERS = {
   inicio: renderInicio,
