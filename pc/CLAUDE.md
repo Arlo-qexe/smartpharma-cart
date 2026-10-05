@@ -66,6 +66,9 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/server.py` — servidor TCP (recepción de lotes, framing, orquestación de la respuesta).
 - `src/mdns_service.py` — registro del servicio `_ocr-service._tcp.local.`.
 - `src/ocr_interface.py` — contrato con el módulo de reconocimiento (placeholder).
+- `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
+- `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
+- `tests/test_server.py`, `tests/test_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -77,6 +80,14 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - Las imágenes se procesan **en memoria** (RAM), nunca se escriben a disco.
 - Un lote con 0 imágenes significa que la captura falló del lado de la Orange
   Pi — responde `ERROR_REVISION_MANUAL` directamente, sin intentar OCR.
-- El panel de control / alarma (sección 8 del informe) todavía no tiene
-  interfaz definida — por ahora, un `print()` o log basta como placeholder
-  de "disparar_alarma_dashboard()".
+- El panel de control / alarma (sección 8 del informe) es una página web
+  generada por la PC con solo la biblioteca estándar (`src/panel_web.py` +
+  `src/panel_static/`); por defecto escucha en `127.0.0.1:8080` (`PANEL_HOST`,
+  `PANEL_PUERTO`). Si crece, se puede migrar a Flask: la lógica vive en
+  `estado_panel.py`, independiente del servidor web.
+- **Pendiente del equipo:** cómo se entera la Orange Pi de que el regente
+  desactivó una alarma o definió un destino (hoy "Desactivar" solo marca la
+  alarma como resuelta en la PC) y el botón "Iniciar recorrido" (deshabilitado:
+  no hay canal PC → Orange Pi). Requiere cambio en `shared/`.
+- Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
+  `Cache-Control: no-store`; nunca se escriben a disco.

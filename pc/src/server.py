@@ -23,6 +23,8 @@ from protocol_constants import (  # noqa: E402
 
 from ocr_interface import procesar_lote_ocr
 from mdns_service import registrar_servicio_mdns, detener_servicio_mdns
+from estado_panel import estado
+from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
 
 
 class FramingInvalido(Exception):
@@ -60,10 +62,10 @@ def _enviar_respuesta(sock, diccionario):
     sock.sendall(payload)
 
 
-def disparar_alarma_dashboard(motivo: str):
-    """PLACEHOLDER — aquí se conecta con la interfaz real del panel de
-    control cuando se diseñe (ver docs/arquitectura_comunicacion.md,
-    sección 8, y la fila "pendiente de diseño" en la sección 9)."""
+def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None):
+    """Registra la alarma en el panel web (panel_web.py) para que el regente
+    la vea (ver docs/arquitectura_comunicacion.md, sección 8)."""
+    estado.registrar_alarma(motivo, lote_id)
     print(f"[ALARMA] Disparada — motivo: {motivo}")
 
 
@@ -75,19 +77,24 @@ def _manejar_cliente(conn, addr):
             imagenes = _recibir_lote(conn)
         except FramingInvalido as e:
             print(f"[server] Framing inválido de {addr}: {e}")
-            disparar_alarma_dashboard(motivo="framing_invalido")
+            disparar_alarma_dashboard("framing_invalido")
             _enviar_respuesta(conn, {CLAVE_RESULTADO_JSON: RESULTADO_ERROR_REVISION_MANUAL})
             return
 
+        motivo_alarma = None
         if len(imagenes) == 0:
             print(f"[server] Lote vacío de {addr} — fallo de captura reportado por la Orange Pi")
             resultado = RESULTADO_ERROR_REVISION_MANUAL
-            disparar_alarma_dashboard(motivo="fallo_captura")
+            motivo_alarma = "fallo_captura"
         else:
             print(f"[server] Lote recibido: {len(imagenes)} imágenes")
             resultado = procesar_lote_ocr(imagenes)
             if resultado == RESULTADO_ERROR_REVISION_MANUAL:
-                disparar_alarma_dashboard(motivo="sin_consenso_ocr")
+                motivo_alarma = "sin_consenso_ocr"
+
+        lote_id = estado.registrar_lote(addr[0], imagenes, resultado)
+        if motivo_alarma:
+            disparar_alarma_dashboard(motivo_alarma, lote_id)
 
         _enviar_respuesta(conn, {CLAVE_RESULTADO_JSON: resultado})
         print(f"[server] Respuesta enviada a {addr}: {resultado}")
@@ -112,6 +119,12 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
 
 
 if __name__ == "__main__":
+    try:
+        iniciar_panel(estado)
+        print(f"[panel] Panel de control en http://{PANEL_HOST}:{PANEL_PUERTO}/")
+    except OSError as e:
+        # El panel no debe impedir que el transporte funcione.
+        print(f"[panel] No se pudo iniciar el panel ({e}); el servidor sigue sin panel")
     zc, info = registrar_servicio_mdns(puerto=TCP_PUERTO_DEFECTO)
     try:
         iniciar_servidor(puerto=TCP_PUERTO_DEFECTO)

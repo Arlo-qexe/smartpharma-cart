@@ -96,3 +96,18 @@ def test_cliente_colgado_libera_el_hilo(puerto, monkeypatch):
     sock.settimeout(3)
     assert sock.recv(1) == b""       # el servidor cierra tras el timeout
     sock.close()
+
+
+def test_lote_queda_registrado_en_el_panel(puerto):
+    enviar_lote_de_prueba(puerto=puerto, num_imagenes=5, tamano_bytes=100)
+    ultimo = server.estado.snapshot()["lotes"][0]
+    assert ultimo["n_imagenes"] == 5 and ultimo["resultado"] == "TIPO_A"
+    assert server.estado.foto(ultimo["id"], 3) == bytes([3]) * 100
+
+
+def test_lote_vacio_genera_alarma_en_el_panel(puerto):
+    enviar_lote_vacio(puerto=puerto)
+    snap = server.estado.snapshot()
+    assert snap["alarmas"][0]["motivo"] == "fallo_captura"
+    assert snap["alarmas"][0]["lote_id"] == snap["lotes"][0]["id"]
+    assert snap["alarma_activa"] is True

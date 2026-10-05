@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SmartPharma Cart</title>
+  <link rel="stylesheet" href="/static/panel.css">
+</head>
+<body>
+  <header class="cabecera">
+    <h1>SmartPharma Cart</h1>
+    <span id="conexion" class="conexion" hidden>Sin conexión con el servidor</span>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <nav class="pestanas" id="pestanas">
+    <button data-vista="inicio" class="activa">
+      <svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>
+      INICIO
+    </button>
+    <button data-vista="inventario">
+      <svg viewBox="0 0 24 24"><path d="M12 3l9 4.5v9L12 21l-9-4.5v-9zM3 7.5l9 4.5 9-4.5M12 12v9"/></svg>
+      INVENTARIO
+    </button>
+    <button data-vista="alertas">
+      <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>
+      ALERTAS <span id="insignia" class="insignia" hidden></span>
+    </button>
+    <button data-vista="config">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
+      CONFIGURACIÓN
+    </button>
+  </nav>
+
+  <main>
+    <section id="vista-inicio" class="vista">
+      <div class="tablero">
+        <div class="panel-izq">
+          <h2>MONITOREO DE AUDITORÍA</h2>
+          <p id="lote-titulo" class="sub"></p>
+          <div id="fotos" class="fotos"></div>
+          <p id="fotos-aviso" class="aviso"></p>
+        </div>
+        <div class="panel-der">
+          <h2>CICLO DE INSPECCIÓN</h2>
+          <div class="ciclo">
+            <svg class="caja" viewBox="0 0 120 80" aria-hidden="true"><path d="M8 28l20-18h84v44l-20 16H8z M8 28h84v42 M92 28l20-18 M92 70l20-16"/><circle cx="64" cy="52" r="7"/></svg>
+            <div class="dato"><span class="et">CLASIFICACIÓN</span><span id="d-clasif" class="valor">—</span></div>
+            <div class="dato"><span class="et">LECTURA OCR</span><span class="valor sin-dato">—</span></div>
+            <div class="dato"><span class="et">FECHA VENCIMIENTO</span><span class="valor sin-dato">—</span></div>
+            <div class="dato">
+              <span class="et">ESTADO FEFO</span>
+              <div class="barra"><div></div></div>
+            </div>
+          </div>
+          <p class="aviso">Lectura OCR, fecha de vencimiento y FEFO aún no llegan: hoy el módulo de reconocimiento solo entrega la clasificación.</p>
+          <p id="d-lote" class="aviso"></p>
+        </div>
+      </div>
+
+      <h3 class="recientes-titulo">ALERTAS RECIENTES</h3>
+      <div class="pie">
+        <ul id="alertas-recientes" class="lista-alertas"></ul>
+        <button class="boton-recorrido" disabled title="Pendiente: no existe un canal PC → Orange Pi para iniciar el recorrido">
+          INICIAR RECORRIDO <span class="play">&#9654;</span>
+        </button>
+      </div>
+    </section>
+
+    <section id="vista-inventario" class="vista" hidden>
+      <h2>Lotes recibidos</h2>
+      <p class="aviso">Se conservan los últimos <span id="inv-max"></span> lotes con fotos; el resto solo queda en el historial. Haz clic en una fila para verla en Inicio.</p>
+      <div class="tabla-envoltura">
+        <table id="tabla-lotes">
+          <thead><tr><th>Lote</th><th>Hora</th><th>Origen</th><th>Imágenes</th><th>Resultado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="vista-alertas" class="vista" hidden>
+      <h2>Alertas</h2>
+      <p class="aviso">Desactivar una alarma solo la marca como resuelta en este panel. Cómo se entera la Orange Pi está pendiente de decisión del equipo.</p>
+      <div class="tabla-envoltura">
+        <table id="tabla-alertas">
+          <thead><tr><th></th><th>Hora</th><th>Motivo</th><th>Lote</th><th>Estado</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="vista-config" class="vista" hidden>
+      <h2>Configuración (solo lectura)</h2>
+      <p class="aviso">Valores del contrato en <code>shared/protocol_constants.py</code>. Para cambiarlos hay que modificar el contrato y avisar al equipo.</p>
+      <div class="tabla-envoltura">
+        <table id="tabla-config">
+          <thead><tr><th>Parámetro</th><th>Valor</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/panel.js"></script>
+</body>
+</html>
