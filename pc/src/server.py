@@ -14,12 +14,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_RESULTADO_JSON,
     FRAMING_STRUCT_FORMAT,
+    MAX_IMAGENES_POR_LOTE,
     RESULTADO_ERROR_REVISION_MANUAL,
+    TAMANO_MAX_IMAGEN_BYTES,
     TCP_PUERTO_DEFECTO,
+    TIMEOUT_INACTIVIDAD_RECEPCION_S,
 )
 
 from ocr_interface import procesar_lote_ocr
 from mdns_service import registrar_servicio_mdns, detener_servicio_mdns
+
+
+class FramingInvalido(Exception):
+    """El lote viola los límites de validación del framing."""
 
 
 def _recv_exacto(sock, n):
@@ -35,10 +42,14 @@ def _recv_exacto(sock, n):
 def _recibir_lote(sock):
     raw_cantidad = _recv_exacto(sock, 4)
     (cantidad,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_cantidad)
+    if cantidad > MAX_IMAGENES_POR_LOTE:
+        raise FramingInvalido(f"cantidad de imágenes {cantidad} > {MAX_IMAGENES_POR_LOTE}")
     imagenes = []
     for _ in range(cantidad):
         raw_tam = _recv_exacto(sock, 4)
         (tam,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_tam)
+        if tam > TAMANO_MAX_IMAGEN_BYTES:
+            raise FramingInvalido(f"tamaño de imagen {tam} > {TAMANO_MAX_IMAGEN_BYTES}")
         imagenes.append(_recv_exacto(sock, tam))
     return imagenes
 
@@ -59,7 +70,14 @@ def disparar_alarma_dashboard(motivo: str):
 def _manejar_cliente(conn, addr):
     print(f"[server] Conexión de {addr}")
     try:
-        imagenes = _recibir_lote(conn)
+        conn.settimeout(TIMEOUT_INACTIVIDAD_RECEPCION_S)
+        try:
+            imagenes = _recibir_lote(conn)
+        except FramingInvalido as e:
+            print(f"[server] Framing inválido de {addr}: {e}")
+            disparar_alarma_dashboard(motivo="framing_invalido")
+            _enviar_respuesta(conn, {CLAVE_RESULTADO_JSON: RESULTADO_ERROR_REVISION_MANUAL})
+            return
 
         if len(imagenes) == 0:
             print(f"[server] Lote vacío de {addr} — fallo de captura reportado por la Orange Pi")

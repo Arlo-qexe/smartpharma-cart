@@ -14,6 +14,26 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-05 — Arlo.exe (con Claude Code, lado PC)
+- **Agregado (solo lado PC, sin cambio de mensajes ni de formato en el cable):**
+  validación del framing en `pc/src/server.py`. Constantes nuevas en
+  `shared/protocol_constants.py`:
+  - `TIMEOUT_INACTIVIDAD_RECEPCION_S = 10.0` — máximo sin recibir bytes del
+    cliente (por `recv`). Igual a `TIMEOUT_RESPUESTA_RECONOCIMIENTO_S` y muy
+    por debajo de los 30 s de `TIMEOUT_TOTAL_TRANSACCION_S`, para liberar hilos
+    de clientes colgados antes de que la Orange Pi reintente. Calibrar.
+  - `TAMANO_MAX_IMAGEN_BYTES = 10 MiB` — un JPEG de una cara pesa ~0.2-2 MB;
+    margen >5x sin permitir reservas de hasta 4 GB por un campo corrupto.
+  - `MAX_IMAGENES_POR_LOTE = CARAS_POR_OBJETO` (5) — un lote válido trae 5
+    imágenes, o 0 si falló la captura.
+- Un lote que viole los límites se responde `ERROR_REVISION_MANUAL` y dispara
+  la alarma del panel (motivo `framing_invalido`).
+- **Impacto para orange-pi:** ningún cambio obligatorio; solo no enviar más de
+  5 imágenes ni imágenes de más de 10 MiB por lote.
+- `protocol_constants.h` no cambia: estas constantes no las usa la ESP32-S3
+  (el `.h` tampoco trae los timeouts TCP existentes).
+- Archivos: `shared/protocol_constants.py`, `pc/src/server.py`.
+
 ## Base inicial (sin fecha de commit todavía)
 
 - **Corrección:** el nombre de servicio mDNS se cambió de

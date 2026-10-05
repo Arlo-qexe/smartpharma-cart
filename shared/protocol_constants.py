@@ -47,6 +47,23 @@ TIMEOUT_CONEXION_TCP_S = 3.0
 TIMEOUT_RESPUESTA_RECONOCIMIENTO_S = 10.0      # valor inicial; calibrar con el servicio real
 TIMEOUT_TOTAL_TRANSACCION_S = 30.0             # al agotarse: RESULTADO_ERROR_REVISION_MANUAL
 
+# Lado PC: tiempo máximo SIN recibir ningún byte del cliente (se aplica a cada
+# recv(), no al lote completo). Valor = TIMEOUT_RESPUESTA_RECONOCIMIENTO_S:
+# mucho más holgado que una pausa normal en LAN, y bastante menor que
+# TIMEOUT_TOTAL_TRANSACCION_S (30 s), así la PC libera el hilo de un cliente
+# colgado antes de que la Orange Pi agote su propio límite y reintente.
+TIMEOUT_INACTIVIDAD_RECEPCION_S = 10.0         # valor inicial; calibrar con hardware real
+
+# ---------------------------------------------------------------------------
+# Límites de validación del framing (lado PC) — protegen contra campos de
+# longitud corruptos (el framing admite hasta 4 GB por campo)
+# ---------------------------------------------------------------------------
+# Un JPEG de una cara de caja (cámara de ~2-8 MP, comprimido) pesa del orden
+# de 0.2-2 MB; 10 MB deja >5x de margen sin permitir reservas absurdas.
+TAMANO_MAX_IMAGEN_BYTES = 10 * 1024 * 1024
+# MAX_IMAGENES_POR_LOTE se define junto a CARAS_POR_OBJETO (más abajo): un lote
+# válido tiene exactamente CARAS_POR_OBJETO imágenes, o 0 si falló la captura.
+
 # ---------------------------------------------------------------------------
 # Enlace serie (Orange Pi <-> ESP32-S3) — UART con checksum
 # ---------------------------------------------------------------------------
@@ -124,6 +141,7 @@ LIMITE_REINTENTOS_INTRODUCIR_OBJETO = 5
 # Captura de imágenes
 # ---------------------------------------------------------------------------
 CARAS_POR_OBJETO = 5
+MAX_IMAGENES_POR_LOTE = CARAS_POR_OBJETO   # ver "Límites de validación del framing"
 PAUSA_ESTABILIZACION_MECANICA_S = 0.3      # valor inicial; calibrar con hardware real
 TIEMPO_CONVERGENCIA_AUTOENFOQUE_S = 0.5    # valor inicial; calibrar con hardware real
 

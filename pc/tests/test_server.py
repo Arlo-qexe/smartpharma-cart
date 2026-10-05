@@ -60,3 +60,39 @@ def test_ip_local_siempre_devuelve_algo(monkeypatch):
 
     monkeypatch.setattr(mdns_service.socket, "socket", lambda *a, **k: SocketSinRuta())
     assert mdns_service.obtener_ip_local()
+
+
+def _enviar_crudo(puerto, *campos):
+    import struct
+    from protocol_constants import FRAMING_STRUCT_FORMAT
+    sock = socket.create_connection(("127.0.0.1", puerto), timeout=3)
+    for c in campos:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, c))
+    return sock
+
+
+def _leer(sock):
+    from mock_orangepi_client import _leer_respuesta
+    return _leer_respuesta(sock)
+
+
+def test_cantidad_excesiva_se_rechaza(puerto):
+    from protocol_constants import MAX_IMAGENES_POR_LOTE
+    sock = _enviar_crudo(puerto, MAX_IMAGENES_POR_LOTE + 1)
+    assert _leer(sock)["clasificacion"] == "ERROR_REVISION_MANUAL"
+    sock.close()
+
+
+def test_tamano_excesivo_se_rechaza(puerto):
+    from protocol_constants import TAMANO_MAX_IMAGEN_BYTES
+    sock = _enviar_crudo(puerto, 1, TAMANO_MAX_IMAGEN_BYTES + 1)
+    assert _leer(sock)["clasificacion"] == "ERROR_REVISION_MANUAL"
+    sock.close()
+
+
+def test_cliente_colgado_libera_el_hilo(puerto, monkeypatch):
+    monkeypatch.setattr(server, "TIMEOUT_INACTIVIDAD_RECEPCION_S", 0.3)
+    sock = _enviar_crudo(puerto, 1)  # promete una imagen y se calla
+    sock.settimeout(3)
+    assert sock.recv(1) == b""       # el servidor cierra tras el timeout
+    sock.close()
