@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-22 probado con el botón).
-Anterior: 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: S-06 opción 1 implementada, D-10, asistente en el lateral de Inicio).
+**Última actualización:** 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-10 cerrado, S-06 limpiada).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-22 probado con el botón).
 
 ## Cómo usarlo
 
@@ -53,14 +53,17 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 
 ### Pendiente
 
-- [x] **PC-10** Botón "Iniciar recorrido" (**lado PC hecho**, **S-06** opción 1, **D-10**):
-  iniciar el ciclo de auditoría. El botón ordena (`POST /api/ciclo/iniciar`), la PC
-  atiende la consulta `orden_ciclo` en el puerto 5001 y entrega `iniciar` **una sola
-  vez**; si la Orange Pi vuelve a preguntar después, se entiende que reinició y espera
-  una orden nueva; una orden que nadie recoge vence a los 60 s. El panel muestra tres
-  estados (esperando orden / orden enviada / recorrido iniciado) y si la Orange Pi
-  consultó hace poco. Contrato en `shared/` y sección 4.7 del informe. **Falta el lado
-  Orange Pi** (esperar `iniciar` al arrancar). Pausar/detener (opción 2) no existe.
+- [x] **PC-10** Botón "Iniciar recorrido" (**S-06** opción 1, **D-10**): iniciar el ciclo
+  de auditoría. El botón ordena (`POST /api/ciclo/iniciar`), la PC atiende la consulta
+  `orden_ciclo` en el puerto 5001 y entrega `iniciar` **una sola vez**; si la Orange Pi
+  vuelve a preguntar después, se entiende que reinició y espera una orden nueva; una
+  orden que nadie recoge vence a los 60 s. El panel muestra tres estados (esperando
+  orden / orden enviada / recorrido iniciado). Contrato en `shared/`, sección 4.7 del
+  informe. **Lado Orange Pi hecho (OP-22)** y **probado de punta a punta** con el botón
+  real (2026-10-06): el registro de la PC lo corrobora (botón → `iniciar` entregado a
+  `192.168.20.72` → lote de 5 imágenes respondido `TIPO_A` unos 20 s después → una
+  consulta posterior respondida `esperando`, coherente con un nuevo arranque). Pausar o
+  detener el ciclo (opción 2) no existe.
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**). *Sigue pendiente del equipo de IA
@@ -233,7 +236,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Hecha | Confirmados los dos primeros. Formato del destino: el cliente acepta cualquier cadena no vacía y deja a la PC la validación (`[A-Z0-9_]{1,32}`). |
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
 | S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
-| S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Hecha | **Opción 1 decidida por ambos lados (D-10).** Lado PC implementado y contrato subido a `shared/` (`CONSULTA_ORDEN_CICLO`, `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`/`ORDEN_CICLO_INICIAR`, `VIGENCIA_ORDEN_CICLO_S`; sección 4.7 del informe). **Lado Orange Pi implementado (2026-10-06, commit `d7dfc06`, ver OP-22).** Antes: Bloquea **PC-10**. **Aclaración del usuario (2026-10-05):** el botón sería **iniciar el ciclo de auditoría** (no mover el carrito). Pendiente: que la Orange Pi diga si lo quiere y cómo (consulta periódica a la PC, igual que la decisión). **Consulta abierta con opciones y tabla de respuestas más abajo ("Consulta abierta — S-06"); se deja pendiente, sin implementar.** |
+| S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi y un canal; el diseño tenía solo Orange Pi → PC. | Hecha | **Opción 1 decidida por ambos lados (D-10), implementada en los dos y probada de punta a punta.** Contrato en `shared/` (`CONSULTA_ORDEN_CICLO`, `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`/`ORDEN_CICLO_INICIAR`, `VIGENCIA_ORDEN_CICLO_S`; sección 4.7 del informe). Lado PC: **PC-10**; lado Orange Pi: commit `d7dfc06`, **OP-22**. Interpretación del usuario: el botón *inicia el ciclo de auditoría* (no mueve el carrito). Pausar/detener (opción 2) queda fuera. Opciones y respuestas, en "Consulta abierta — S-06". |
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
@@ -353,6 +356,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-10 cerrado tras revisar OP-22 contra el registro de la PC (el botón entregó `iniciar` una sola vez y el ciclo corrió); fila de S-06 limpiada (conservaba texto de cuando estaba pendiente). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22: probado de punta a punta con el botón "Iniciar recorrido" del panel y `main()` real. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22 nuevo: `main.py` espera la orden `iniciar` al arrancar (S-06 opción 1); S-06 pasa a `Hecha`. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-06: Opción 1 (esperar la orden `iniciar` al arrancar). |
