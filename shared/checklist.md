@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: respuesta a S-02).
-Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-18 cerrado, consulta S-02).
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: respuesta a S-02, D-07/D-08).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: respuesta a S-02, S-08).
 
 ## Cómo usarlo
 
@@ -216,10 +216,10 @@ retira la caja a mano, ¿el mecanismo necesita igual un `clasificar`?
 
 | Lado | Respuesta (opción preferida y notas) | Quién / fecha |
 |---|---|---|
-| **PC** | Prefiere **Opción 1 + Opción 0 como límite**. No requiere ningún cambio en la PC; se ofrece a agregar las constantes a `shared/` cuando se decida. | Arlo.exe (lado PC), 2026-10-05 |
+| **PC** | **Acepta el mecanismo del lado Orange Pi** (Opción 1 con confirmación del regente: sondeo con lote vacío cada 10 s, alarma local hasta `desactivar_alarma_local`, decisión del regente en el panel). **No requiere cambios en el protocolo ni en el servidor de la PC.** Matices: (1) el panel mostraba esos lotes como "fallo de captura" aunque la causa sea la red: el lado PC **cambia el texto** de la alarma a *"Lote vacío (captura fallida o reintento tras perder la conexión)"*; (2) la Orange Pi debe **dejar de sondear en cuanto la PC responda por primera vez**, o cada lote vacío creará una alarma nueva y reemplazará la decisión en espera; (3) las fotos del objeto no quedan en el panel (aceptado); (4) la alternativa de reenviar el lote real y forzar la decisión necesitaría una marca nueva en el contrato: **no se recomienda por ahora**. | Arlo.exe (lado PC), 2026-10-05 |
 | **Orange Pi** | **Opción 1 con confirmación del regente** (decisión del usuario: así también se cubre que la caja se retire a mano). **Mecanismo propuesto, sin cambios en la PC:** ante F1/F2/F3 la Orange Pi activa la alarma local, mantiene la caja y reintenta cada **10 s, sin tope** (con re-descubrimiento mDNS); el reintento es un **lote vacío**, que sirve de sondeo y fuerza el camino del regente: cuando la PC responde, apaga la alarma local (`desactivar_alarma_local`) y espera la decisión del regente en el panel (sección 4.5), que elige `TIPO_X` o `DESCARTE` (si retiró la caja, `DESCARTE`). Así F2 (`ninguna`) también queda cubierta. **Costo:** las fotos de ese objeto no quedan en el panel. **Alternativa** si se quieren conservar: reenviar el lote real y que la PC abra la decisión aunque el resultado sea automático (cambio en la PC). Alarma local: continua hasta `desactivar_alarma_local`. Esperar a que respondan la ESP32-S3 (preguntas 4 y 5) y a D-06 antes de implementar. | Arlo-qexe (lado Orange Pi), 2026-10-06 |
 | **ESP32-S3** | *(pendiente — o quien lleve el firmware)* | |
-| **Usuario / regente** | *(pendiente — ¿la caja puede retirarse a mano durante una alarma de red?)* | |
+| **Usuario / regente** | **El ciclo NO se reanuda solo tras un fallo de comunicación: requiere confirmación del regente**, porque durante la alarma la caja puede haberse retirado a mano (en ese caso el regente elige `DESCARTE`). Esta decisión la tomó el usuario (lado PC). | Arlo.exe (usuario), 2026-10-05 |
 
 Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a `Hecha`.
 
@@ -234,7 +234,9 @@ Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a 
 | D-03 | 2026-10-05 | El panel muestra las fotos del lote, solo desde RAM (últimos 5 lotes), nunca a disco. | Usuario |
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
 | D-05 | — | *(pendiente)* Persistir o no el historial/decisión del panel (**PC-14**). | — |
-| D-06 | — | *(pendiente)* Cómo se reanuda el ciclo tras un fallo de comunicación (**S-02**, ver "Consulta abierta"). | — |
+| D-06 | — | *(pendiente de cierre)* Cómo se reanuda el ciclo tras un fallo de comunicación (**S-02**). **Avanzado:** mecanismo de la Orange Pi aceptado por la PC y confirmación del regente decidida (**D-07**). **Falta:** la respuesta de la ESP32-S3 (¿`desactivar_alarma_local`? ¿qué hace el zumbador?) y agregar a `shared/` la constante y el mensaje nuevos. | — |
+| D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
+| D-08 | 2026-10-06 | El servo del dispensador lo controla la **ESP32-S3**; `activar_dispensador` reemplaza a `introducir_objeto` (ver `docs/CHANGELOG_protocolo.md`, **S-08**). | Lado Orange Pi |
 
 ---
 
@@ -242,6 +244,7 @@ Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a 
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Fila PC y fila Usuario de la consulta S-02; D-06 actualizado; D-07 (confirmación del regente) y D-08 (dispensador en la ESP32-S3) registradas. El panel cambia el texto de la alarma de lote vacío. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-02: Opción 1 con confirmación del regente (mecanismo y alternativa en su fila). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-17 y OP-18 `[x]`; S-08 nueva: el dispensador lo controla la ESP32-S3 con `activar_dispensador`, que reemplaza a `introducir_objeto`. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-18 `[x]` (registro de consultas de decisión); S-02 pasa a `En discusión` con la consulta "Consulta abierta — S-02" y su tabla de respuestas; D-06 pendiente. |

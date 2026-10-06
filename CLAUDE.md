@@ -144,5 +144,5 @@ Esto obliga al agente a anclarse en el estado real del proyecto (no en lo que
 
 - Calibración de tiempos (pausas, timeouts) con hardware real — ver `shared/protocol_constants.py`.
 - Panel de control / alarma: ya construido en `pc/` (página web); lo que falta de él (botón "Iniciar recorrido", campos OCR/FEFO) está en `shared/checklist.md`.
-- Decisión: control del servomotor del dispensador desde la ESP32-S3 (recomendado) vs. la Orange Pi — ver sección 5.5 de `docs/arquitectura_comunicacion.md`.
+- Dispensador: **decidido** (2026-10-06), lo controla la ESP32-S3 con `activar_dispensador` — ver sección 5.5 de `docs/arquitectura_comunicacion.md`; falta implementarlo en el firmware (S-08 en `shared/checklist.md`).
 - El módulo de reconocimiento (OCR/clasificación) es responsabilidad del equipo de IA — este repo solo define el contrato de entrada/salida con él (ver `pc/src/ocr_interface.py`).
