@@ -1,0 +1,5 @@
+ifaddr==0.2.0
+numpy==2.5.3
+opencv-python-headless==5.0.0.93
+pyserial==3.5
+zeroconf==0.151.5
