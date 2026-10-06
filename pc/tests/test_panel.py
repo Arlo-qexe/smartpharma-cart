@@ -61,6 +61,7 @@ def test_pagina_y_estaticos(panel):
     assert status == 200
     # Regresión: .banner usa display:flex y, sin esta regla, `hidden` no lo oculta.
     assert b"[hidden] { display: none !important; }" in css
+    assert b".banner.amarillo" in css and b".punto.amarillo" in css
     assert _codigo(base + "/static/../server.py") == 404
 
 
@@ -114,6 +115,24 @@ def test_resolver_alarma_con_decision_pendiente(panel):
     datos = json.loads(_get(base + "/api/estado")[2])
     assert datos["alarmas"][0]["destino"] == "TIPO_B"
     assert datos["alarmas"][0]["espera_decision"] is False
+
+
+def test_severidad_roja_si_se_espera_y_amarilla_si_es_antigua(panel):
+    """Roja = la Orange Pi la espera; amarilla = activa pero ya nadie la espera
+    (el panel lo decide con `espera_decision`); resuelta = ninguna de las dos."""
+    estado, base = panel
+    vieja = estado.registrar_alarma("fallo_captura")
+    estado.abrir_decision(vieja)
+    nueva = estado.registrar_alarma("sin_consenso_ocr")
+    estado.abrir_decision(nueva)  # la Orange Pi siguió con otro lote
+
+    por_id = {a["id"]: a for a in json.loads(_get(base + "/api/estado")[2])["alarmas"]}
+    assert (por_id[vieja]["activa"], por_id[vieja]["espera_decision"]) == (True, False)   # amarilla
+    assert (por_id[nueva]["activa"], por_id[nueva]["espera_decision"]) == (True, True)    # roja
+
+    estado.resolver_alarma(vieja, None)
+    por_id = {a["id"]: a for a in json.loads(_get(base + "/api/estado")[2])["alarmas"]}
+    assert por_id[vieja]["activa"] is False                                               # gris
 
 
 def test_resolver_alarma_inexistente(panel):

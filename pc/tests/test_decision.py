@@ -3,6 +3,7 @@ docs/propuesta_canal_regente.md): servidor_decision.py + estado_panel.py,
 y el flujo completo con server.py. Correr desde pc/:  python3 -m pytest tests/
 """
 import json
+import logging
 import socket
 import struct
 import sys
@@ -152,46 +153,53 @@ def test_framing_invalido_tambien_abre_decision(puertos):
     assert consultar_decision(puerto=p_dec) == {"estado": "pendiente"}
 
 
-# ---- PC-18: registro de las consultas de decisión
-def _esperar_salida(capsys, texto, acumulado="", intentos=40):
-    """El hilo del servidor imprime después de responder: espera a que aparezca."""
+# ---- PC-18: registro de las consultas de decisión (logging)
+def _esperar_log(caplog, texto, cantidad=1, intentos=60):
+    """Los servidores registran desde su propio hilo, después de responder."""
     for _ in range(intentos):
-        acumulado += capsys.readouterr().out
-        if texto in acumulado:
-            return acumulado
+        if caplog.text.count(texto) >= cantidad:
+            break
         time.sleep(0.05)
-    return acumulado
+    return caplog.text
 
 
-def test_registra_solo_los_cambios_de_estado_entregado(canal, capsys):
+def test_registra_solo_los_cambios_de_estado_entregado(canal, caplog):
+    caplog.set_level(logging.INFO)
     estado, puerto = canal
     alarma = estado.registrar_alarma("fallo_captura")
     estado.abrir_decision(alarma)
 
     for _ in range(3):  # la Orange Pi consulta cada 2 s: no debe haber ruido
         consultar_decision(puerto=puerto)
-    salida = _esperar_salida(capsys, "recibió: pendiente")
+    salida = _esperar_log(caplog, "recibió: pendiente")
     assert salida.count("recibió: pendiente") == 1
 
     estado.resolver_alarma(alarma, "DESCARTE")
     consultar_decision(puerto=puerto)
     consultar_decision(puerto=puerto)
-    salida = _esperar_salida(capsys, "recibió: resuelta (destino DESCARTE)")
+    salida = _esperar_log(caplog, "recibió: resuelta (destino DESCARTE)")
     assert salida.count("recibió: resuelta (destino DESCARTE)") == 1
-    assert "pendiente" not in salida
+    assert salida.count("recibió: pendiente") == 1
 
 
-def test_conexion_sin_datos_no_se_reporta_como_error(canal, puertos, capsys):
+def test_conexion_sin_datos_no_se_reporta_como_error(canal, puertos, caplog):
+    caplog.set_level(logging.INFO)
     _, p_dec = canal
     p_lotes, _ = puertos
     for puerto in (p_dec, p_lotes):
         socket.create_connection(("127.0.0.1", puerto), timeout=3).close()
-    salida = ""
-    for _ in range(40):  # cada servidor imprime desde su propio hilo
-        salida += capsys.readouterr().out
-        if salida.count("sin enviar datos") >= 2:
-            break
-        time.sleep(0.05)
-    assert "[decision]" in salida and "[server]" in salida
+    salida = _esperar_log(caplog, "sin enviar datos", cantidad=2)
     assert salida.count("sin enviar datos") == 2
-    assert "Error" not in salida
+    sondas = [r for r in caplog.records if "sin enviar datos" in r.getMessage()]
+    assert {r.name for r in sondas} == {"decision", "server"}
+    assert all(r.levelno == logging.INFO for r in sondas)  # no WARNING ni ERROR
+
+
+def test_alarma_se_registra_como_warning(puertos, caplog):
+    caplog.set_level(logging.INFO)
+    p_lotes, _ = puertos
+    enviar_lote_vacio(puerto=p_lotes)
+    _esperar_log(caplog, "Disparada")
+    alarmas = [r for r in caplog.records if r.name == "alarma"]
+    assert alarmas and alarmas[-1].levelno == logging.WARNING
+    assert "fallo_captura" in alarmas[-1].getMessage()

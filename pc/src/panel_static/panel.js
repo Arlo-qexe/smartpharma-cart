@@ -26,6 +26,11 @@ const fmtHora = (ts) => new Date(ts * 1000).toLocaleString("es");
 const motivoHumano = (m) => MOTIVOS[m] || m;
 const resultadoHumano = (r) => (r === ERROR_REVISION ? "Revisión manual" : r);
 
+// Severidad de una alarma: roja si la Orange Pi la está esperando (bloquea el
+// ciclo), amarilla si sigue activa pero ya nadie la espera (queda por cerrar),
+// gris (sin clase) si está resuelta.
+const claseAlarma = (a) => (a.activa ? (a.espera_decision ? "rojo" : "amarillo") : "");
+
 function vaciar(nodo) {
   while (nodo.firstChild) nodo.removeChild(nodo.firstChild);
 }
@@ -46,9 +51,12 @@ function renderBanner() {
   vaciar(banner);
   if (activas.length) {
     const esperando = activas.some((a) => a.espera_decision);
+    banner.classList.toggle("amarillo", !esperando);
+    const principal = activas.find((a) => a.espera_decision) || activas[0];
     banner.appendChild(crear("span", "",
-      "ALARMA ACTIVA — " + motivoHumano(activas[0].motivo) +
-      (esperando ? ". La Orange Pi espera tu decisión." : ". Revisa la caja manualmente.") +
+      (esperando
+        ? "ALARMA ACTIVA — " + motivoHumano(principal.motivo) + ". La Orange Pi espera tu decisión."
+        : "ALARMA ANTIGUA SIN CERRAR — " + motivoHumano(principal.motivo) + ". La Orange Pi ya no la espera.") +
       (activas.length > 1 ? ` (${activas.length} alarmas activas)` : "")));
     if (vista !== "alertas") {
       const boton = crear("button", "btn-chico", "Resolver");
@@ -130,7 +138,7 @@ function renderInicio() {
   }
   for (const a of estado.alarmas.slice(0, 4)) {
     const li = crear("li");
-    li.appendChild(crear("span", "punto " + (a.activa ? "rojo" : "")));
+    li.appendChild(crear("span", "punto " + claseAlarma(a)));
     const lote = a.lote_id ? ` · lote #${a.lote_id}` : "";
     li.appendChild(crear("span", "", motivoHumano(a.motivo) + lote));
     lista.appendChild(li);
@@ -231,7 +239,7 @@ function renderAlertas() {
   for (const a of estado.alarmas) {
     const tr = crear("tr");
     const tdPunto = crear("td");
-    tdPunto.appendChild(crear("span", "punto " + (a.activa ? "rojo" : "")));
+    tdPunto.appendChild(crear("span", "punto " + claseAlarma(a)));
     tr.appendChild(tdPunto);
     tr.appendChild(crear("td", "", fmtHora(a.ts)));
     tr.appendChild(crear("td", "", motivoHumano(a.motivo)));

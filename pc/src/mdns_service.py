@@ -5,6 +5,7 @@ sección 3.1).
 
 Requiere: pip install zeroconf
 """
+import logging
 import socket
 import sys
 from pathlib import Path
@@ -13,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import MDNS_SERVICE_TYPE  # noqa: E402
 
 from zeroconf import ServiceInfo, Zeroconf
+
+log = logging.getLogger("mdns")
 
 
 def obtener_ip_local() -> str:
@@ -46,7 +49,7 @@ def registrar_servicio_mdns(puerto: int, nombre_servicio: str = "OCRServer"):
     # allow_name_change: si el nombre ya existe en la red (reinicio rápido u
     # otra PC), zeroconf lo renombra en vez de lanzar NonUniqueNameException.
     zc.register_service(info, allow_name_change=True)
-    print(f"[mDNS] Servicio registrado como {info.name} en {ip_local}:{puerto}")
+    log.info("Servicio registrado como %s en %s:%d", info.name, ip_local, puerto)
     return zc, info
 
 

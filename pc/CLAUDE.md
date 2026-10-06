@@ -67,6 +67,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/mdns_service.py` — registro del servicio `_ocr-service._tcp.local.`.
 - `src/ocr_interface.py` — contrato con el módulo de reconocimiento (placeholder).
 - `src/servidor_decision.py` — servidor de consultas de decisión del regente (puerto 5001); `src/framing.py` — framing JSON compartido.
+- `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
 - `tests/test_server.py`, `tests/test_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
@@ -80,7 +81,18 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 
 - Las imágenes se procesan **en memoria** (RAM), nunca se escriben a disco.
 - Un lote con 0 imágenes significa que la captura falló del lado de la Orange
-  Pi — responde `ERROR_REVISION_MANUAL` directamente, sin intentar OCR.
+  Pi **o que es el sondeo de reconexión tras perder la conexión con la PC**
+  (sección 4.6 del informe) — responde `ERROR_REVISION_MANUAL` directamente, sin
+  intentar OCR. El panel lo muestra como "Lote vacío (captura fallida o
+  reintento tras perder la conexión)".
+- **Logging, no `print()`:** cada módulo usa su logger (`server`, `decision`,
+  `panel`, `mdns`, `alarma`); `src/registro.py::configurar_logging()` lo
+  configura una sola vez en `server.py`. Nivel con `PC_LOG_LEVEL`
+  (`DEBUG|INFO|WARNING|ERROR`, por defecto `INFO`). La excepción es el
+  placeholder de `src/ocr_interface.py`, que es del equipo de IA.
+- Severidad de las alarmas en el panel: **roja** = la Orange Pi la espera,
+  **amarilla** = sigue activa pero ya nadie la espera (queda por cerrar),
+  **gris** = resuelta.
 - El panel de control / alarma (sección 8 del informe) es una página web
   generada por la PC con solo la biblioteca estándar (`src/panel_web.py` +
   `src/panel_static/`); por defecto escucha en `127.0.0.1:8080` (`PANEL_HOST`,

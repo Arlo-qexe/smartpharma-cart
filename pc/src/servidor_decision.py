@@ -6,6 +6,7 @@ INTERVALO_CONSULTA_DECISION_S y pregunta si el regente ya decidió. Una conexió
 nueva por consulta, como en el envío de lotes (ver docs/propuesta_canal_regente.md,
 opción A, y el bloque "Decisión del regente" de shared/protocol_constants.py).
 """
+import logging
 import socketserver
 import sys
 import threading
@@ -25,6 +26,8 @@ from protocol_constants import (  # noqa: E402
 from estado_panel import EstadoPanel
 from framing import ConexionSinDatos, FramingInvalido, enviar_json, recibir_json
 
+log = logging.getLogger("decision")
+
 
 class _ManejadorConsulta(socketserver.BaseRequestHandler):
     def handle(self):
@@ -34,7 +37,7 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
             try:
                 consulta = recibir_json(conn)
             except FramingInvalido as e:
-                print(f"[decision] Consulta inválida de {self.client_address}: {e}")
+                log.warning("Consulta inválida de %s: %s", self.client_address, e)
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
                 return
             if consulta.get(CLAVE_CONSULTA_JSON) != CONSULTA_DECISION_REGENTE:
@@ -44,10 +47,10 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
             enviar_json(conn, respuesta)
             self._registrar_si_cambio(respuesta)
         except ConexionSinDatos:
-            print(f"[decision] {self.client_address[0]} abrió y cerró la conexión sin "
-                  "enviar datos (sonda de conectividad)")
+            log.info("%s abrió y cerró la conexión sin enviar datos (sonda de conectividad)",
+                     self.client_address[0])
         except OSError as e:  # incluye ConnectionResetError y timeouts
-            print(f"[decision] Error con {self.client_address}: {e}")
+            log.warning("Error con %s: %s", self.client_address, e)
 
     def _registrar_si_cambio(self, respuesta):
         """La Orange Pi consulta cada 2 s: se registra solo cuando cambia lo
@@ -59,7 +62,7 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 return
             self.server.ultimo_entregado[ip] = clave
         detalle = f" (destino {clave[1]})" if clave[1] else ""
-        print(f"[decision] {ip} recibió: {clave[0]}{detalle}")
+        log.info("%s recibió: %s%s", ip, clave[0], detalle)
 
 
 class _Servidor(socketserver.ThreadingTCPServer):

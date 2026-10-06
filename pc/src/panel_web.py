@@ -16,6 +16,7 @@ Rutas:
                                             en su próxima consulta (servidor_decision.py)
 """
 import json
+import logging
 import os
 import re
 import sys
@@ -33,6 +34,8 @@ from estado_panel import (  # noqa: E402
     RESUELTA_CON_DECISION,
     EstadoPanel,
 )
+
+log = logging.getLogger("panel")
 
 PANEL_HOST = os.environ.get("PANEL_HOST", "127.0.0.1")
 PANEL_PUERTO = int(os.environ.get("PANEL_PUERTO", "8080"))
@@ -146,10 +149,10 @@ class _Handler(BaseHTTPRequestHandler):
         destino = self._leer_cuerpo_json().get("destino")
         resultado = self.server.estado.resolver_alarma(int(m.group(1)), destino)
         if resultado == RESUELTA_CON_DECISION:
-            print(f"[panel] Alarma {m.group(1)} resuelta por el regente: destino {destino}")
+            log.info("Alarma %s resuelta por el regente: destino %s", m.group(1), destino)
             self._json(200, {"ok": True, "decision_aplicada": True})
         elif resultado == CERRADA_SIN_DECISION:
-            print(f"[panel] Alarma {m.group(1)} cerrada (la Orange Pi ya no la esperaba)")
+            log.info("Alarma %s cerrada (la Orange Pi ya no la esperaba)", m.group(1))
             self._json(200, {"ok": True, "decision_aplicada": False})
         elif resultado == DESTINO_INVALIDO:
             self._json(400, {"error": "destino_invalido"})

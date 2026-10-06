@@ -6,6 +6,7 @@ clasificación (ver docs/arquitectura_comunicacion.md, secciones 4 y 8).
 Si el lote termina en ERROR_REVISION_MANUAL, la PC deja una decisión en espera
 para el regente; la Orange Pi la consulta por servidor_decision.py.
 """
+import logging
 import socket
 import struct
 import sys
@@ -30,7 +31,11 @@ from framing import ConexionSinDatos, FramingInvalido, enviar_json, recv_exacto
 from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
 from ocr_interface import procesar_lote_ocr
 from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
+from registro import configurar_logging
 from servidor_decision import iniciar_servidor_decision
+
+log = logging.getLogger("server")
+log_alarma = logging.getLogger("alarma")
 
 
 def _recibir_lote(sock):
@@ -51,18 +56,18 @@ def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None) -> int:
     """Registra la alarma en el panel web (panel_web.py) para que el regente
     la vea (ver docs/arquitectura_comunicacion.md, sección 8). Devuelve su id."""
     alarma_id = estado.registrar_alarma(motivo, lote_id)
-    print(f"[ALARMA] Disparada — motivo: {motivo}")
+    log_alarma.warning("Disparada — motivo: %s", motivo)
     return alarma_id
 
 
 def _manejar_cliente(conn, addr):
-    print(f"[server] Conexión de {addr}")
+    log.info("Conexión de %s", addr)
     try:
         conn.settimeout(TIMEOUT_INACTIVIDAD_RECEPCION_S)
         try:
             imagenes = _recibir_lote(conn)
         except FramingInvalido as e:
-            print(f"[server] Framing inválido de {addr}: {e}")
+            log.warning("Framing inválido de %s: %s", addr, e)
             alarma_id = disparar_alarma_dashboard("framing_invalido")
             # La decisión se abre ANTES de responder: la primera consulta de la
             # Orange Pi ya debe encontrarla "pendiente".
@@ -72,11 +77,11 @@ def _manejar_cliente(conn, addr):
 
         motivo_alarma = None
         if len(imagenes) == 0:
-            print(f"[server] Lote vacío de {addr} — captura fallida o reintento tras perder la conexión")
+            log.warning("Lote vacío de %s — captura fallida o reintento tras perder la conexión", addr)
             resultado = RESULTADO_ERROR_REVISION_MANUAL
             motivo_alarma = "fallo_captura"
         else:
-            print(f"[server] Lote recibido: {len(imagenes)} imágenes")
+            log.info("Lote recibido de %s: %d imágenes", addr, len(imagenes))
             resultado = procesar_lote_ocr(imagenes)
             if resultado == RESULTADO_ERROR_REVISION_MANUAL:
                 motivo_alarma = "sin_consenso_ocr"
@@ -90,12 +95,12 @@ def _manejar_cliente(conn, addr):
             estado.cerrar_decision()
 
         enviar_json(conn, {CLAVE_RESULTADO_JSON: resultado})
-        print(f"[server] Respuesta enviada a {addr}: {resultado}")
+        log.info("Respuesta enviada a %s: %s", addr, resultado)
 
     except ConexionSinDatos:
-        print(f"[server] {addr} abrió y cerró la conexión sin enviar datos (sonda de conectividad)")
+        log.info("%s abrió y cerró la conexión sin enviar datos (sonda de conectividad)", addr)
     except (ConnectionResetError, struct.error, OSError) as e:
-        print(f"[server] Error con {addr}: {e}")
+        log.warning("Error con %s: %s", addr, e)
     finally:
         conn.close()
 
@@ -105,7 +110,7 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     servidor.bind(("0.0.0.0", puerto))
     servidor.listen(1)  # flujo estrictamente secuencial: un objeto a la vez
-    print(f"[server] Escuchando en el puerto {puerto}")
+    log.info("Escuchando en el puerto %d", puerto)
 
     while True:
         conn, addr = servidor.accept()
@@ -114,22 +119,24 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
 
 
 if __name__ == "__main__":
+    configurar_logging()
     try:
         iniciar_panel(estado)
-        print(f"[panel] Panel de control en http://{PANEL_HOST}:{PANEL_PUERTO}/")
+        logging.getLogger("panel").info("Panel de control en http://%s:%d/", PANEL_HOST, PANEL_PUERTO)
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.
-        print(f"[panel] No se pudo iniciar el panel ({e}); el servidor sigue sin panel")
+        logging.getLogger("panel").error("No se pudo iniciar el panel (%s); el servidor sigue sin panel", e)
     try:
         iniciar_servidor_decision(estado, TCP_PUERTO_DECISION_DEFECTO)
-        print(f"[decision] Consultas de decisión en el puerto {TCP_PUERTO_DECISION_DEFECTO}")
+        logging.getLogger("decision").info("Consultas de decisión en el puerto %d", TCP_PUERTO_DECISION_DEFECTO)
     except OSError as e:
-        print(f"[decision] No se pudo abrir el puerto de decisión ({e}); "
-              "la Orange Pi no podrá consultar la decisión del regente")
+        logging.getLogger("decision").error(
+            "No se pudo abrir el puerto de decisión (%s); la Orange Pi no podrá "
+            "consultar la decisión del regente", e)
     zc, info = registrar_servicio_mdns(puerto=TCP_PUERTO_DEFECTO)
     try:
         iniciar_servidor(puerto=TCP_PUERTO_DEFECTO)
     except KeyboardInterrupt:
-        print("\n[server] Apagando...")
+        log.info("Apagando...")
     finally:
         detener_servicio_mdns(zc, info)
