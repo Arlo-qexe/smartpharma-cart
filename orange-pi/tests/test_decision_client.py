@@ -332,5 +332,130 @@ class CicloMain(unittest.TestCase):
         self.assertEqual(e.enviados[-1], {"accion": ACCION_CLASIFICAR, "destino": "TIPO_C"})
 
 
+class EnlaceConEventos:
+    """ESP32-S3 falsa que confirma cada giro; `falla_en` simula un fallo."""
+
+    def __init__(self, cara_respondida=None, error_en_enviar=None):
+        self.enviados, self._ultimo = [], None
+        self._cara_respondida, self._error = cara_respondida, error_en_enviar
+
+    def enviar(self, m):
+        if self._error:
+            raise self._error
+        self.enviados.append(m)
+        self._ultimo = m
+
+    def recibir(self, timeout=None):
+        cara = self._ultimo["cara"]
+        return {"evento": "en_posicion", "cara": self._cara_respondida or cara}
+
+
+class CapturaRobusta(unittest.TestCase):
+    """Informe 6.2: cualquier fallo durante la captura aborta el lote (lote vacío)."""
+
+    def correr(self, enlace, captura):
+        originales = (main.capturar_con_autoenfoque, main.comprimir_jpeg, main.time.sleep)
+        main.capturar_con_autoenfoque, main.comprimir_jpeg = captura, lambda f: b"jpeg"
+        main.time.sleep = lambda s: None
+        try:
+            return main.capturar_lote_completo(enlace, camara=None)
+        finally:
+            main.capturar_con_autoenfoque, main.comprimir_jpeg, main.time.sleep = originales
+
+    def test_captura_normal_devuelve_5_imagenes(self):
+        self.assertEqual(self.correr(EnlaceConEventos(), lambda c: "frame"), [b"jpeg"] * 5)
+
+    def test_fallo_de_la_camara_aborta_el_lote_sin_levantar_excepcion(self):
+        def camara_rota(c):
+            raise RuntimeError("Fallo leyendo frame de la cámara")
+        self.assertEqual(self.correr(EnlaceConEventos(), camara_rota), [])
+
+    def test_fallo_de_la_camara_a_mitad_de_rafaga(self):
+        n = []
+
+        def falla_en_la_3(c):
+            n.append(1)
+            if len(n) == 3:
+                raise RuntimeError("x")
+            return "frame"
+        self.assertEqual(self.correr(EnlaceConEventos(), falla_en_la_3), [])
+
+    def test_puerto_serie_caido_aborta_el_lote(self):
+        enlace = EnlaceConEventos(error_en_enviar=OSError("puerto desconectado"))
+        self.assertEqual(self.correr(enlace, lambda c: "frame"), [])
+
+    def test_evento_de_otra_cara_aborta_el_lote(self):
+        self.assertEqual(self.correr(EnlaceConEventos(cara_respondida=4), lambda c: "frame"), [])
+
+    def test_ciclo_con_camara_rota_envia_lote_vacio_a_la_pc(self):
+        enviados_a_pc = []
+        originales = (main.introducir_objeto, main.enviar_lote, main.esperar_decision,
+                      main.capturar_con_autoenfoque)
+        main.introducir_objeto = lambda e: True
+        main.enviar_lote = lambda d, imgs: (enviados_a_pc.append(len(imgs)) or
+                                            ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, False))
+        main.esperar_decision = lambda d, on, off=None: "DESCARTE"
+        main.capturar_con_autoenfoque = mock.Mock(side_effect=RuntimeError("sin cámara"))
+        try:
+            with mock.patch.object(main.time, "sleep"):
+                enlace = EnlaceConEventos()
+                ok = main.ciclo_de_un_objeto(enlace, None, None)
+        finally:
+            (main.introducir_objeto, main.enviar_lote, main.esperar_decision,
+             main.capturar_con_autoenfoque) = originales
+        self.assertTrue(ok)
+        self.assertEqual(enviados_a_pc, [0])
+        self.assertEqual(enlace.enviados[-1], {"accion": ACCION_CLASIFICAR, "destino": "DESCARTE"})
+
+    def test_introducir_objeto_con_uart_caido_agota_reintentos_sin_excepcion(self):
+        enlace = EnlaceConEventos(error_en_enviar=OSError("x"))
+        self.assertFalse(main.introducir_objeto(enlace))
+
+
+class EnlaceUARTBuffer(unittest.TestCase):
+    def test_enviar_descarta_el_buffer_de_entrada_antes_de_escribir(self):
+        from uart.uart_link import EnlaceUART
+        llamadas = []
+
+        class SerieFalso:
+            def reset_input_buffer(self):
+                llamadas.append("limpiar")
+
+            def write(self, datos):
+                llamadas.append("escribir")
+        enlace = object.__new__(EnlaceUART)
+        enlace._ser = SerieFalso()
+        enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+        self.assertEqual(llamadas, ["limpiar", "escribir"])
+
+
+class MainCompleto(unittest.TestCase):
+    def test_main_arranca_cicla_y_libera_recursos_con_ctrl_c(self):
+        enlace, camara = mock.Mock(), mock.Mock()
+        ciclos = []
+
+        def ciclo(e, c, d):
+            ciclos.append(1)
+            if len(ciclos) == 3:
+                raise KeyboardInterrupt
+            return True
+        with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
+                mock.patch.object(main, "abrir_camara", return_value=camara), \
+                mock.patch.object(main, "DescubridorPC"), \
+                mock.patch.object(main, "ciclo_de_un_objeto", side_effect=ciclo):
+            main.main()
+        self.assertEqual(len(ciclos), 3)
+        camara.release.assert_called_once()
+        enlace.close.assert_called_once()
+
+    def test_si_la_camara_no_abre_se_cierra_el_puerto_y_se_propaga_el_error(self):
+        enlace = mock.Mock()
+        with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
+                mock.patch.object(main, "abrir_camara", side_effect=RuntimeError("sin cámara")):
+            with self.assertRaises(RuntimeError):
+                main.main()
+        enlace.close.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()

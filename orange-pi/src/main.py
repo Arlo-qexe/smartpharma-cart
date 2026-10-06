@@ -47,8 +47,12 @@ def introducir_objeto(enlace: EnlaceUART) -> bool:
     """Ordena activar el dispensador (entra un objeto), con el límite de reintentos definido en
     el contrato. Devuelve True si se confirmó objeto_en_posicion."""
     for intento in range(1, LIMITE_REINTENTOS_INTRODUCIR_OBJETO + 1):
-        enlace.enviar({"accion": ACCION_ACTIVAR_DISPENSADOR})
-        respuesta = enlace.recibir(timeout=5.0)
+        try:
+            enlace.enviar({"accion": ACCION_ACTIVAR_DISPENSADOR})
+            respuesta = enlace.recibir(timeout=5.0)
+        except OSError as e:  # puerto serie caído: cuenta como intento fallido
+            print(f"[main] Error de UART: {e}")
+            respuesta = None
         if respuesta and respuesta.get("evento") == EVENTO_OBJETO_EN_POSICION:
             return True
         print(f"[main] Intento {intento}/{LIMITE_REINTENTOS_INTRODUCIR_OBJETO} sin confirmación")
@@ -57,17 +61,25 @@ def introducir_objeto(enlace: EnlaceUART) -> bool:
 
 def capturar_lote_completo(enlace: EnlaceUART, camara) -> list:
     """Ejecuta la ráfaga de 5 caras. Devuelve la lista de bytes JPEG, o una
-    lista vacía si el lote debe abortarse (ver sección 6.2)."""
+    lista vacía si el lote debe abortarse (ver sección 6.2): cualquier fallo
+    durante la captura (giro sin confirmar, cámara o puerto serie) aborta el
+    lote completo, para que se envíe un lote vacío a la PC y no se caiga el
+    programa con la caja en posición."""
     imagenes = []
-    for cara in range(1, CARAS_POR_OBJETO + 1):
-        enlace.enviar({"accion": ACCION_GIRAR_POSICION, "cara": cara})
-        respuesta = enlace.recibir(timeout=5.0)
-        if not respuesta or respuesta.get("evento") != EVENTO_EN_POSICION:
-            print(f"[main] Fallo confirmando la cara {cara}, se aborta el lote")
-            return []
-        time.sleep(PAUSA_ESTABILIZACION_MECANICA_S)
-        frame = capturar_con_autoenfoque(camara)
-        imagenes.append(comprimir_jpeg(frame))
+    try:
+        for cara in range(1, CARAS_POR_OBJETO + 1):
+            enlace.enviar({"accion": ACCION_GIRAR_POSICION, "cara": cara})
+            respuesta = enlace.recibir(timeout=5.0)
+            if (not respuesta or respuesta.get("evento") != EVENTO_EN_POSICION
+                    or respuesta.get("cara") != cara):
+                print(f"[main] Fallo confirmando la cara {cara}, se aborta el lote")
+                return []
+            time.sleep(PAUSA_ESTABILIZACION_MECANICA_S)
+            frame = capturar_con_autoenfoque(camara)
+            imagenes.append(comprimir_jpeg(frame))
+    except Exception as e:  # noqa: BLE001 - cualquier fallo de captura aborta el lote (6.2)
+        print(f"[main] Fallo durante la captura ({type(e).__name__}: {e}), se aborta el lote")
+        return []
     return imagenes
 
 
@@ -119,12 +131,22 @@ def main():
     # UART0 en los pines 8/10 del header, liberado de la consola serial.
     # Ver orange-pi/CLAUDE.md para el procedimiento completo de verificación.
     enlace = EnlaceUART(puerto="/dev/ttyS0")
-    camara = abrir_camara()
+    try:
+        camara = abrir_camara()
+    except Exception:
+        enlace.close()
+        raise
     descubridor = DescubridorPC()
 
     print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
-    while True:
-        ciclo_de_un_objeto(enlace, camara, descubridor)
+    try:
+        while True:
+            ciclo_de_un_objeto(enlace, camara, descubridor)
+    except KeyboardInterrupt:
+        print("[main] Detenido por el usuario.")
+    finally:
+        camara.release()
+        enlace.close()
 
 
 if __name__ == "__main__":

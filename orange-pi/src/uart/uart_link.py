@@ -27,6 +27,11 @@ class EnlaceUART:
         self._ser = serial.Serial(puerto, baudrate=baudrate, timeout=timeout)
 
     def enviar(self, mensaje: dict):
+        """Descarta lo que haya quedado sin leer (p. ej. un evento tardío de una
+        orden anterior que ya se dio por fallida) antes de enviar: la ESP32-S3
+        solo emite eventos en respuesta a una orden, así que nada legítimo se
+        pierde, y se evita confirmar una orden con el evento de otra."""
+        self._ser.reset_input_buffer()
         self._ser.write(empaquetar_mensaje_uart(mensaje))
 
     def recibir(self, timeout: float = None):
