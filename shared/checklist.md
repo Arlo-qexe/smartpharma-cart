@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-17, OP-18, S-08).
+**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: respuesta a S-02).
 Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-18 cerrado, consulta S-02).
 
 ## Cómo usarlo
@@ -217,7 +217,7 @@ retira la caja a mano, ¿el mecanismo necesita igual un `clasificar`?
 | Lado | Respuesta (opción preferida y notas) | Quién / fecha |
 |---|---|---|
 | **PC** | Prefiere **Opción 1 + Opción 0 como límite**. No requiere ningún cambio en la PC; se ofrece a agregar las constantes a `shared/` cuando se decida. | Arlo.exe (lado PC), 2026-10-05 |
-| **Orange Pi** | *(pendiente)* | |
+| **Orange Pi** | **Opción 1 con confirmación del regente** (decisión del usuario: así también se cubre que la caja se retire a mano). **Mecanismo propuesto, sin cambios en la PC:** ante F1/F2/F3 la Orange Pi activa la alarma local, mantiene la caja y reintenta cada **10 s, sin tope** (con re-descubrimiento mDNS); el reintento es un **lote vacío**, que sirve de sondeo y fuerza el camino del regente: cuando la PC responde, apaga la alarma local (`desactivar_alarma_local`) y espera la decisión del regente en el panel (sección 4.5), que elige `TIPO_X` o `DESCARTE` (si retiró la caja, `DESCARTE`). Así F2 (`ninguna`) también queda cubierta. **Costo:** las fotos de ese objeto no quedan en el panel. **Alternativa** si se quieren conservar: reenviar el lote real y que la PC abra la decisión aunque el resultado sea automático (cambio en la PC). Alarma local: continua hasta `desactivar_alarma_local`. Esperar a que respondan la ESP32-S3 (preguntas 4 y 5) y a D-06 antes de implementar. | Arlo-qexe (lado Orange Pi), 2026-10-06 |
 | **ESP32-S3** | *(pendiente — o quien lleve el firmware)* | |
 | **Usuario / regente** | *(pendiente — ¿la caja puede retirarse a mano durante una alarma de red?)* | |
 
@@ -242,6 +242,7 @@ Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a 
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-02: Opción 1 con confirmación del regente (mecanismo y alternativa en su fila). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-17 y OP-18 `[x]`; S-08 nueva: el dispensador lo controla la ESP32-S3 con `activar_dispensador`, que reemplaza a `introducir_objeto`. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-18 `[x]` (registro de consultas de decisión); S-02 pasa a `En discusión` con la consulta "Consulta abierta — S-02" y su tabla de respuestas; D-06 pendiente. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-12 `[x]` tras revisar OP-21 contra el registro y el panel de la PC; PC-18 nuevo. |
