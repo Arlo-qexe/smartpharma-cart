@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 y S-07).
-Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: sección 2, S-01/S-03/S-07).
+**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14).
+Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 y S-07).
 
 ## Cómo usarlo
 
@@ -130,9 +130,9 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [~] **OP-19** Si la PC responde `ninguna` mientras se espera: se activa la
   alarma local, la caja se queda en posición y el ciclo **se detiene** (no hay
   forma definida de reanudarlo; mismo hueco que **S-02**).
-- [ ] **OP-14** Actualizar `tests/mock_pc_server.py` para que también atienda el
-  puerto de decisión (hay un cliente de referencia de una consulta en
-  `pc/tests/mock_orangepi_client.py::consultar_decision`).
+- [x] **OP-14** `tests/mock_pc_server.py` atiende también el puerto de decisión (5001):
+  `--error`, `--segundos`, `--destino`, `--sin-decision`. Probado con el cliente
+  real (commit `5899489`).
 - [?] **OP-15** ¿Cómo se reanuda el ciclo tras un **fallo de comunicación** con la
   PC? Hoy no está definido (ver **S-02**).
 - [ ] **OP-16** Prueba de punta a punta con la ESP32-S3 y con la PC reales.
@@ -177,6 +177,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-14 `[x]`: el mock atiende el puerto 5001. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | S-07 `Hecha` (firewall inactivo verificado, servidor corriendo limpio); PC-12 pasa a `[~]`. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Sección 2 actualizada (OP-10 a OP-13 corregidos, OP-01/OP-04 verificados, OP-19/OP-20 nuevos); S-01 y S-03 `Hecha`; S-07 agregada. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Creación. Estado del lado PC verificado; estado del lado Orange Pi redactado por lectura del código, con 4 divergencias señaladas (OP-10 a OP-13). |
