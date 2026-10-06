@@ -48,6 +48,14 @@ class DescubridorPC:
             self.buscar_hasta_encontrar()
         return self.ip, self.puerto
 
+    def obtener_destino_sin_bloquear(self, timeout=3):
+        """Como `obtener_destino`, pero con UN solo intento de descubrimiento:
+        devuelve (ip, puerto) o (None, None). Para bucles que deben seguir
+        vigilando otras condiciones mientras la PC no aparece."""
+        if self.ip is None:
+            self._intentar_descubrimiento(timeout=timeout)
+        return self.ip, self.puerto
+
     def invalidar(self):
         """Llamar cuando una conexión falla: fuerza re-descubrimiento la
         próxima vez que se pida el destino."""

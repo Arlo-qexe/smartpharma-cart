@@ -10,7 +10,8 @@ Flujo por objeto:
   1. introducir_objeto (con límite de reintentos)
   2. ráfaga de 5 fotos (girar_posicion / en_posicion por cada cara)
   3. envío del lote a la PC (o lote vacío si la captura falló)
-  4. si falló la red: activar_alarma_local
+  4. si falló la red: activar_alarma_local; si la PC respondió
+     ERROR_REVISION_MANUAL: consultar la decisión del regente (sin tope)
   5. clasificar (destino automático o del regente)
   6. autorizar el siguiente objeto
 """
@@ -32,7 +33,8 @@ from protocol_constants import (  # noqa: E402
 )
 
 from network.mdns_discovery import DescubridorPC
-from network.tcp_client import procesar_lote
+from network.decision_client import DecisionPerdida, esperar_decision
+from network.tcp_client import enviar_lote
 from uart.uart_link import EnlaceUART
 from capture.camera import abrir_camara, capturar_con_autoenfoque, comprimir_jpeg
 
@@ -67,25 +69,35 @@ def capturar_lote_completo(enlace: EnlaceUART, camara) -> list:
     return imagenes
 
 
-def ciclo_de_un_objeto(enlace: EnlaceUART, camara, descubridor: DescubridorPC):
-    if not introducir_objeto(enlace):
-        resultado = {"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}
-    else:
-        imagenes = capturar_lote_completo(enlace, camara)
-        resultado = procesar_lote(descubridor, imagenes)  # lote vacío si imagenes == []
-
-        if resultado.get("clasificacion") == RESULTADO_ERROR_REVISION_MANUAL:
-            # TODO: distinguir aquí si el error vino de la PC (falta de
-            # consenso / lote vacío) o de un timeout de red -- solo en el
-            # caso de timeout de red se debe activar la alarma local.
-            # Ver docs/arquitectura_comunicacion.md sección 8.1.
-            enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
-            # TODO: bloquear el ciclo y esperar la intervención del regente
-            # (ver sección 8.2) antes de continuar. Placeholder por ahora:
-            input("Objeto en revisión manual. Presiona Enter cuando el regente resuelva...")
-
+def ciclo_de_un_objeto(enlace: EnlaceUART, camara, descubridor: DescubridorPC) -> bool:
+    """Ejecuta el ciclo de un objeto. Devuelve False si el ciclo debe
+    detenerse (la caja queda en posición, sin clasificar)."""
+    # Si introducir_objeto agota los reintentos igual se envía un lote vacío a
+    # la PC (informe 5.4): así abre la alarma y la decisión del regente.
+    imagenes = capturar_lote_completo(enlace, camara) if introducir_objeto(enlace) else []
+    resultado, fallo_de_red = enviar_lote(descubridor, imagenes)  # lote vacío si imagenes == []
     destino = resultado.get("clasificacion", RESULTADO_ERROR_REVISION_MANUAL)
+
+    if fallo_de_red:
+        # Falla de red/PC (8.1 punto 3, 4.4): solo aquí va la alarma física.
+        enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+        # TODO: no hay canal para que el regente desbloquee sin la PC. Mientras
+        # tanto, placeholder manual.
+        input("Fallo de red con la PC. Presiona Enter cuando el regente resuelva...")
+    elif destino == RESULTADO_ERROR_REVISION_MANUAL:
+        # La PC ya activó su alarma (8.1 puntos 1 y 2): se espera al regente
+        # consultando su decisión, sin tope (sección 4.5).
+        print("[main] Revisión manual: esperando la decisión del regente...")
+        try:
+            destino = esperar_decision(
+                descubridor, lambda: enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL}))
+        except DecisionPerdida as e:
+            print(f"[main] {e}: se mantiene la caja en posición y se activa la alarma local")
+            enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+            return False
+
     enlace.enviar({"accion": ACCION_CLASIFICAR, "destino": destino})
+    return True
 
 
 def main():
@@ -98,7 +110,9 @@ def main():
 
     print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
     while True:
-        ciclo_de_un_objeto(enlace, camara, descubridor)
+        if not ciclo_de_un_objeto(enlace, camara, descubridor):
+            print("[main] Ciclo detenido: requiere intervención manual.")
+            break
 
 
 if __name__ == "__main__":

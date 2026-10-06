@@ -37,14 +37,19 @@ def _recibir_json_con_longitud(sock):
 
 
 def procesar_lote(descubridor, imagenes: list) -> dict:
+    """Atajo de `enviar_lote` que descarta el indicador de fallo de red."""
+    return enviar_lote(descubridor, imagenes)[0]
+
+
+def enviar_lote(descubridor, imagenes: list):
     """Envía `imagenes` (lista de bytes JPEG, puede estar vacía si la
     captura falló) a la PC, reintentando hasta TIMEOUT_TOTAL_TRANSACCION_S.
 
-    Devuelve el dict de respuesta de la PC, o
-    {"clasificacion": RESULTADO_ERROR_REVISION_MANUAL} si se agota el tiempo.
-    Este es el único punto donde se debe llamar a
-    `activar_alarma_local` en el orquestador (ver src/main.py), porque aquí
-    es donde se sabe que la falla fue de red/PC, no de reconocimiento.
+    Devuelve `(respuesta, fallo_de_red)`: el dict de respuesta de la PC y
+    False, o `({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, True)` si se
+    agotó el tiempo. `fallo_de_red` es lo que distingue una falla de red/PC
+    (activar_alarma_local, informe 4.4) de un ERROR_REVISION_MANUAL que sí
+    respondió la PC (alarma en su panel y consulta de decisión, 4.5).
     """
     inicio = time.time()
     intento = 0
@@ -64,7 +69,7 @@ def procesar_lote(descubridor, imagenes: list) -> dict:
             sock.settimeout(TIMEOUT_RESPUESTA_RECONOCIMIENTO_S)
             respuesta = _recibir_json_con_longitud(sock)
             sock.close()
-            return json.loads(respuesta)
+            return json.loads(respuesta), False
 
         except (BrokenPipeError, ConnectionResetError, socket.timeout,
                 ConnectionRefusedError, OSError) as e:
@@ -75,4 +80,4 @@ def procesar_lote(descubridor, imagenes: list) -> dict:
             time.sleep(1)
 
     print("[TCP] Se agotó el tiempo total de la transacción con la PC.")
-    return {"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}
+    return {"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, True

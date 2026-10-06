@@ -53,10 +53,12 @@ source .venv/bin/activate      # en cada terminal nueva
 
 - `src/network/mdns_discovery.py` — descubrimiento y caché de la PC vía mDNS.
 - `src/network/tcp_client.py` — envío de lotes por TCP con reintentos.
+- `src/network/decision_client.py` — consulta de la decisión del regente (puerto 5001, cada 2 s, espera sin tope).
 - `src/uart/uart_link.py` — enlace serie con la ESP32-S3 (framing, checksum).
 - `src/capture/camera.py` — control de cámara, ráfaga de 5 fotos, compresión JPEG en memoria.
 - `src/main.py` — orquestador del ciclo completo (máquina de estados de alto nivel).
 - `tests/mock_pc_server.py` — servidor TCP falso para desarrollo independiente.
+- `tests/test_decision_client.py` — pruebas sin hardware: `python -m unittest discover -s tests`.
 
 ## Entorno real de esta placa (Armbian sobre Orange Pi Zero 2W)
 
