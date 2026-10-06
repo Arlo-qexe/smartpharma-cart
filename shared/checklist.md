@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 — Arlo-qexe (con Claude Code, lado Orange Pi: sección 2 y S-01/S-03/S-07)
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 y S-07).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: sección 2, S-01/S-03/S-07).
 
 ## Cómo usarlo
 
@@ -57,9 +58,13 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**).
-- [ ] **PC-12** Prueba de punta a punta con la Orange Pi real. Requiere abrir en
-  el firewall de la PC los puertos **5000/TCP, 5001/TCP y 5353/UDP**
-  (no se ha revisado si `ufw` está activo).
+- [~] **PC-12** Prueba de punta a punta con la Orange Pi real. **Preparada del
+  lado PC:** `ufw` está `inactive` (verificado con `sudo ufw status verbose`), así
+  que no hay nada que abrir, y el servidor corre con estado limpio en
+  `192.168.20.53` (5000/TCP lotes, 5001/TCP decisión; panel solo local en 8080).
+  **Falta:** que la Orange Pi confirme la conexión desde su lado y hacer el ciclo
+  completo. Nota: si la PC cambia de red (p. ej. hotspot de la demo) hay que
+  volver a revisar el firewall y la IP.
 - [ ] **PC-13** Calibrar con hardware real: `TIMEOUT_INACTIVIDAD_RECEPCION_S`,
   `TIMEOUT_RESPUESTA_RECONOCIMIENTO_S`, `INTERVALO_CONSULTA_DECISION_S` y el tope
   de 10 MiB por imagen (este último es una estimación, no una medición).
@@ -152,7 +157,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
 | S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Abierta | Bloquea **PC-10**. |
-| S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Abierta | La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. |
+| S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
 
 ---
 
@@ -172,5 +177,6 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | S-07 `Hecha` (firewall inactivo verificado, servidor corriendo limpio); PC-12 pasa a `[~]`. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Sección 2 actualizada (OP-10 a OP-13 corregidos, OP-01/OP-04 verificados, OP-19/OP-20 nuevos); S-01 y S-03 `Hecha`; S-07 agregada. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Creación. Estado del lado PC verificado; estado del lado Orange Pi redactado por lectura del código, con 4 divergencias señaladas (OP-10 a OP-13). |
