@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-22, S-06 hecha).
+**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-22 probado con el botón).
 Anterior: 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: S-06 opción 1 implementada, D-10, asistente en el lateral de Inicio).
 
 ## Cómo usarlo
@@ -212,8 +212,11 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   recibir `iniciar`; no vuelve a consultar. Sin PC no arranca (reintenta sin tope y
   sin alarma local). `--sin-orden` la omite (solo pruebas, no es contrato).
   Probado con el mock (orden de un solo uso) y contra la PC real: `iniciar` a los
-  0.2 s y segunda consulta `esperando`. *No probado aún:* el botón del panel de
-  punta a punta con `main.py` corriendo.
+  0.2 s y segunda consulta `esperando`. **Botón probado de punta a punta
+  (2026-10-06):** `main()` real (cámara real, ESP32-S3 simulada) esperó la orden
+  antes del primer objeto; el regente presionó "Iniciar recorrido" y el ciclo
+  corrió completo (`TIPO_A`) sin volver a consultar. Sin orden la PC respondió
+  `esperando` de forma estable.
 - [x] **OP-17** `orange-pi/requirements-lock.txt` generado con `pip freeze` (commit `6a3fb71`).
 - [x] **OP-18** Quitados los TODO obsoletos de `camera.py` y `main.py` (commit `f1461ef`).
 
@@ -350,6 +353,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22: probado de punta a punta con el botón "Iniciar recorrido" del panel y `main()` real. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22 nuevo: `main.py` espera la orden `iniciar` al arrancar (S-06 opción 1); S-06 pasa a `Hecha`. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-06: Opción 1 (esperar la orden `iniciar` al arrancar). |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-14 (no persistir, **D-05** decidida), PC-16 (severidad amarilla y `logging`), PC-17 (verificado por el usuario) `[x]`; PC-11 y PC-13 anotados como pendientes de otros / de hardware; sección "Consulta abierta — S-02" marcada como cerrada. |
