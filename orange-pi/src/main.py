@@ -3,6 +3,7 @@ Orquestador del ciclo completo en la Orange Pi (ver docs/arquitectura_comunicaci
 para la descripción detallada de cada paso, y CLAUDE.md raíz para el resumen rápido).
 
 Fallo de comunicación con la PC: ver network/recuperacion.py (sección 4.6).
+Al arrancar espera la orden de inicio de la PC (sección 4.7; `--sin-orden` la omite).
 Pendiente (ver shared/checklist.md): la prueba con la ESP32-S3 real (OP-16).
 
 Flujo por objeto:
@@ -34,12 +35,13 @@ from protocol_constants import (  # noqa: E402
 )
 
 from network.mdns_discovery import DescubridorPC
-from network.decision_client import DecisionPerdida, esperar_decision
+from network.decision_client import DecisionPerdida, esperar_decision, esperar_orden_inicio
 from network.recuperacion import recuperar_comunicacion
 from network.tcp_client import enviar_lote
 from uart.uart_link import EnlaceUART
 from capture.camera import abrir_camara, capturar_con_autoenfoque, comprimir_jpeg
 
+import argparse
 import time
 
 
@@ -126,7 +128,13 @@ def ciclo_de_un_objeto(enlace: EnlaceUART, camara, descubridor: DescubridorPC) -
     return True
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="Gateway de captura y red (Orange Pi)")
+    ap.add_argument("--sin-orden", action="store_true",
+                    help="no esperar la orden de inicio de la PC (solo para pruebas sueltas; "
+                         "no es parte del contrato)")
+    args = ap.parse_args(argv)
+
     # Puerto confirmado en hardware real (Orange Pi Zero 2W, Armbian Trixie):
     # UART0 en los pines 8/10 del header, liberado de la consola serial.
     # Ver orange-pi/CLAUDE.md para el procedimiento completo de verificación.
@@ -138,8 +146,14 @@ def main():
         raise
     descubridor = DescubridorPC()
 
-    print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
     try:
+        if args.sin_orden:
+            print("[main] --sin-orden: no se espera la orden de inicio de la PC")
+        else:
+            # Sección 4.7: con UART y cámara listas, el ciclo espera el botón
+            # "Iniciar recorrido" del panel. Ningún reinicio arranca solo.
+            esperar_orden_inicio(descubridor)
+        print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
         while True:
             ciclo_de_un_objeto(enlace, camara, descubridor)
     except KeyboardInterrupt:

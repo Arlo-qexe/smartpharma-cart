@@ -5,7 +5,8 @@ shared/protocol_constants.py, sin ejecutar ningún reconocimiento real.
 Atiende los DOS puertos de la PC:
   - TCP_PUERTO_DEFECTO (5000): lotes de imágenes -> {"clasificacion": ...}
   - TCP_PUERTO_DECISION_DEFECTO (5001): consulta de la decisión del regente
-    (sección 4.5): pendiente -> resuelta, o ninguna.
+    (sección 4.5): pendiente -> resuelta, o ninguna; y la orden de inicio del
+    ciclo (sección 4.7): esperando -> iniciar, de UN solo uso.
 
 Úsalo para desarrollar y probar network/ sin depender de que el lado `pc/`
 esté listo.
@@ -16,6 +17,8 @@ Uso:
                                                          # y el "regente" decide a los 6 s: TIPO_B
     python3 tests/mock_pc_server.py --error --segundos 20 --destino DESCARTE
     python3 tests/mock_pc_server.py --error --sin-decision   # la consulta responde "ninguna"
+    python3 tests/mock_pc_server.py --orden-tras 10          # "iniciar" a los 10 s (def.: 0 = enseguida)
+    python3 tests/mock_pc_server.py --sin-orden              # la orden nunca llega (siempre "esperando")
 
 Un lote vacío (captura fallida) siempre responde ERROR_REVISION_MANUAL, como
 la PC real. Un lote con error abre una decisión que reemplaza a la anterior;
@@ -34,20 +37,43 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_CONSULTA_JSON,
     CLAVE_DESTINO_JSON,
+    CLAVE_ORDEN_CICLO_JSON,
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
     CLAVE_RESULTADO_JSON,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ORDEN_CICLO,
     ERROR_CONSULTA_INVALIDA,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
     ESTADO_DECISION_RESUELTA,
+    ORDEN_CICLO_ESPERANDO,
+    ORDEN_CICLO_INICIAR,
     FRAMING_STRUCT_FORMAT,
     RESULTADO_ERROR_REVISION_MANUAL,
     TAMANO_MAX_MENSAJE_JSON_BYTES,
     TCP_PUERTO_DECISION_DEFECTO,
     TCP_PUERTO_DEFECTO,
 )
+
+
+class OrdenDeCiclo:
+    """Orden "Iniciar recorrido" (4.7): se entrega UNA vez; si la Orange Pi
+    vuelve a preguntar después, la PC entiende que reinició y responde `esperando`."""
+
+    def __init__(self, segundos_hasta_orden: float = 0.0, con_orden: bool = True):
+        self.segundos, self.con_orden = segundos_hasta_orden, con_orden
+        self._t0 = time.monotonic()
+        self._entregada = False
+        self._lock = threading.Lock()
+
+    def consultar(self) -> dict:
+        with self._lock:
+            lista = self.con_orden and time.monotonic() - self._t0 >= self.segundos
+            if lista and not self._entregada:
+                self._entregada = True
+                return {CLAVE_ORDEN_CICLO_JSON: ORDEN_CICLO_INICIAR}
+            return {CLAVE_ORDEN_CICLO_JSON: ORDEN_CICLO_ESPERANDO}
 
 
 class DecisionEnEspera:
@@ -125,7 +151,7 @@ def _manejar_lote(conn, addr, respuesta_fija, decision):
         conn.close()
 
 
-def _manejar_consulta(conn, addr, decision):
+def _manejar_consulta(conn, addr, decision, orden):
     try:
         conn.settimeout(5)
         (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, _recv_exacto(conn, 4))
@@ -136,11 +162,16 @@ def _manejar_consulta(conn, addr, decision):
             consulta = json.loads(_recv_exacto(conn, longitud).decode("utf-8"))
         except ValueError:
             consulta = None
-        if not isinstance(consulta, dict) or consulta.get(CLAVE_CONSULTA_JSON) != CONSULTA_DECISION_REGENTE:
+        tipo = consulta.get(CLAVE_CONSULTA_JSON) if isinstance(consulta, dict) else None
+        if tipo == CONSULTA_ORDEN_CICLO:
+            respuesta = orden.consultar()
+            print(f"[mock_pc] Consulta de orden de {addr}: {respuesta}")
+        elif tipo == CONSULTA_DECISION_REGENTE:
+            respuesta = decision.consultar()
+            print(f"[mock_pc] Consulta de decisión de {addr}: {respuesta}")
+        else:
             _enviar_respuesta(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
             return
-        respuesta = decision.consultar()
-        print(f"[mock_pc] Consulta de decisión de {addr}: {respuesta}")
         _enviar_respuesta(conn, respuesta)
     except (ConnectionResetError, struct.error, OSError) as e:
         print(f"[mock_pc] Error de consulta con {addr}: {e}")
@@ -167,16 +198,18 @@ def _escuchar(puerto, manejador, args_extra, nombre):
 def iniciar_mock(puerto: int = TCP_PUERTO_DEFECTO, respuesta_fija: str = "TIPO_A",
                  puerto_decision: int = TCP_PUERTO_DECISION_DEFECTO,
                  segundos_hasta_decision: float = 6.0, destino_decision: str = "TIPO_B",
-                 con_decision: bool = True, bloquear: bool = True):
+                 con_decision: bool = True, bloquear: bool = True,
+                 segundos_hasta_orden: float = 0.0, con_orden: bool = True):
     """Nota: este mock NO anuncia el servicio por mDNS — para probar el flujo
     completo de descubrimiento, apunta el cliente directamente a
     ('127.0.0.1', puerto), o registra el servicio con `zeroconf` aquí mismo
     si necesitas probar también la parte de mDNS. Con `bloquear=False`
     devuelve (decision, [sockets]) para que una prueba lo controle."""
     decision = DecisionEnEspera(segundos_hasta_decision, destino_decision, con_decision)
+    orden = OrdenDeCiclo(segundos_hasta_orden, con_orden)
     sockets = [
         _escuchar(puerto, _manejar_lote, (respuesta_fija, decision), "lotes"),
-        _escuchar(puerto_decision, _manejar_consulta, (decision,), "decisión"),
+        _escuchar(puerto_decision, _manejar_consulta, (decision, orden), "decisión y orden"),
     ]
     if not bloquear:
         return decision, sockets
@@ -190,7 +223,10 @@ if __name__ == "__main__":
     ap.add_argument("--segundos", type=float, default=6.0, help="segundos hasta que el regente decide")
     ap.add_argument("--destino", default="TIPO_B", help="destino que decide el regente (TIPO_X o DESCARTE)")
     ap.add_argument("--sin-decision", action="store_true", help="la consulta responde 'ninguna'")
+    ap.add_argument("--orden-tras", type=float, default=0.0, help="segundos hasta que el regente da la orden de inicio")
+    ap.add_argument("--sin-orden", action="store_true", help="la orden de inicio nunca llega")
     a = ap.parse_args()
     iniciar_mock(respuesta_fija=RESULTADO_ERROR_REVISION_MANUAL if a.error else "TIPO_A",
                  segundos_hasta_decision=a.segundos, destino_decision=a.destino,
-                 con_decision=not a.sin_decision)
+                 con_decision=not a.sin_decision,
+                 segundos_hasta_orden=a.orden_tras, con_orden=not a.sin_orden)

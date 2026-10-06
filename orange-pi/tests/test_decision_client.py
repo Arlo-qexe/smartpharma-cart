@@ -21,6 +21,8 @@ from protocol_constants import (  # noqa: E402
     ACCION_ACTIVAR_ALARMA_LOCAL,
     ACCION_CLASIFICAR,
     ACCION_DESACTIVAR_ALARMA_LOCAL,
+    ORDEN_CICLO_ESPERANDO,
+    ORDEN_CICLO_INICIAR,
     DESTINO_DESCARTE,
     RESULTADO_ERROR_REVISION_MANUAL,
     TIMEOUT_TOTAL_TRANSACCION_S,
@@ -143,6 +145,66 @@ class ConsultarDecisionPorSocket(unittest.TestCase):
         self.assertEqual(r, {"estado": "resuelta", "destino": "TIPO_A"})
 
 
+class EsperarOrdenInicio(unittest.TestCase):
+    ESPERANDO = {"orden": "esperando"}
+    INICIAR = {"orden": "iniciar"}
+
+    def esperar(self, *lista, desc=None):
+        reloj = Reloj()
+        consultas = []
+
+        def consultar(ip):
+            consultas.append(ip)
+            r = lista[len(consultas) - 1]
+            if isinstance(r, Exception):
+                raise r
+            return r
+        dc.esperar_orden_inicio(desc or DescubridorFalso(), intervalo=2.0,
+                                consultar=consultar, dormir=reloj.dormir)
+        return consultas, reloj.t
+
+    def test_espera_hasta_iniciar_y_no_vuelve_a_consultar(self):
+        consultas, t = self.esperar(self.ESPERANDO, self.ESPERANDO, self.ESPERANDO, self.INICIAR)
+        self.assertEqual(len(consultas), 4)   # nada de consultas tras recibir "iniciar" (un solo uso)
+        self.assertEqual(t, 6.0)
+
+    def test_inicia_a_la_primera_si_la_orden_ya_esta(self):
+        consultas, t = self.esperar(self.INICIAR)
+        self.assertEqual((len(consultas), t), (1, 0.0))
+
+    def test_sin_pc_reintenta_indefinidamente_y_sin_alarma(self):
+        desc = DescubridorFalso()
+        reloj, n = Reloj(), []
+
+        def consultar(ip):
+            n.append(1)
+            if len(n) <= 100:
+                raise ConnectionRefusedError("PC apagada")
+            return self.INICIAR
+        dc.esperar_orden_inicio(desc, intervalo=2.0, consultar=consultar, dormir=reloj.dormir)
+        self.assertEqual(len(n), 101)          # 200 s sin PC: sin tope
+        self.assertEqual(desc.invalidaciones, 100)
+
+    def test_pc_no_encontrada_por_mdns_cuenta_como_fallo(self):
+        class SinPC(DescubridorFalso):
+            def obtener_destino_sin_bloquear(self):
+                return None, None
+        desc, reloj, n = SinPC(), Reloj(), []
+
+        def dormir(s):
+            n.append(1)
+            reloj.dormir(s)
+            if len(n) == 3:
+                desc.obtener_destino_sin_bloquear = lambda: ("127.0.0.1", 5000)
+        dc.esperar_orden_inicio(desc, intervalo=2.0, consultar=lambda ip: self.INICIAR, dormir=dormir)
+        self.assertEqual(len(n), 3)
+
+    def test_respuestas_fuera_de_contrato(self):
+        for r in ({"error": "consulta_invalida"}, {"orden": "otra"}, {}):
+            with self.assertRaises(dc.RespuestaInesperada):
+                self.esperar(r)
+
+
 class Recuperacion(unittest.TestCase):
     def correr(self, *resultados, alarma_encendida=False):
         eventos, sondeos, reloj = [], [], Reloj()
@@ -222,6 +284,18 @@ class ConMockPC(unittest.TestCase):
         enviar_lote(desc, [])
         with self.assertRaises(dc.DecisionPerdida):
             self.esperar(desc)
+
+    def test_orden_de_inicio_se_entrega_una_sola_vez(self):
+        desc = self.levantar(segundos_hasta_orden=0.4)
+        dc.esperar_orden_inicio(desc, intervalo=0.1,
+                                consultar=lambda ip: dc.consultar_orden_ciclo(ip, self.p_dec))
+        # Un solo uso: si se vuelve a preguntar, la PC cree que la Orange Pi reinició.
+        self.assertEqual(dc.consultar_orden_ciclo("127.0.0.1", self.p_dec), {"orden": "esperando"})
+
+    def test_sin_orden_el_mock_siempre_responde_esperando(self):
+        self.levantar(con_orden=False)
+        for _ in range(3):
+            self.assertEqual(dc.consultar_orden_ciclo("127.0.0.1", self.p_dec), {"orden": "esperando"})
 
     def test_consulta_invalida(self):
         self.levantar()
@@ -430,21 +504,38 @@ class EnlaceUARTBuffer(unittest.TestCase):
 
 
 class MainCompleto(unittest.TestCase):
-    def test_main_arranca_cicla_y_libera_recursos_con_ctrl_c(self):
-        enlace, camara = mock.Mock(), mock.Mock()
-        ciclos = []
+    def correr_main(self, argv, ciclos_hasta_ctrl_c=3, espera=None):
+        enlace, camara, eventos = mock.Mock(), mock.Mock(), []
 
         def ciclo(e, c, d):
-            ciclos.append(1)
-            if len(ciclos) == 3:
+            eventos.append("ciclo")
+            if eventos.count("ciclo") == ciclos_hasta_ctrl_c:
                 raise KeyboardInterrupt
             return True
         with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
                 mock.patch.object(main, "abrir_camara", return_value=camara), \
                 mock.patch.object(main, "DescubridorPC"), \
+                mock.patch.object(main, "esperar_orden_inicio",
+                                  side_effect=espera or (lambda d: eventos.append("orden"))), \
                 mock.patch.object(main, "ciclo_de_un_objeto", side_effect=ciclo):
-            main.main()
-        self.assertEqual(len(ciclos), 3)
+            main.main(argv)
+        return enlace, camara, eventos
+
+    def test_main_espera_la_orden_antes_del_primer_objeto_y_libera_con_ctrl_c(self):
+        enlace, camara, eventos = self.correr_main([])
+        self.assertEqual(eventos, ["orden", "ciclo", "ciclo", "ciclo"])
+        camara.release.assert_called_once()
+        enlace.close.assert_called_once()
+
+    def test_sin_orden_se_salta_la_espera(self):
+        _, _, eventos = self.correr_main(["--sin-orden"])
+        self.assertEqual(eventos, ["ciclo", "ciclo", "ciclo"])
+
+    def test_ctrl_c_mientras_espera_la_orden_libera_recursos_sin_iniciar_ciclo(self):
+        def ctrl_c(d):
+            raise KeyboardInterrupt
+        enlace, camara, eventos = self.correr_main([], espera=ctrl_c)
+        self.assertEqual(eventos, [])
         camara.release.assert_called_once()
         enlace.close.assert_called_once()
 
@@ -453,7 +544,7 @@ class MainCompleto(unittest.TestCase):
         with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
                 mock.patch.object(main, "abrir_camara", side_effect=RuntimeError("sin cámara")):
             with self.assertRaises(RuntimeError):
-                main.main()
+                main.main([])
         enlace.close.assert_called_once()
 
 

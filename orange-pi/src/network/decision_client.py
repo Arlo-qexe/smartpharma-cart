@@ -4,6 +4,9 @@ sección 4.5 de docs/arquitectura_comunicacion.md): tras un ERROR_REVISION_MANUA
 de la PC, consulta cada INTERVALO_CONSULTA_DECISION_S, con una conexión TCP
 nueva por consulta, hasta que el regente resuelva.
 
+También contiene la espera de la orden de inicio del ciclo (sección 4.7): misma
+conexión corta, mismo puerto y mismo framing.
+
 La espera del regente es indefinida (decisión del equipo). Lo único que sí
 tiene límite es la caída de la PC: si las consultas fallan de forma continua
 durante TIMEOUT_TOTAL_TRANSACCION_S se activa la alarma física local (una vez).
@@ -19,14 +22,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_CONSULTA_JSON,
     CLAVE_DESTINO_JSON,
+    CLAVE_ORDEN_CICLO_JSON,
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ORDEN_CICLO,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
     ESTADO_DECISION_RESUELTA,
     FRAMING_STRUCT_FORMAT,
     INTERVALO_CONSULTA_DECISION_S,
+    ORDEN_CICLO_ESPERANDO,
+    ORDEN_CICLO_INICIAR,
     TCP_PUERTO_DECISION_DEFECTO,
     TIMEOUT_CONEXION_TCP_S,
     TIMEOUT_RESPUESTA_RECONOCIMIENTO_S,
@@ -53,15 +60,61 @@ def _recv_exacto(sock, n):
     return datos
 
 
-def consultar_decision(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
+def _consultar(ip: str, tipo_consulta: str, puerto: int) -> dict:
     """UNA consulta: conexión nueva, consulta con framing, lee la respuesta y
     cierra. Lanza OSError si la conexión o la lectura fallan."""
-    consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_DECISION_REGENTE}).encode("utf-8")
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: tipo_consulta}).encode("utf-8")
     with socket.create_connection((ip, puerto), timeout=TIMEOUT_CONEXION_TCP_S) as sock:
         sock.settimeout(TIMEOUT_RESPUESTA_RECONOCIMIENTO_S)
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
         (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, _recv_exacto(sock, 4))
         return json.loads(_recv_exacto(sock, longitud).decode("utf-8"))
+
+
+def consultar_decision(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
+    """UNA consulta de la decisión del regente (sección 4.5)."""
+    return _consultar(ip, CONSULTA_DECISION_REGENTE, puerto)
+
+
+def consultar_orden_ciclo(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
+    """UNA consulta de la orden de inicio del ciclo (sección 4.7)."""
+    return _consultar(ip, CONSULTA_ORDEN_CICLO, puerto)
+
+
+def esperar_orden_inicio(descubridor, intervalo: float = INTERVALO_CONSULTA_DECISION_S,
+                         consultar=consultar_orden_ciclo,
+                         dormir=time.sleep) -> None:
+    """Bloquea, sin tope, hasta que el regente ordene iniciar el ciclo (botón
+    "Iniciar recorrido" del panel). Sin PC no arranca: reintenta indefinidamente
+    con re-descubrimiento mDNS y SIN alarma local (no hay objeto en vuelo).
+
+    La orden es de un solo uso: tras recibir `iniciar` NO se debe volver a
+    consultar (la PC lo entendería como un reinicio y responde `esperando`).
+    """
+    avisado = False
+    while True:
+        try:
+            ip, _ = descubridor.obtener_destino_sin_bloquear()
+            if ip is None:
+                raise ConnectionError("PC no encontrada por mDNS")
+            respuesta = consultar(ip)
+        except (OSError, ValueError) as e:
+            print(f"[orden] La PC no responde ({e}); se sigue esperando")
+            descubridor.invalidar()
+            dormir(intervalo)
+            continue
+
+        orden = respuesta.get(CLAVE_ORDEN_CICLO_JSON)
+        if orden == ORDEN_CICLO_INICIAR:
+            print("[orden] Orden de inicio recibida")
+            return
+        if orden != ORDEN_CICLO_ESPERANDO:
+            raise RespuestaInesperada(
+                f"respuesta fuera de contrato: {respuesta.get(CLAVE_ERROR_JSON) or respuesta!r}")
+        if not avisado:
+            print('[orden] Esperando la orden "Iniciar recorrido" del regente en el panel...')
+            avisado = True
+        dormir(intervalo)
 
 
 def esperar_decision(descubridor, activar_alarma_local, desactivar_alarma_local=None,
