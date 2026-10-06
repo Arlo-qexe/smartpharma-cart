@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 cerrado, PC-18).
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-18 cerrado, consulta S-02).
 Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14, OP-16, OP-21).
 
 ## Cómo usarlo
@@ -79,12 +79,12 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [ ] **PC-16** Mejoras menores del panel: revisión en celular/tablet, sonido o
   parpadeo ante alarma, severidad "amarilla" de alertas, `logging` en vez de
   `print()`.
-- [ ] **PC-18** La PC solo registra errores del servidor de decisión, no las
-  consultas: en su log no se ve que la Orange Pi leyó `resuelta`. Registrar los
-  cambios de estado entregados (sin ruido por cada consulta de 2 s). Además, las
-  conexiones que se abren y cierran sin enviar nada (p. ej. pruebas de
-  conectividad con `/dev/tcp`) salen como "Error … Conexión cerrada durante
-  recv": ruido sin consecuencia, se podría bajar de nivel.
+- [x] **PC-18** Registro del servidor de decisión: ahora la PC anota cuando una
+  consulta entrega un estado nuevo a la Orange Pi (`[decision] <ip> recibió:
+  pendiente | resuelta (destino X) | ninguna`), sin una línea por cada consulta de
+  2 s; así su log confirma que la Orange Pi recibió el destino. Las conexiones que
+  se abren y cierran sin datos (pruebas de conectividad) se muestran como
+  "sonda de conectividad", ya no como error. 26 pruebas pasan.
 - [ ] **PC-17** Verificar el panel en un navegador real tras cada cambio de CSS/JS
   (hasta hoy solo se probó el servidor y la sintaxis; los fallos visuales los ha
   encontrado el usuario).
@@ -175,12 +175,54 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | ID | De → Para | Solicitud | Estado | Notas |
 |---|---|---|---|---|
 | S-01 | PC → Orange Pi | Implementar el bucle de consulta de decisión y corregir **OP-10 a OP-13**. Contrato: `docs/arquitectura_comunicacion.md` §4.5; cliente de referencia en `pc/tests/mock_orangepi_client.py`. | Hecha | Lado PC: commit `08a76ec`. Lado Orange Pi: commit `2ff59ce` (OP-10 a OP-13). |
-| S-02 | PC → Orange Pi (+ equipo) | Definir cómo se **reanuda el ciclo tras un fallo de comunicación** con la PC. El informe solo dice "alarma física local"; no dice qué `destino` se usa después ni quién desbloquea. Opciones a discutir: botón físico vía ESP32-S3, reintento de consulta cuando la PC vuelva, etc. | Abierta | Sin propuesta formal todavía; el lado PC puede redactarla. |
+| S-02 | PC → Orange Pi (+ ESP32-S3) | Definir cómo se **reanuda el ciclo tras un fallo de comunicación** con la PC (situaciones F1 a F3: 30 s sin respuesta, `ninguna`, PC sin contestar en la espera). El informe solo dice "alarma física local"; no dice qué hace después ni quién desbloquea. Hoy la ESP32-S3 **no puede apagar** la alarma. | En discusión | **Opciones redactadas por el lado PC** en `docs/propuesta_reanudacion_fallo_comunicacion.md`; resumen y tabla de respuestas en la sección "Consulta abierta — S-02" más abajo. **Cada lado responde ahí antes de implementar.** |
 | S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Hecha | Confirmados los dos primeros. Formato del destino: el cliente acepta cualquier cadena no vacía y deja a la PC la validación (`[A-Z0-9_]{1,32}`). |
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
 | S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Abierta | Bloquea **PC-10**. |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
+
+---
+
+## Consulta abierta — S-02: reanudar el ciclo tras un fallo de comunicación
+
+Detalle completo: `docs/propuesta_reanudacion_fallo_comunicacion.md`. **No hay nada
+implementado ni decidido**; las opciones tocan a la Orange Pi, a la ESP32-S3 y al
+contrato.
+
+**Situaciones:** **F1** se agotan los 30 s enviando el lote · **F2** la PC responde
+`ninguna` en la espera (perdió el estado) · **F3** la PC deja de contestar durante
+la espera. **Dato clave:** la ESP32-S3 solo puede *encender* la alarma local, no
+apagarla.
+
+| Opción | Idea | Sin hardware nuevo | Sin intervención en fallo transitorio | Con la PC caída | Mensajes nuevos | Cambios en PC |
+|---|---|---|---|---|---|---|
+| **0** | Intervención técnica (reiniciar); estado actual formalizado | Sí | No | Manual | 0 | No |
+| **1** | La Orange Pi conserva el lote y **reenvía** hasta que la PC responde; apaga la alarma y sigue el flujo normal | Sí | **Sí** | Espera | 1 (`desactivar_alarma_local`) | **No** |
+| **2** | **Botón físico** en el carrito → evento ESP32-S3 → Orange Pi | No | No (confirma el regente) | **Sí** | 2 | No |
+| **3** | Desbloqueo desde consola/mini-interfaz en la Orange Pi | Sí | No | Sí | 1 | No |
+| 4 | Reanudar por tiempo | Sí | Sí | Sí | 1 | No — **descartada**: contradice "nunca avanzar sin confirmación explícita" |
+
+**Recomendación del lado PC (no es una decisión):** **Opción 1 como base, con la
+Opción 0 como límite explícito**; la Opción 2 como segunda fase si en la demo se
+quiere tolerar una PC caída.
+
+**Preguntas** (detalle en la sección 6 del documento): ¿se acepta la Opción 1? ·
+tras recuperarse la PC, ¿reanuda solo o el regente confirma? (riesgo: caja retirada
+a mano) · ¿intervalo de 10 s y sin tope? · ¿la ESP32-S3 puede implementar
+`desactivar_alarma_local` y cómo suena el zumbador mientras tanto? · si el regente
+retira la caja a mano, ¿el mecanismo necesita igual un `clasificar`?
+
+### Respuestas (cada lado completa SU fila; no edites la del otro)
+
+| Lado | Respuesta (opción preferida y notas) | Quién / fecha |
+|---|---|---|
+| **PC** | Prefiere **Opción 1 + Opción 0 como límite**. No requiere ningún cambio en la PC; se ofrece a agregar las constantes a `shared/` cuando se decida. | Arlo.exe (lado PC), 2026-10-05 |
+| **Orange Pi** | *(pendiente)* | |
+| **ESP32-S3** | *(pendiente — o quien lleve el firmware)* | |
+| **Usuario / regente** | *(pendiente — ¿la caja puede retirarse a mano durante una alarma de red?)* | |
+
+Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a `Hecha`.
 
 ---
 
@@ -193,6 +235,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | D-03 | 2026-10-05 | El panel muestra las fotos del lote, solo desde RAM (últimos 5 lotes), nunca a disco. | Usuario |
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
 | D-05 | — | *(pendiente)* Persistir o no el historial/decisión del panel (**PC-14**). | — |
+| D-06 | — | *(pendiente)* Cómo se reanuda el ciclo tras un fallo de comunicación (**S-02**, ver "Consulta abierta"). | — |
 
 ---
 
@@ -200,6 +243,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-18 `[x]` (registro de consultas de decisión); S-02 pasa a `En discusión` con la consulta "Consulta abierta — S-02" y su tabla de respuestas; D-06 pendiente. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-12 `[x]` tras revisar OP-21 contra el registro y el panel de la PC; PC-18 nuevo. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-21 nuevo (prueba de punta a punta contra la PC real: camino normal y camino del regente); OP-16 pasa a `[~]` (falta la ESP32-S3 real). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-14 `[x]`: el mock atiende el puerto 5001. |
