@@ -27,10 +27,6 @@
       <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>
       ALERTAS <span id="insignia" class="insignia" hidden></span>
     </button>
-    <button data-vista="asistente">
-      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>
-      ASISTENTE
-    </button>
     <button data-vista="config">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
       CONFIGURACIÓN
@@ -39,36 +35,56 @@
 
   <main>
     <section id="vista-inicio" class="vista">
-      <div class="tablero">
-        <div class="panel-izq">
-          <h2>MONITOREO DE AUDITORÍA</h2>
-          <p id="lote-titulo" class="sub"></p>
-          <div id="fotos" class="fotos"></div>
-          <p id="fotos-aviso" class="aviso"></p>
-        </div>
-        <div class="panel-der">
-          <h2>CICLO DE INSPECCIÓN</h2>
-          <div class="ciclo">
-            <svg class="caja" viewBox="0 0 120 80" aria-hidden="true"><path d="M8 28l20-18h84v44l-20 16H8z M8 28h84v42 M92 28l20-18 M92 70l20-16"/><circle cx="64" cy="52" r="7"/></svg>
-            <div class="dato"><span class="et">CLASIFICACIÓN</span><span id="d-clasif" class="valor">—</span></div>
-            <div class="dato"><span class="et">LECTURA OCR</span><span class="valor sin-dato">—</span></div>
-            <div class="dato"><span class="et">FECHA VENCIMIENTO</span><span class="valor sin-dato">—</span></div>
-            <div class="dato">
-              <span class="et">ESTADO FEFO</span>
-              <div class="barra"><div></div></div>
-            </div>
+      <div class="inicio-grid">
+        <div class="inicio-principal">
+        <div class="tablero">
+          <div class="panel-izq">
+            <h2>MONITOREO DE AUDITORÍA</h2>
+            <p id="lote-titulo" class="sub"></p>
+            <div id="fotos" class="fotos"></div>
+            <p id="fotos-aviso" class="aviso"></p>
           </div>
-          <p class="aviso">Lectura OCR, fecha de vencimiento y FEFO aún no llegan: hoy el módulo de reconocimiento solo entrega la clasificación.</p>
-          <p id="d-lote" class="aviso"></p>
+          <div class="panel-der">
+            <h2>CICLO DE INSPECCIÓN</h2>
+            <div class="ciclo">
+              <svg class="caja" viewBox="0 0 120 80" aria-hidden="true"><path d="M8 28l20-18h84v44l-20 16H8z M8 28h84v42 M92 28l20-18 M92 70l20-16"/><circle cx="64" cy="52" r="7"/></svg>
+              <div class="dato"><span class="et">CLASIFICACIÓN</span><span id="d-clasif" class="valor">—</span></div>
+              <div class="dato"><span class="et">LECTURA OCR</span><span class="valor sin-dato">—</span></div>
+              <div class="dato"><span class="et">FECHA VENCIMIENTO</span><span class="valor sin-dato">—</span></div>
+              <div class="dato">
+                <span class="et">ESTADO FEFO</span>
+                <div class="barra"><div></div></div>
+              </div>
+            </div>
+            <p class="aviso">Lectura OCR, fecha de vencimiento y FEFO aún no llegan: hoy el módulo de reconocimiento solo entrega la clasificación.</p>
+            <p id="d-lote" class="aviso"></p>
+          </div>
         </div>
-      </div>
 
-      <h3 class="recientes-titulo">ALERTAS RECIENTES</h3>
-      <div class="pie">
-        <ul id="alertas-recientes" class="lista-alertas"></ul>
-        <button class="boton-recorrido" disabled title="Pendiente: no existe un canal PC → Orange Pi para iniciar el recorrido">
-          INICIAR RECORRIDO <span class="play">&#9654;</span>
-        </button>
+        <h3 class="recientes-titulo">ALERTAS RECIENTES</h3>
+        <div class="pie">
+          <ul id="alertas-recientes" class="lista-alertas"></ul>
+          <div class="recorrido">
+            <button id="boton-recorrido" class="boton-recorrido" disabled>
+              <span id="boton-texto">INICIAR RECORRIDO</span> <span class="play">&#9654;</span>
+            </button>
+            <p id="recorrido-estado" class="aviso"></p>
+          </div>
+        </div>
+        </div>
+
+        <aside id="asistente" class="asistente-lateral">
+          <h2>ASISTENTE</h2>
+          <p id="asistente-aviso" class="aviso"></p>
+          <div id="chat" class="chat" aria-live="polite" hidden></div>
+          <form id="chat-form" class="chat-form" hidden>
+            <textarea id="chat-texto" rows="2" maxlength="1000" placeholder="Escribe tu solicitud… (Enter envía, Mayús+Enter salto de línea)"></textarea>
+            <div class="accion">
+              <button type="submit" id="chat-enviar" class="btn-chico">Enviar</button>
+              <button type="button" id="chat-nuevo" class="btn-chico">Nueva conversación</button>
+            </div>
+          </form>
+        </aside>
       </div>
     </section>
 
@@ -93,19 +109,6 @@
           <tbody></tbody>
         </table>
       </div>
-    </section>
-
-    <section id="vista-asistente" class="vista" hidden>
-      <h2>Asistente</h2>
-      <p id="asistente-aviso" class="aviso"></p>
-      <div id="chat" class="chat" aria-live="polite"></div>
-      <form id="chat-form" class="chat-form" hidden>
-        <textarea id="chat-texto" rows="2" maxlength="1000" placeholder="Escribe tu solicitud… (Enter envía, Mayús+Enter salto de línea)"></textarea>
-        <div class="accion">
-          <button type="submit" id="chat-enviar" class="btn-chico">Enviar</button>
-          <button type="button" id="chat-nuevo" class="btn-chico">Nueva conversación</button>
-        </div>
-      </form>
     </section>
 
     <section id="vista-config" class="vista" hidden>

@@ -312,10 +312,13 @@ def test_reiniciar_por_http(montar):
 # ---------------------------------------------------------------------------
 # Página
 # ---------------------------------------------------------------------------
-def test_la_pagina_trae_la_pestana_y_el_js_no_usa_innerhtml():
+def test_la_pagina_trae_el_asistente_en_el_lateral_de_inicio_y_el_js_no_usa_innerhtml():
     html = (RAIZ / "src" / "panel_static" / "index.html").read_text(encoding="utf-8")
     js = (RAIZ / "src" / "panel_static" / "panel.js").read_text(encoding="utf-8")
-    assert 'data-vista="asistente"' in html and 'id="vista-asistente"' in html
+    # El asistente vive en un lateral de la pestaña Inicio, no en una pestaña propia.
+    assert 'data-vista="asistente"' not in html and 'id="vista-asistente"' not in html
+    inicio = html[html.index('id="vista-inicio"'):html.index('id="vista-inventario"')]
+    assert 'id="asistente"' in inicio and 'id="chat-form"' in inicio
     assert "/api/asistente/" in js
     # Todo el texto del chat (que viene del modelo) se pinta con textContent:
     for peligroso in (".innerHTML", ".outerHTML", "insertAdjacentHTML", "document.write"):

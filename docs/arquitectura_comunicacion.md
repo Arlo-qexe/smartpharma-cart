@@ -184,6 +184,27 @@ responder durante la espera de la decisión.
 En F2 la PC ya responde, así que el primer sondeo tiene éxito y no se enciende la
 alarma local. Las fotos del objeto no llegan al panel (se envía un lote vacío).
 
+### 4.7 Orden de inicio del ciclo de auditoría (Orange Pi → PC)
+
+Decisión (S-06/D-10 del checklist, opción 1): al arrancar, la Orange Pi **espera una
+orden de la PC** antes de introducir el primer objeto. La da el regente con el botón
+"Iniciar recorrido" del panel. Mismo canal que 4.5: conexión TCP corta, puerto
+`TCP_PUERTO_DECISION_DEFECTO`, framing de 4.2, una consulta cada
+`INTERVALO_CONSULTA_DECISION_S`.
+
+- **Consulta:** `{"consulta": "orden_ciclo"}`.
+- **Respuestas:** `{"orden": "esperando"}` (seguir consultando) o
+  `{"orden": "iniciar"}` (empezar el ciclo y **no volver a consultar**).
+- **Un solo uso.** La PC entrega `iniciar` una vez. Si después de entregarla la
+  Orange Pi vuelve a preguntar, la PC entiende que reinició y responde `esperando`:
+  ningún reinicio arranca el ciclo sin una decisión humana. Una orden que nadie
+  recoge **vence** a los `VIGENCIA_ORDEN_CICLO_S` (60 s).
+- **Sin PC no arranca:** la Orange Pi reintenta indefinidamente, **sin alarma local**
+  (no hay objeto en vuelo). Solo pausar/detener (opción 2) quedó fuera de esta
+  decisión; no existe todavía.
+- Las pruebas sueltas sin PC usan una opción local de `main.py` (`--sin-orden`) que
+  **no es parte del contrato**.
+
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
 ### 5.1 Decisión: enlace serie con estructura de mensaje y suma de verificación
@@ -332,6 +353,7 @@ no la copies a mano en otro lugar.
 | Puerto de consulta de decisión del regente | 5001 | `TCP_PUERTO_DECISION_DEFECTO` |
 | Intervalo de consulta de decisión | 2 s | `INTERVALO_CONSULTA_DECISION_S` |
 | Destino de descarte definitivo | `DESCARTE` | `DESTINO_DESCARTE` |
+| Vigencia de la orden de inicio del ciclo | 60 s | `VIGENCIA_ORDEN_CICLO_S` |
 
 ---
 

@@ -28,7 +28,7 @@ así que no necesita descargar nada.
 
 **En el panel:** el asistente es opcional y viene desactivado. Arranca el servidor con
 `ASISTENTE_MODO=prueba python3 src/server.py` (sin modelo) o con
-`ASISTENTE_MODELO=/ruta/modelo.gguf` (modelo real) y abre la pestaña "Asistente".
+`ASISTENTE_MODELO=/ruta/modelo.gguf` (modelo real) y abre la pestaña Inicio: el asistente está en el lateral derecho.
 
 ## Probar con un modelo real en terminal
 

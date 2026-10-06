@@ -18,11 +18,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_DESTINO_JSON,
     CLAVE_ESTADO_DECISION_JSON,
+    CLAVE_ORDEN_CICLO_JSON,
     DESTINO_DESCARTE,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
     ESTADO_DECISION_RESUELTA,
+    ORDEN_CICLO_ESPERANDO,
+    ORDEN_CICLO_INICIAR,
     RESULTADO_ERROR_REVISION_MANUAL,
+    VIGENCIA_ORDEN_CICLO_S,
 )
 
 MAX_LOTES_CON_FOTOS = 5
@@ -41,6 +45,18 @@ MOTIVOS_ALARMA = {
     "framing_invalido": "Lote inválido (framing)",
 }
 
+# Estados de la orden de inicio del ciclo (informe 4.7). `sin_orden` = el regente aún
+# no pulsó el botón; `ordenada` = pulsó y la Orange Pi aún no la recogió; `iniciada` =
+# la Orange Pi ya la recogió (el ciclo corre).
+ORDEN_SIN_ORDEN = "sin_orden"
+ORDEN_ORDENADA = "ordenada"
+ORDEN_INICIADA = "iniciada"
+
+# Resultados de ordenar_inicio()
+INICIO_ORDENADO = "ordenada"
+INICIO_YA_ORDENADO = "ya_ordenada"
+INICIO_YA_INICIADO = "ya_iniciada"
+
 # Resultados de resolver_alarma()
 RESUELTA_CON_DECISION = "resuelta"        # se fijó el destino para la Orange Pi
 CERRADA_SIN_DECISION = "cerrada"          # alarma antigua: solo se cierra
@@ -58,6 +74,9 @@ class EstadoPanel:
         # UNA sola decisión en espera (flujo secuencial, sin IDs de correlación):
         # {"alarma_id": int, "estado": pendiente|resuelta, "destino": str|None}
         self._decision = None
+        # Orden de inicio del ciclo (una sola, de un solo uso; ver ordenar_inicio)
+        self._orden = {"estado": ORDEN_SIN_ORDEN, "ts_ordenada": None, "ts_entregada": None}
+        self._ts_ultima_consulta_orden = None
 
     def registrar_lote(self, origen: str, imagenes: list, resultado: str) -> int:
         with self._lock:
@@ -140,6 +159,47 @@ class EstadoPanel:
                 alarma["ts_resuelta"] = time.time()
             return RESUELTA_CON_DECISION if espera else CERRADA_SIN_DECISION
 
+    # -- orden de inicio del ciclo (consulta S-06, opción 1; informe 4.7) ----------
+    def _vencer_orden_locked(self) -> None:
+        """Una orden que la Orange Pi no recoge a tiempo vence: así no puede arrancar
+        el ciclo en un arranque posterior sin que nadie lo decida."""
+        o = self._orden
+        if o["estado"] == ORDEN_ORDENADA and time.time() - o["ts_ordenada"] >= VIGENCIA_ORDEN_CICLO_S:
+            o.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None)
+
+    def ordenar_inicio(self) -> str:
+        """El regente pulsó "Iniciar recorrido"."""
+        with self._lock:
+            self._vencer_orden_locked()
+            o = self._orden
+            if o["estado"] == ORDEN_INICIADA:
+                return INICIO_YA_INICIADO
+            if o["estado"] == ORDEN_ORDENADA:
+                return INICIO_YA_ORDENADO
+            o.update(estado=ORDEN_ORDENADA, ts_ordenada=time.time())
+            return INICIO_ORDENADO
+
+    def consultar_orden_ciclo(self) -> dict:
+        """Respuesta a la consulta de la Orange Pi. Entregar `iniciar` se confirma
+        aparte, con confirmar_entrega_orden(), una vez enviada la respuesta: si el
+        envío falla, la orden sigue vigente para la siguiente consulta."""
+        with self._lock:
+            self._ts_ultima_consulta_orden = time.time()
+            self._vencer_orden_locked()
+            o = self._orden
+            if o["estado"] == ORDEN_INICIADA:
+                # La Orange Pi solo pregunta mientras espera: si vuelve a preguntar
+                # después de recibir la orden, reinició y necesita una orden nueva.
+                o.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ts_entregada=None)
+            orden = ORDEN_CICLO_INICIAR if o["estado"] == ORDEN_ORDENADA else ORDEN_CICLO_ESPERANDO
+            return {CLAVE_ORDEN_CICLO_JSON: orden}
+
+    def confirmar_entrega_orden(self) -> None:
+        with self._lock:
+            o = self._orden
+            if o["estado"] == ORDEN_ORDENADA:
+                o.update(estado=ORDEN_INICIADA, ts_entregada=time.time())
+
     def foto(self, lote_id: int, indice: int) -> bytes | None:
         with self._lock:
             for lote in self._lotes:
@@ -173,7 +233,17 @@ class EstadoPanel:
             # ya ha clasificado antes, más el descarte. No se inventan tipos.
             vistos = sorted({l["resultado"] for l in self._lotes
                              if l["resultado"] != RESULTADO_ERROR_REVISION_MANUAL})
+            self._vencer_orden_locked()
+            o = self._orden
+            restante = (max(0, int(VIGENCIA_ORDEN_CICLO_S - (time.time() - o["ts_ordenada"])))
+                        if o["estado"] == ORDEN_ORDENADA else None)
             return {
+                "orden_ciclo": {
+                    "estado": o["estado"],
+                    "restante_s": restante,
+                    "ts_entregada": o["ts_entregada"],
+                    "ts_ultima_consulta": self._ts_ultima_consulta_orden,
+                },
                 "ts_servidor": time.time(),
                 "alarma_activa": any(a["activa"] for a in alarmas),
                 "max_lotes_con_fotos": MAX_LOTES_CON_FOTOS,

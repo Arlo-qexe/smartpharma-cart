@@ -107,6 +107,33 @@ INTERVALO_CONSULTA_DECISION_S = 2.0         # valor inicial; calibrar
 TAMANO_MAX_MENSAJE_JSON_BYTES = 4096
 
 # ---------------------------------------------------------------------------
+# Orden de inicio del ciclo de auditoría (Orange Pi -> PC) — consulta S-06,
+# opción 1, de shared/checklist.md. Misma conexión corta, mismo puerto
+# (TCP_PUERTO_DECISION_DEFECTO) y mismo framing que la decisión del regente.
+#
+# Al arrancar (con UART y cámara listas) la Orange Pi NO empieza a introducir
+# objetos: consulta cada INTERVALO_CONSULTA_DECISION_S hasta recibir "iniciar".
+#   Consulta:  {"consulta": "orden_ciclo"}
+#   Respuesta: {"orden": "esperando"}   el regente aún no ordenó: seguir consultando
+#              {"orden": "iniciar"}     empezar el ciclo y NO volver a consultar
+#              {"error": "consulta_invalida"}
+#
+# La orden es de UN solo uso y la da el regente con el botón "Iniciar recorrido"
+# del panel. La PC la entrega una vez; si la Orange Pi vuelve a preguntar después
+# de recibirla, la PC entiende que reinició y responde "esperando" (hace falta una
+# orden nueva: ningún reinicio arranca el ciclo sin una decisión humana). Una
+# orden que nadie recoge vence a los VIGENCIA_ORDEN_CICLO_S.
+# ---------------------------------------------------------------------------
+CONSULTA_ORDEN_CICLO = "orden_ciclo"
+CLAVE_ORDEN_CICLO_JSON = "orden"
+ORDEN_CICLO_ESPERANDO = "esperando"
+ORDEN_CICLO_INICIAR = "iniciar"
+# 60 s = 30 consultas de 2 s: de sobra para que una Orange Pi que espera la recoja, y
+# lo bastante corto para que una orden olvidada (la Orange Pi ya estaba en marcha o
+# apagada) no arranque el ciclo en un arranque posterior sin que nadie lo decida.
+VIGENCIA_ORDEN_CICLO_S = 60.0               # valor inicial; calibrar
+
+# ---------------------------------------------------------------------------
 # Enlace serie (Orange Pi <-> ESP32-S3) — UART con checksum
 # ---------------------------------------------------------------------------
 UART_BAUDRATE = 115200

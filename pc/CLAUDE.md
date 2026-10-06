@@ -72,7 +72,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -92,7 +92,8 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
   configura una sola vez en `server.py`. Nivel con `PC_LOG_LEVEL`
   (`DEBUG|INFO|WARNING|ERROR`, por defecto `INFO`). La excepción es el
   placeholder de `src/ocr_interface.py`, que es del equipo de IA.
-- **Asistente en el panel (opcional, desactivado por defecto):** pestaña "Asistente".
+- **Asistente en el panel (opcional, desactivado por defecto):** lateral derecho de la
+  pestaña Inicio.
   Se activa al arrancar `src/server.py` con `ASISTENTE_MODO=prueba` (sin modelo, reglas
   fijas) o `ASISTENTE_MODELO=/ruta/modelo.gguf`. El panel funciona igual sin él. No decide
   el destino de ninguna alarma (D-07). Ver `assistant/CLAUDE.md`.
@@ -104,6 +105,13 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
   `src/panel_static/`); por defecto escucha en `127.0.0.1:8080` (`PANEL_HOST`,
   `PANEL_PUERTO`). Si crece, se puede migrar a Flask: la lógica vive en
   `estado_panel.py`, independiente del servidor web.
+- **Orden de inicio del ciclo (S-06, opción 1, ya implementada):** al arrancar, la
+  Orange Pi consulta `orden_ciclo` (mismo puerto 5001 y framing que la decisión) hasta
+  recibir `iniciar`; el regente la da con el botón "Iniciar recorrido" del panel
+  (`POST /api/ciclo/iniciar`). La orden es de **un solo uso** (si la Orange Pi vuelve a
+  preguntar tras recibirla, reinició: responde `esperando`) y **vence** a los
+  `VIGENCIA_ORDEN_CICLO_S`. Estado en `estado_panel.py`; ver sección 4.7 de
+  @../docs/arquitectura_comunicacion.md. Pausar/detener (opción 2) **no existe** todavía.
 - **Decisión del regente (opción A, ya implementada):** tras un
   `ERROR_REVISION_MANUAL` la PC deja UNA decisión en espera
   (`estado_panel.py`); el regente la resuelve en la pestaña Alertas (destino
@@ -111,8 +119,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
   `src/servidor_decision.py` (puerto `TCP_PUERTO_DECISION_DEFECTO`). Ver
   sección 4.5 de @../docs/arquitectura_comunicacion.md. Cliente de referencia
   de una consulta: `consultar_decision()` en `tests/mock_orangepi_client.py`.
-- **Pendiente del equipo:** el botón "Iniciar recorrido" del panel
-  (deshabilitado: necesita su propio mensaje PC → Orange Pi, cambio en
-  `shared/`) y los campos OCR/FEFO que debe entregar el reconocimiento.
+- **Pendiente del equipo:** pausar/detener el ciclo (opción 2 de S-06) y los campos
+  OCR/FEFO que debe entregar el reconocimiento.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

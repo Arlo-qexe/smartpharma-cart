@@ -97,6 +97,32 @@
         }
       ]
     },
+    "orangepi_a_pc__consulta_orden_ciclo": {
+      "type": "object",
+      "description": "Consulta TCP corta de la Orange Pi a la PC (puerto TCP_PUERTO_DECISION_DEFECTO) al arrancar, hasta recibir 'iniciar'. Ver informe 4.7.",
+      "properties": {
+        "consulta": { "const": "orden_ciclo" }
+      },
+      "required": ["consulta"],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_orden_ciclo": {
+      "description": "Respuesta de la PC a la consulta de orden de inicio del ciclo.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "orden": { "enum": ["esperando", "iniciar"] } },
+          "required": ["orden"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "error": { "const": "consulta_invalida" } },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "pc_a_orangepi__respuesta_clasificacion": {
       "type": "object",
       "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",

@@ -18,8 +18,11 @@ from protocol_constants import (  # noqa: E402
     CLAVE_DESTINO_JSON,
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
+    CLAVE_ORDEN_CICLO_JSON,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ORDEN_CICLO,
     ERROR_CONSULTA_INVALIDA,
+    ORDEN_CICLO_INICIAR,
     TIMEOUT_INACTIVIDAD_RECEPCION_S,
 )
 
@@ -40,27 +43,40 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 log.warning("Consulta inválida de %s: %s", self.client_address, e)
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
                 return
-            if consulta.get(CLAVE_CONSULTA_JSON) != CONSULTA_DECISION_REGENTE:
+            tipo = consulta.get(CLAVE_CONSULTA_JSON)
+            if tipo == CONSULTA_DECISION_REGENTE:
+                respuesta = self.server.estado.consultar_decision()
+                enviar_json(conn, respuesta)
+                self._registrar_si_cambio(tipo, respuesta)
+            elif tipo == CONSULTA_ORDEN_CICLO:
+                respuesta = self.server.estado.consultar_orden_ciclo()
+                enviar_json(conn, respuesta)
+                if respuesta[CLAVE_ORDEN_CICLO_JSON] == ORDEN_CICLO_INICIAR:
+                    # Solo cuando el envío salió bien: si falló, la orden sigue vigente.
+                    self.server.estado.confirmar_entrega_orden()
+                self._registrar_si_cambio(tipo, respuesta)
+            else:
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
-                return
-            respuesta = self.server.estado.consultar_decision()
-            enviar_json(conn, respuesta)
-            self._registrar_si_cambio(respuesta)
         except ConexionSinDatos:
             log.info("%s abrió y cerró la conexión sin enviar datos (sonda de conectividad)",
                      self.client_address[0])
         except OSError as e:  # incluye ConnectionResetError y timeouts
             log.warning("Error con %s: %s", self.client_address, e)
 
-    def _registrar_si_cambio(self, respuesta):
-        """La Orange Pi consulta cada 2 s: se registra solo cuando cambia lo
-        entregado a ese cliente, para ver (p. ej.) que recibió `resuelta`."""
+    def _registrar_si_cambio(self, tipo, respuesta):
+        """La Orange Pi consulta cada 2 s: se registra solo cuando cambia lo entregado
+        a ese cliente en cada tipo de consulta, para ver (p. ej.) que recibió `resuelta`
+        o la orden `iniciar`."""
         ip = self.client_address[0]
-        clave = (respuesta.get(CLAVE_ESTADO_DECISION_JSON), respuesta.get(CLAVE_DESTINO_JSON))
+        clave = tuple(respuesta.get(k) for k in (
+            CLAVE_ESTADO_DECISION_JSON, CLAVE_DESTINO_JSON, CLAVE_ORDEN_CICLO_JSON))
         with self.server.lock_registro:
-            if self.server.ultimo_entregado.get(ip) == clave:
+            if self.server.ultimo_entregado.get((ip, tipo)) == clave:
                 return
-            self.server.ultimo_entregado[ip] = clave
+            self.server.ultimo_entregado[(ip, tipo)] = clave
+        if tipo == CONSULTA_ORDEN_CICLO:
+            log.info("%s recibió la orden del ciclo: %s", ip, clave[2])
+            return
         detalle = f" (destino {clave[1]})" if clave[1] else ""
         log.info("%s recibió: %s%s", ip, clave[0], detalle)
 

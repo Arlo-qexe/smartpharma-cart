@@ -14,6 +14,8 @@ Rutas:
     POST /api/alarmas/<id>/resolver         cuerpo {"destino": "TIPO_X|DESCARTE"}: el regente
                                             resuelve la alarma y la Orange Pi recibe el destino
                                             en su próxima consulta (servidor_decision.py)
+    POST /api/ciclo/iniciar                 el regente ordena iniciar el ciclo de auditoría: la Orange
+                                            Pi la recoge en su próxima consulta (informe 4.7)
     GET  /api/asistente/estado              {"disponible", "modo": "modelo|prueba|desactivado"}
     POST /api/asistente/mensaje             {"texto"} -> respuesta o propuesta (ver asistente_api.py)
     POST /api/asistente/confirmar|cancelar  {"id"} de una propuesta pendiente
@@ -37,6 +39,8 @@ from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido 
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
+    INICIO_ORDENADO,
+    INICIO_YA_INICIADO,
     RESUELTA_CON_DECISION,
     EstadoPanel,
 )
@@ -53,6 +57,7 @@ _ESTATICOS = {
 }
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
 _RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
+_RE_CICLO = re.compile(r"^/api/ciclo/iniciar$")
 _RE_ASISTENTE = re.compile(r"^/api/asistente/(estado|mensaje|confirmar|cancelar|reiniciar)$")
 _MAX_CUERPO_POST_BYTES = 1024
 _MAX_CUERPO_ASISTENTE_BYTES = 8192   # 1000 caracteres pueden ser hasta ~4000 bytes en UTF-8
@@ -72,6 +77,7 @@ def _configuracion() -> list:
         {"nombre": "Puerto TCP (lotes)", "valor": str(pc.TCP_PUERTO_DEFECTO)},
         {"nombre": "Puerto TCP (consulta de decisión)", "valor": str(pc.TCP_PUERTO_DECISION_DEFECTO)},
         {"nombre": "Intervalo de consulta de decisión", "valor": f"{pc.INTERVALO_CONSULTA_DECISION_S} s"},
+        {"nombre": "Vigencia de la orden de inicio del ciclo", "valor": f"{pc.VIGENCIA_ORDEN_CICLO_S} s"},
         {"nombre": "Timeout de conexión TCP", "valor": f"{pc.TIMEOUT_CONEXION_TCP_S} s"},
         {"nombre": "Timeout de respuesta del reconocimiento", "valor": f"{pc.TIMEOUT_RESPUESTA_RECONOCIMIENTO_S} s"},
         {"nombre": "Límite total de transacción", "valor": f"{pc.TIMEOUT_TOTAL_TRANSACCION_S} s"},
@@ -193,11 +199,21 @@ class _Handler(BaseHTTPRequestHandler):
         ruta = urlsplit(self.path).path
         m_asistente = _RE_ASISTENTE.match(ruta)
         m = _RE_RESOLVER.match(ruta)
-        if not m and not (m_asistente and m_asistente.group(1) != "estado"):
+        m_ciclo = _RE_CICLO.match(ruta)
+        if not m and not m_ciclo and not (m_asistente and m_asistente.group(1) != "estado"):
             self._json(404, {"error": "no encontrado"})
             return
         if not self._origen_valido():
             self._json(403, {"error": "origen no permitido"})
+            return
+        if m_ciclo:
+            resultado = self.server.estado.ordenar_inicio()
+            if resultado == INICIO_YA_INICIADO:
+                self._json(409, {"error": "ya_iniciada"})
+            else:
+                if resultado == INICIO_ORDENADO:
+                    log.info("El regente ordenó iniciar el ciclo de auditoría")
+                self._json(200, {"ok": True, "resultado": resultado})
             return
         if m_asistente:
             self._post_asistente(m_asistente.group(1))

@@ -75,6 +75,7 @@ function loteMostrado() {
 }
 
 function renderInicio() {
+  renderRecorrido();
   const lote = loteMostrado();
   const fotos = $("fotos");
 
@@ -144,6 +145,39 @@ function renderInicio() {
     lista.appendChild(li);
   }
 }
+
+// Botón "Iniciar recorrido": ordena a la Orange Pi iniciar el ciclo de auditoría
+// (informe 4.7). La orden es de un solo uso y vence si nadie la recoge.
+function renderRecorrido() {
+  const o = estado.orden_ciclo;
+  const boton = $("boton-recorrido");
+  const texto = $("recorrido-estado");
+  if (o.estado === "iniciada") {
+    boton.disabled = true;
+    $("boton-texto").textContent = "RECORRIDO INICIADO";
+    texto.textContent = "La Orange Pi recogió la orden a las " + fmtHora(o.ts_entregada) + ".";
+  } else if (o.estado === "ordenada") {
+    boton.disabled = true;
+    $("boton-texto").textContent = "ORDEN ENVIADA";
+    texto.textContent = `Esperando que la Orange Pi la recoja (vence en ${o.restante_s} s).`;
+  } else {
+    boton.disabled = false;
+    $("boton-texto").textContent = "INICIAR RECORRIDO";
+    const hace = o.ts_ultima_consulta ? estado.ts_servidor - o.ts_ultima_consulta : null;
+    texto.textContent = hace !== null && hace < 10
+      ? "La Orange Pi está esperando la orden."
+      : "La Orange Pi no ha consultado hace poco (puede estar apagada o ya en marcha).";
+  }
+}
+
+$("boton-recorrido").addEventListener("click", async () => {
+  $("boton-recorrido").disabled = true;       // evita doble clic mientras responde
+  try {
+    await fetch("/api/ciclo/iniciar", { method: "POST" });
+  } finally {
+    refrescar();
+  }
+});
 
 function renderInventario() {
   $("inv-max").textContent = estado.max_lotes_con_fotos;
@@ -341,6 +375,7 @@ function renderAsistente() {
     return;
   }
   const aviso = $("asistente-aviso");
+  $("chat").hidden = !chat.disponible;
   $("chat-form").hidden = !chat.disponible;
   aviso.classList.toggle("prueba", chat.modo === "prueba");
   if (!chat.disponible) {
@@ -448,10 +483,9 @@ $("chat-nuevo").addEventListener("click", async () => {
 });
 
 const RENDERS = {
-  inicio: renderInicio,
+  inicio: () => { renderInicio(); renderAsistente(); },
   inventario: renderInventario,
   alertas: renderAlertas,
-  asistente: renderAsistente,
   config: renderConfig,
 };
 
@@ -466,7 +500,7 @@ function cambiarVista(nueva) {
   for (const b of document.querySelectorAll("#pestanas button")) {
     b.classList.toggle("activa", b.dataset.vista === nueva);
   }
-  for (const v of ["inicio", "inventario", "alertas", "asistente", "config"]) {
+  for (const v of ["inicio", "inventario", "alertas", "config"]) {
     $("vista-" + v).hidden = v !== nueva;
   }
   claveFotos = null;

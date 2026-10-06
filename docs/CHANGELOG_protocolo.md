@@ -14,6 +14,35 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-06 (3) — Arlo.exe (con Claude Code, lado PC)
+- **Nuevo mensaje Orange Pi → PC: orden de inicio del ciclo de auditoría** (consulta
+  S-06, opción 1, aprobada por el usuario de la PC y por el lado Orange Pi). Hasta
+  ahora el ciclo arrancaba solo al ejecutarse `main.py` y la PC no podía darle
+  órdenes. Detalle en `arquitectura_comunicacion.md`, sección 4.7.
+- Flujo: tras abrir UART y cámara, la Orange Pi consulta `{"consulta": "orden_ciclo"}`
+  (puerto 5001, framing de 4.2, cada `INTERVALO_CONSULTA_DECISION_S`) hasta recibir
+  `{"orden": "iniciar"}`; entonces corre sola como hoy y **no vuelve a consultar**.
+  Mientras tanto la PC responde `{"orden": "esperando"}`.
+- Constantes nuevas en `shared/protocol_constants.py`: `CONSULTA_ORDEN_CICLO`,
+  `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`, `ORDEN_CICLO_INICIAR`,
+  `VIGENCIA_ORDEN_CICLO_S`.
+  - La orden es de **un solo uso**: la PC la entrega una vez; si la Orange Pi vuelve
+    a preguntar tras recibirla, la PC entiende que reinició y responde `esperando`.
+    Así ningún reinicio arranca el ciclo sin una decisión humana.
+  - `VIGENCIA_ORDEN_CICLO_S = 60`: una orden que nadie recoge vence (la Orange Pi ya
+    estaba en marcha o apagada) y no puede arrancar el ciclo en un arranque posterior.
+- **Impacto para orange-pi:** al iniciar `main.py`, esperar `iniciar` con ese bucle
+  antes del primer objeto (sin alarma local si la PC no responde; reintentar sin
+  tope). Una opción local `--sin-orden` para pruebas sueltas **no es parte del
+  contrato**. **Impacto para esp32-firmware:** ninguno (la orden no viaja por UART).
+- Esquema: `orangepi_a_pc__consulta_orden_ciclo`, `pc_a_orangepi__respuesta_orden_ciclo`.
+  `protocol_constants.h` no cambia.
+- Lado PC: `servidor_decision.py` atiende la consulta, `estado_panel.py` guarda la
+  orden y el botón "Iniciar recorrido" del panel (`POST /api/ciclo/iniciar`) se habilita.
+- Archivos: `shared/protocol_constants.py`, `shared/schemas/messages.schema.json`,
+  `docs/arquitectura_comunicacion.md`.
+- **Sigue pendiente:** pausar/detener el ciclo (opción 2 de S-06): no existe todavía.
+
 ## 2026-10-06 (2) — Arlo-qexe (con Claude Code, lado Orange Pi)
 - **Nuevo mensaje Orange Pi → ESP32-S3:** `desactivar_alarma_local`
   (`ACCION_DESACTIVAR_ALARMA_LOCAL`), sin campos adicionales y **sin evento de

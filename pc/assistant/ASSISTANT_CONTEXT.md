@@ -173,7 +173,7 @@ Por fases, de lo más barato a lo más caro:
    son varios GB y `curl`/`wget` piden confirmación), correr `demo_cli.py` con cada
    uno y anotar precisión y velocidad con frases reales de un operador. Decidir
    GPU vs CPU según la máquina de la demo.
-3. **Hecho — chat en el panel** (pestaña "Asistente"). `servicio.py` envuelve a
+3. **Hecho — chat en el panel** (lateral derecho de la pestaña Inicio). `servicio.py` envuelve a
    `Assistant` para el panel: una conversación y una solicitud a la vez, y las
    propuestas llevan un id (confirmar con un id viejo no ejecuta nada). Endpoints en
    `../src/panel_web.py`: `GET /api/asistente/estado`, `POST /api/asistente/mensaje |
