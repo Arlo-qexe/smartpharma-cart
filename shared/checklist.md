@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14).
+**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14, OP-16, OP-21).
 Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 y S-07).
 
 ## Cómo usarlo
@@ -135,9 +135,24 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   real (commit `5899489`).
 - [?] **OP-15** ¿Cómo se reanuda el ciclo tras un **fallo de comunicación** con la
   PC? Hoy no está definido (ver **S-02**).
-- [ ] **OP-16** Prueba de punta a punta con la ESP32-S3 y con la PC reales.
+- [~] **OP-16** Prueba de punta a punta con la ESP32-S3 y con la PC reales.
+  **Hecho** el tramo Orange Pi ↔ PC real (ver **OP-21**); **falta** la ESP32-S3
+  real (enlace UART con firmware, incluido el mapeo de `DESCARTE`, **S-04**).
 - [x] **OP-20** `requirements.txt` usa `opencv-python-headless` (la imagen
   Armbian Minimal no trae `libGL`).
+- [x] **OP-21** Prueba de punta a punta contra la PC real (2026-10-06),
+  `orange-pi/tests/prueba_extremo_a_extremo.py` con cámara real (5 fotos
+  1920×1080, ~430-470 KB c/u), mDNS real y la ESP32-S3 simulada (cada movimiento
+  tarda 2.5 s). Resultados:
+  - Camino normal: la PC respondió `TIPO_A` y se ordenó `clasificar` con ese
+    destino (ciclo de ~21 s).
+  - Camino del regente: con la confirmación de `introducir_objeto` retrasada
+    más allá del timeout, se agotaron los 5 reintentos, se envió el lote vacío,
+    la PC abrió la alarma y el regente resolvió `DESCARTE` en el panel; la
+    Orange Pi consultó el puerto 5001 y ordenó `clasificar` con `DESCARTE`
+    (sin alarma local, como debe ser). **El lado PC puede cerrar PC-12.**
+  - Observación: el primer intento de mDNS a veces tarda más de 3 s en el WiFi
+    (se resuelve solo con el reintento del descubridor).
 - [ ] **OP-17** `requirements-lock.txt` (lo pide su `CLAUDE.md` cuando el entorno
   funcione de punta a punta).
 - [ ] **OP-18** Limpieza: el TODO de `camera.py:91` (`capturar_ráfaga_completa`)
@@ -177,6 +192,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-21 nuevo (prueba de punta a punta contra la PC real: camino normal y camino del regente); OP-16 pasa a `[~]` (falta la ESP32-S3 real). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-14 `[x]`: el mock atiende el puerto 5001. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | S-07 `Hecha` (firewall inactivo verificado, servidor corriendo limpio); PC-12 pasa a `[~]`. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Sección 2 actualizada (OP-10 a OP-13 corregidos, OP-01/OP-04 verificados, OP-19/OP-20 nuevos); S-01 y S-03 `Hecha`; S-07 agregada. |
