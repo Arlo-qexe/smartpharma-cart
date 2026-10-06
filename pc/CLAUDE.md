@@ -67,10 +67,11 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/mdns_service.py` — registro del servicio `_ocr-service._tcp.local.`.
 - `src/ocr_interface.py` — contrato con el módulo de reconocimiento (placeholder).
 - `src/servidor_decision.py` — servidor de consultas de decisión del regente (puerto 5001); `src/framing.py` — framing JSON compartido.
+- `assistant/comandos_panel.py` — comandos de solo lectura del asistente sobre el estado del panel (ver `assistant/CLAUDE.md`).
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo

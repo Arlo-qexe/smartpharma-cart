@@ -19,7 +19,14 @@ hacerlo. Lee primero @ASSISTANT_CONTEXT.md — ahí está el "por qué" de cada 
   Orange Pi ↔ PC (por ejemplo, disparar una captura remota); en ese caso el mensaje se
   define primero en `shared/`.
 
-## Cómo probar sin la GUI
+## Cómo probar
+
+**Sin modelo (lo normal):** `python3 -m pytest tests/test_assistant.py` desde `pc/`
+(en máquinas con ROS: `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python3 -m
+pytest tests/test_assistant.py`). Usa un LLM falso inyectado con `Assistant(llm=...)`,
+así que no necesita descargar nada.
+
+## Probar con un modelo real en terminal
 
 ```bash
 cd pc/assistant
@@ -37,7 +44,11 @@ de datos existan — ver la tabla de la sección 8 de `ASSISTANT_CONTEXT.md`.
 
 - `assistant.py` — motor del asistente: registro de comandos, schema JSON, wrapper de
   `llama-cpp-python`, loop de confirmación, recuperador de documentación.
-- `demo_cli.py` — arnés de prueba en terminal.
+- `comandos_panel.py` — comandos de SOLO LECTURA sobre el estado real del panel
+  (`registrar_comandos_panel(estado)`, `resumen_estado(estado)`). Lee
+  `../src/estado_panel.py`; no abre sockets ni toca el protocolo.
+- `demo_cli.py` — arnés de prueba en terminal (comandos reales sobre un estado de
+  ejemplo, más stubs de lo que depende de decisiones abiertas).
 - `ASSISTANT_CONTEXT.md` — contexto y decisiones de este submódulo (análogo a este
   CLAUDE.md pero pensado para pegarse al inicio de un chat o para que el propio
   asistente lo recupere en tiempo de ejecución).
@@ -47,6 +58,11 @@ de datos existan — ver la tabla de la sección 8 de `ASSISTANT_CONTEXT.md`.
 - Los parámetros de cada comando (`params`) deben ser modelos pydantic **planos**
   (str/int/float/bool/Literal), nunca anidados.
 - Toda acción que cambie estado o mueva el carro necesita `needs_confirm=True`.
+- El asistente **no decide el destino de una alarma** (eso es del regente, D-07):
+  como mucho lo sugiere. Por eso `limpiar_alarma` sigue siendo un stub que no se
+  conecta tal cual.
+- Los comandos no inventan datos que el sistema aún no tiene (fecha de vencimiento,
+  confianza OCR): lo dicen en el texto de la respuesta.
 - Nunca pasar texto generado por el modelo a un shell o a `eval`.
 - El LLM de este módulo es independiente del modelo de visión que extrae la fecha de
   vencimiento — ver sección 4-5 de `ASSISTANT_CONTEXT.md` para la estrategia de

@@ -159,3 +159,12 @@ def test_solo_se_conservan_fotos_de_los_ultimos_lotes():
     assert estado.foto(ids[-1], 0) == b"a"
     viejo = next(l for l in estado.snapshot()["lotes"] if l["id"] == ids[0])
     assert viejo["fotos_disponibles"] is False
+
+
+def test_los_textos_de_motivos_coinciden_con_los_del_panel_js():
+    """Los motivos se muestran en panel.js y en el asistente (MOTIVOS_ALARMA): si
+    cambia uno sin el otro, el regente vería textos distintos para la misma alarma."""
+    from estado_panel import MOTIVOS_ALARMA
+    js = (RAIZ / "src" / "panel_static" / "panel.js").read_text(encoding="utf-8")
+    for clave, texto in MOTIVOS_ALARMA.items():
+        assert f'{clave}: "{texto}"' in js

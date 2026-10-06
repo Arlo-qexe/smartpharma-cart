@@ -43,13 +43,17 @@ funcionar completamente sin él (botones normales siguen existiendo).
 
 ## 4. Hardware y entorno
 
-- PC de desarrollo: laptop, 16 GB RAM, GPU NVIDIA RTX con 6 GB VRAM.
+- PC de desarrollo prevista: laptop, 16 GB RAM, GPU NVIDIA RTX con 6 GB VRAM.
+  **Ojo:** la máquina donde se trabaja hoy (Ubuntu 24.04) **no tiene GPU NVIDIA**, así
+  que ahí el LLM correría en CPU (el venv trae `llama-cpp-python` sin CUDA). Falta
+  decidir en qué máquina correrá la demo (afecta al tamaño de modelo posible).
 - Debe funcionar **completamente offline** (requisito ya validado para el resto del
   proyecto: mDNS local, sin dependencias de nube).
 - Lenguaje: Python, consistente con el resto de `pc/`.
-- Framework de GUI del panel de control: **(TBD)** — PySide6/PyQt o Tkinter son
-  candidatos; el asistente solo necesita que la GUI llame a `handle()` / `confirm()` /
-  `cancel()` desde un hilo de trabajo.
+- Panel de control: **decidido (D-02 en `shared/checklist.md`)**, es una página web
+  generada por la PC con la biblioteca estándar (`../src/panel_web.py`). El chat será
+  una caja en esa página que llame, por HTTP, a `handle()` / `confirm()` / `cancel()`
+  desde un hilo de trabajo en el servidor. **Aún no está construido** (Fase 3).
 - Modelo de visión (OCR de fecha de vencimiento) y su uso de VRAM: **(TBD)**, a cargo
   del equipo de IA — ver `../src/ocr_interface.py` para el contrato de entrada/salida.
 
@@ -71,8 +75,10 @@ funcionar completamente sin él (botones normales siguen existiendo).
     modelo.
   - **Acciones** (`iniciar_captura`, `reclasificar_caja`, `limpiar_alarma`): exigen
     confirmación del operador antes de ejecutarse.
-- El asistente recibe un breve **resumen del estado de la app** en cada prompt (estado
-  del carro, última caja, última fecha, confianza OCR, alarmas activas).
+- El asistente recibe un breve **resumen del estado de la app** en cada prompt
+  (`resumen_estado()`: lotes en el historial, último resultado, alarmas activas y si hay
+  una decisión del regente en espera). Cuando el reconocimiento entregue fecha de
+  vencimiento y confianza OCR (S-05), se agregarán ahí.
 - Las preguntas "¿cómo hago...?" se responden recuperando las 2-3 secciones más
   relevantes de este archivo (keyword match simple ahora; embeddings después si hace
   falta).
@@ -92,9 +98,10 @@ Cada función invocable por el asistente se registra con el decorador `@command`
 - `examples`: 1-2 frases que diría un operador real (mejoran mucho la precisión de
   modelos pequeños)
 
-Comandos iniciales (stubs en `demo_cli.py`): `estado_sistema`,
-`ultima_clasificacion`, `listar_proximas_a_vencer`, `iniciar_captura`,
-`reclasificar_caja`, `limpiar_alarma`.
+Comandos reales hoy (`comandos_panel.py`, solo lectura): `estado_sistema`,
+`ultima_clasificacion`, `listar_alarmas`. Siguen como stubs en `demo_cli.py`:
+`listar_proximas_a_vencer`, `iniciar_captura`, `reclasificar_caja`, `limpiar_alarma`
+(ver la tabla de la sección 8 para saber de qué decisión depende cada uno).
 
 Si el registro crece más allá de ~8 comandos, solo se ofrecen al modelo los más
 relevantes por solicitud (`select_commands`).
@@ -113,47 +120,58 @@ relevantes por solicitud (`select_commands`).
 
 ## 8. Integración con el resto de `pc/`
 
-Cuando exista la GUI del panel de control, los comandos stub de `demo_cli.py` se
-reemplazan por llamadas reales:
+El estado del panel vive en `../src/estado_panel.py` (`EstadoPanel`: lotes, fotos,
+alarmas y la decisión del regente en espera), solo en RAM (D-05: no se persiste).
+`comandos_panel.py` registra los comandos de solo lectura sobre una instancia de
+ese estado con `registrar_comandos_panel(estado)`, y `resumen_estado(estado)` arma
+el resumen que se inyecta en cada prompt.
 
-| Comando del asistente | Se conecta con |
-|---|---|
-| `estado_sistema` | estado interno de `server.py` / conexión mDNS con la Orange Pi |
-| `ultima_clasificacion` | última entrada en la base de datos / último resultado de `ocr_interface.py` |
-| `listar_proximas_a_vencer` | consulta a la base de datos (FEFO) — **(TBD)** esquema de base de datos |
-| `iniciar_captura` / `reclasificar_caja` | comando hacia la Orange Pi vía el mismo canal que ya usa el protocolo (ver `shared/protocol_constants.py`) — **(TBD)** cómo se dispara desde la PC, no solo desde la Orange Pi |
-| `limpiar_alarma` | `disparar_alarma_dashboard()` (placeholder mencionado en `../CLAUDE.md`) |
+| Comando del asistente | Estado | Se conecta con |
+|---|---|---|
+| `estado_sistema` | **Real (Fase 1)** | `EstadoPanel.snapshot()` y `consultar_decision()`: lotes, alarmas, decisión en espera. **No** conoce el estado mecánico del carro. |
+| `ultima_clasificacion` | **Real (Fase 1)** | Últimos lotes (hora, origen, nº de imágenes, clasificación). **No** hay fecha de vencimiento ni confianza OCR todavía. |
+| `listar_alarmas` | **Real (Fase 1)** | `EstadoPanel.snapshot()["alarmas"]`: motivo, lote, y si está esperando la decisión, es antigua o resuelta. |
+| `listar_proximas_a_vencer` | Stub (solo `demo_cli.py`) | Necesita la fecha de vencimiento: depende de **S-05 / PC-11**. No hay base de datos (D-05). |
+| `iniciar_captura` / `reclasificar_caja` | Stub (solo `demo_cli.py`) | Necesitan un canal PC → Orange Pi: depende de la consulta abierta **S-06**. Por la regla de oro, el mensaje se definiría primero en `shared/`. |
+| `limpiar_alarma` | Stub — **no conectar tal cual** | Resolver una alarma es elegir el destino de la caja: decisión del **regente** (D-07). Como mucho el asistente podría *sugerirla*; el regente confirma con el botón del panel. |
 
 ## 9. Archivos
 
 - `assistant.py`: registro de comandos, construcción de schema, wrapper de
-  llama-cpp-python, loop de confirmación, recuperador de documentación.
-- `demo_cli.py`: arnés de prueba en terminal con comandos stub.
+  llama-cpp-python (o un LLM inyectado), loop de confirmación, recuperador de
+  documentación.
+- `comandos_panel.py`: comandos de solo lectura sobre el estado real del panel y
+  `resumen_estado()`.
+- `demo_cli.py`: arnés de prueba en terminal (comandos reales sobre un estado de
+  ejemplo, más stubs).
+- `../tests/test_assistant.py`: pruebas sin modelo (LLM falso).
 - `ASSISTANT_CONTEXT.md`: este archivo.
 
 ## 10. Preguntas abiertas
 
-- ¿Qué framework de GUI? (afecta solo cómo se integra el chat box, no `assistant.py`)
+- ~~¿Qué framework de GUI?~~ **Resuelto:** panel web (D-02).
 - ¿Cómo se dispara `iniciar_captura`/`reclasificar_caja` desde la PC hacia la Orange
-  Pi? El protocolo actual (`docs/arquitectura_comunicacion.md`) describe el flujo
-  Orange Pi → PC para el lote de imágenes; falta definir el canal de vuelta (PC →
-  Orange Pi) para comandos iniciados por el operador.
-- ¿Qué modelo de visión y cuánta VRAM usa? Determina si el LLM del asistente corre en
-  GPU o CPU (ver sección 5 de `../../CONTEXTO_PROYECTO.md` para la estrategia
-  GPU/RAM general del proyecto).
-- Esquema de base de datos y umbrales de alarma (qué cuenta como "por vencer pronto").
+  Pi? Es la consulta abierta **S-06** (`shared/checklist.md`).
+- ¿En qué máquina corre la demo y con cuánta VRAM? Determina si el LLM va en GPU o CPU
+  (y qué modelo, ver Fase 2). La máquina de desarrollo actual no tiene GPU NVIDIA.
+- ¿Qué entrega el reconocimiento (fecha de vencimiento, confianza)? **S-05**; sin eso
+  no hay `listar_proximas_a_vencer` ni "próximas a vencer".
+- ¿Puede el asistente *sugerir* el destino de una alarma al regente? (Nunca decidirlo.)
 - ¿El operador debe poder corregir una fecha mal leída a través del asistente?
 
 ## 11. Próximos pasos
 
-1. Instalar `llama-cpp-python` (build CUDA) y descargar 2-3 modelos GGUF instruct
-   pequeños candidatos.
-2. Correr `demo_cli.py` con cada modelo y anotar precisión/velocidad sobre frases
-   realistas de un operador de farmacia.
-3. Reemplazar los comandos stub por llamadas al código real de captura/base de datos.
-4. Medir VRAM/RAM combinado con el modelo de visión cargado; decidir GPU vs CPU para
-   el LLM del asistente.
-5. Construir el panel de chat de la GUI (hilo de trabajo, salida en streaming, botones
-   de confirmación).
-6. Ampliar este archivo a medida que se escriban los flujos y la documentación del
-   panel de control; el asistente recuperará de aquí.
+Por fases, de lo más barato a lo más caro:
+
+0. **Hecho — motor probado sin modelo.** `Assistant(llm=...)` acepta un modelo
+   inyectado; `tests/test_assistant.py` cubre el bucle, la validación y la
+   confirmación con un LLM falso.
+1. **Hecho — comandos de solo lectura con datos reales** (`comandos_panel.py`).
+2. **Elegir modelo.** Descargar 2-3 modelos GGUF instruct pequeños (~3-4B, 4 bits;
+   son varios GB y `curl`/`wget` piden confirmación), correr `demo_cli.py` con cada
+   uno y anotar precisión y velocidad con frases reales de un operador. Decidir
+   GPU vs CPU según la máquina de la demo.
+3. **Chat en el panel:** endpoint HTTP + caja de chat en `panel_static/`, hilo de
+   trabajo, botones de confirmación. El panel debe funcionar igual sin el asistente.
+4. **Acciones** (`iniciar_captura`, etc.): solo cuando existan S-06 y S-05.
+5. Ampliar este archivo con los flujos del panel; el asistente recupera de aquí.

@@ -32,6 +32,15 @@ MAX_ALARMAS = 100
 # Validación del lado PC; el esquema del contrato usa el mismo patrón.
 PATRON_DESTINO = re.compile(r"^[A-Z0-9_]{1,32}$")
 
+# Textos con que se muestra cada motivo de alarma al regente. Los usan el asistente
+# (pc/assistant/comandos_panel.py) y, duplicados, panel.js: si se cambia uno, hay
+# que cambiar el otro (tests/test_panel.py vigila que coincidan).
+MOTIVOS_ALARMA = {
+    "fallo_captura": "Lote vacío (captura fallida o reintento tras perder la conexión)",
+    "sin_consenso_ocr": "Sin consenso en el reconocimiento",
+    "framing_invalido": "Lote inválido (framing)",
+}
+
 # Resultados de resolver_alarma()
 RESUELTA_CON_DECISION = "resuelta"        # se fijó el destino para la Orange Pi
 CERRADA_SIN_DECISION = "cerrada"          # alarma antigua: solo se cierra

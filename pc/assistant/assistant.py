@@ -210,21 +210,31 @@ class Proposal:
 class Assistant:
     def __init__(
         self,
-        model_path: str,
+        model_path: str | None = None,
         n_ctx: int = 4096,
         n_gpu_layers: int = -1,  # -1 = todas las capas en GPU; 0 para forzar CPU
         max_steps: int = 3,
         docs_retriever: Optional[Callable[[str], list[str]]] = None,
         history_messages: int = 12,
+        llm: Any = None,
     ):
-        from llama_cpp import Llama  # import local para que el módulo cargue sin la lib
+        """`llm` permite inyectar un modelo ya construido (o uno falso en las pruebas):
+        solo necesita `create_chat_completion(messages, response_format, temperature,
+        max_tokens)` y devolver el mismo dict que llama-cpp-python. Si no se da, se
+        carga `model_path` con llama-cpp-python."""
+        if llm is not None:
+            self.llm = llm
+        else:
+            if model_path is None:
+                raise ValueError("Se necesita `model_path` o un `llm` ya construido.")
+            from llama_cpp import Llama  # import local para que el módulo cargue sin la lib
 
-        self.llm = Llama(
-            model_path=model_path,
-            n_ctx=n_ctx,
-            n_gpu_layers=n_gpu_layers,
-            verbose=False,
-        )
+            self.llm = Llama(
+                model_path=model_path,
+                n_ctx=n_ctx,
+                n_gpu_layers=n_gpu_layers,
+                verbose=False,
+            )
         self.max_steps = max_steps
         self.docs_retriever = docs_retriever
         self.history_messages = history_messages
