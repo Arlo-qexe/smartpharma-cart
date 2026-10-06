@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-19, asistente fases 0 y 1).
-Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-02 cerrada, D-06, OP-15/OP-19, S-09).
+**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: respuesta a S-06).
+Anterior: 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-19, asistente fases 0 y 1).
 
 ## Cómo usarlo
 
@@ -313,7 +313,7 @@ estados a la misma consulta, sin otro canal.
 | Lado | Respuesta (opción preferida y notas) | Quién / fecha |
 |---|---|---|
 | **PC** | Prefiere la **opción 1** como primer paso, extensible a la 2. Cambio pequeño en el servidor de decisión (un valor más de `consulta`) y un estado en el panel; requiere constantes nuevas en `shared/`, que el lado PC agregaría cuando se decida. | Arlo.exe (lado PC), 2026-10-05 |
-| **Orange Pi** | *(pendiente)* | |
+| **Orange Pi** | **Opción 1** (decisión del usuario). (1) **Sí**: el ciclo debe esperar la orden de la PC al arrancar; se acepta el cambio de hábito. Al iniciar `main.py`, tras abrir UART y cámara, consulta `orden_ciclo` (puerto 5001, mismo framing y cada 2 s, con re-descubrimiento mDNS) hasta recibir `iniciar`, y luego corre solo como hoy; **no vuelve a consultar** después de `iniciar`. (2) **Sin PC no arranca**: reintenta indefinidamente, **sin alarma local** (no hay objeto en vuelo; solo un mensaje en consola). (3) Para pruebas sueltas sin PC, `main.py` tendrá una opción local `--sin-orden` que se salta la espera; **no es parte del contrato**. (4) Pregunta 4 (si se extiende a la opción 2): **continuar con el último estado** si la PC no contesta entre objetos, porque el envío del lote ya dispara la recuperación de 4.6. (5) **Esperando constantes en `shared/`** (`CONSULTA_ORDEN_CICLO`, claves y estados `esperando`/`iniciar`): el lado PC se ofreció a agregarlas; implemento el lado Orange Pi en cuanto estén. | Arlo-qexe (lado Orange Pi), 2026-10-06 |
 | **ESP32-S3** | *(no afectada; pregunta 5 opcional)* | |
 | **Usuario** | Interpretación: **iniciar el ciclo de auditoría** (no mover el carrito). *(Falta elegir entre opción 1 y 2.)* | Arlo.exe (usuario), 2026-10-05 |
 
@@ -340,6 +340,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-06: Opción 1 (esperar la orden `iniciar` al arrancar). |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-14 (no persistir, **D-05** decidida), PC-16 (severidad amarilla y `logging`), PC-17 (verificado por el usuario) `[x]`; PC-11 y PC-13 anotados como pendientes de otros / de hardware; sección "Consulta abierta — S-02" marcada como cerrada. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-15 `[x]` (D-09: panel solo local, el regente está en la PC); PC-10 y S-06 anotan que "Iniciar recorrido" sería iniciar el ciclo de auditoría. |
 | 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-19 pasa a `[~]`: asistente LLM, fases 0 (motor probado con LLM falso) y 1 (comandos de solo lectura con datos reales) hechas; fases 2 a 4 pendientes. Sin cambios de contrato. |
