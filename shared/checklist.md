@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-05 — Arlo.exe (con Claude Code, lado PC)
+**Última actualización:** 2026-10-06 — Arlo-qexe (con Claude Code, lado Orange Pi: sección 2 y S-01/S-03/S-07)
 
 ## Cómo usarlo
 
@@ -84,50 +84,55 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 
 ## Sección 2 — Lado Orange Pi (`orange-pi/`)
 
-> **Aviso:** esta sección la redactó el lado PC **leyendo el código** de
-> `orange-pi/` (no hay prueba ejecutada por nuestra parte). El lado Orange Pi
-> debe **confirmar, corregir o discutir** cada línea; las marcadas `[!]` son
-> diferencias entre el código actual y el contrato vigente.
+> **Actualizada el 2026-10-06 por el lado Orange Pi** (con Claude Code), tras
+> el commit `2ff59ce`. La versión inicial la redactó el lado PC leyendo el
+> código; aquí se confirman o corrigen sus líneas. Pruebas del lado Orange Pi:
+> `cd orange-pi && python -m unittest discover -s tests` (13 pasan, sin
+> hardware) y una prueba de integración contra `server.py` y
+> `servidor_decision.py` reales de la PC (lote vacío → alarma → regente
+> resuelve `TIPO_B` → `clasificar`), corrida a mano, no incluida en el repo.
 
 ### Implementado (según el código y su `CLAUDE.md`)
 
 - [x] **OP-01** Enlace UART con checksum (`uart/uart_link.py`); `/dev/ttyS0`
-  verificado con loopback en hardware real el 2026-09-16 (según su `CLAUDE.md`).
+  verificado con loopback en hardware real el 2026-09-16 y repetido el
+  2026-10-06 (mensaje y checksum `1F` íntegros). *Falta el enlace con la
+  ESP32-S3 real (OP-16).*
 - [x] **OP-02** Descubrimiento mDNS con caché e invalidación (`network/mdns_discovery.py`).
 - [x] **OP-03** Cliente TCP del lote con reintentos hasta 30 s (`network/tcp_client.py`).
 - [x] **OP-04** Cámara por nombre, captura a 1080p con autoenfoque, JPEG en memoria
-  (commit `2b3ffba`). *Verificación en hardware real: no registrada.*
+  (commit `2b3ffba`). Verificado el 2026-10-06 con la webcam HP de desarrollo:
+  1920×1080, JPEG ~430 KB, 0,8 s. *No verificado:* que el autoenfoque enfoque a
+  la distancia real de la caja, ni la Arducam USB final.
 - [x] **OP-05** `introducir_objeto` con hasta 5 reintentos y ráfaga de 5 caras
   (`main.py`).
 - [x] **OP-06** `tests/mock_pc_server.py` para desarrollar sin la PC.
 
-### Divergencias con el contrato (hay que corregir) — ver **S-01**
+### Divergencias con el contrato — corregidas (ver **S-01**)
 
-- [!] **OP-10** `main.py` aún usa `input()` para la revisión manual. El contrato
-  vigente (sección 4.5) exige un **bucle de consulta** a la PC (puerto 5001,
-  cada 2 s) hasta recibir `resuelta`.
-- [!] **OP-11** Tras la revisión manual `main.py` envía
-  `clasificar` con `destino = "ERROR_REVISION_MANUAL"`. Debe usar el destino que
-  devuelve la consulta de decisión (`TIPO_X` o `DESCARTE`).
-- [!] **OP-12** `activar_alarma_local` se envía ante **cualquier**
-  `ERROR_REVISION_MANUAL`. El contrato (4.4 y 8.1) la reserva para el **fallo de
-  comunicación con la PC** (agotar los 30 s); si el error lo decidió la PC
-  (lote vacío / sin consenso), la alarma es la del panel. Hoy `procesar_lote()`
-  devuelve el mismo dict en ambos casos, así que no se pueden distinguir (es el
-  TODO de `main.py:78`).
-- [!] **OP-13** Si `introducir_objeto` agota sus 5 reintentos, `main.py` fija
-  `ERROR_REVISION_MANUAL` **sin enviar un lote vacío a la PC**. El contrato (5.4 y
-  6.2) dice que se continúa con un lote vacío: así la PC alarma al regente en el
-  panel y abre la decisión que la Orange Pi consultará.
+- [x] **OP-10** `main.py` consulta la decisión con `network/decision_client.py`
+  (puerto 5001, cada 2 s, **sin tope de espera**) en lugar del `input()`.
+- [x] **OP-11** `clasificar` usa el destino devuelto (`TIPO_X` o `DESCARTE`).
+- [x] **OP-12** `enviar_lote()` devuelve `(respuesta, fallo_de_red)`: la alarma
+  local solo se activa ante fallo de red (30 s) o si la PC deja de responder
+  durante la espera de la decisión (30 s seguidos de consultas fallidas). Un
+  `ERROR_REVISION_MANUAL` respondido por la PC no la activa.
+- [x] **OP-13** Si `introducir_objeto` agota sus reintentos se envía un lote
+  vacío a la PC.
 
 ### Pendiente
 
+- [~] **OP-19** Si la PC responde `ninguna` mientras se espera: se activa la
+  alarma local, la caja se queda en posición y el ciclo **se detiene** (no hay
+  forma definida de reanudarlo; mismo hueco que **S-02**).
 - [ ] **OP-14** Actualizar `tests/mock_pc_server.py` para que también atienda el
   puerto de decisión (hay un cliente de referencia de una consulta en
   `pc/tests/mock_orangepi_client.py::consultar_decision`).
 - [?] **OP-15** ¿Cómo se reanuda el ciclo tras un **fallo de comunicación** con la
   PC? Hoy no está definido (ver **S-02**).
 - [ ] **OP-16** Prueba de punta a punta con la ESP32-S3 y con la PC reales.
+- [x] **OP-20** `requirements.txt` usa `opencv-python-headless` (la imagen
+  Armbian Minimal no trae `libGL`).
 - [ ] **OP-17** `requirements-lock.txt` (lo pide su `CLAUDE.md` cuando el entorno
   funcione de punta a punta).
 - [ ] **OP-18** Limpieza: el TODO de `camera.py:91` (`capturar_ráfaga_completa`)
@@ -141,13 +146,13 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | ID | De → Para | Solicitud | Estado | Notas |
 |---|---|---|---|---|
-| S-01 | PC → Orange Pi | Implementar el bucle de consulta de decisión y corregir **OP-10 a OP-13**. Contrato: `docs/arquitectura_comunicacion.md` §4.5; cliente de referencia en `pc/tests/mock_orangepi_client.py`. | Abierta | La opción A ya está implementada y subida del lado PC (commit `08a76ec`). |
+| S-01 | PC → Orange Pi | Implementar el bucle de consulta de decisión y corregir **OP-10 a OP-13**. Contrato: `docs/arquitectura_comunicacion.md` §4.5; cliente de referencia en `pc/tests/mock_orangepi_client.py`. | Hecha | Lado PC: commit `08a76ec`. Lado Orange Pi: commit `2ff59ce` (OP-10 a OP-13). |
 | S-02 | PC → Orange Pi (+ equipo) | Definir cómo se **reanuda el ciclo tras un fallo de comunicación** con la PC. El informe solo dice "alarma física local"; no dice qué `destino` se usa después ni quién desbloquea. Opciones a discutir: botón físico vía ESP32-S3, reintento de consulta cuando la PC vuelva, etc. | Abierta | Sin propuesta formal todavía; el lado PC puede redactarla. |
-| S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Abierta | Ver CHANGELOG 2026-10-05 (2). |
+| S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Hecha | Confirmados los dos primeros. Formato del destino: el cliente acepta cualquier cadena no vacía y deja a la PC la validación (`[A-Z0-9_]{1,32}`). |
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
 | S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Abierta | Bloquea **PC-10**. |
-| S-07 | Orange Pi → PC | *(vacío — el lado Orange Pi agrega aquí lo que necesite de la PC)* | — | |
+| S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Abierta | La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. |
 
 ---
 
@@ -167,4 +172,5 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Sección 2 actualizada (OP-10 a OP-13 corregidos, OP-01/OP-04 verificados, OP-19/OP-20 nuevos); S-01 y S-03 `Hecha`; S-07 agregada. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Creación. Estado del lado PC verificado; estado del lado Orange Pi redactado por lectura del código, con 4 divergencias señaladas (OP-10 a OP-13). |
