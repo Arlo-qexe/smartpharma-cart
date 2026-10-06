@@ -150,3 +150,48 @@ def test_framing_invalido_tambien_abre_decision(puertos):
         (largo,) = struct.unpack("!I", s.recv(4))
         assert json.loads(s.recv(largo))["clasificacion"] == "ERROR_REVISION_MANUAL"
     assert consultar_decision(puerto=p_dec) == {"estado": "pendiente"}
+
+
+# ---- PC-18: registro de las consultas de decisión
+def _esperar_salida(capsys, texto, acumulado="", intentos=40):
+    """El hilo del servidor imprime después de responder: espera a que aparezca."""
+    for _ in range(intentos):
+        acumulado += capsys.readouterr().out
+        if texto in acumulado:
+            return acumulado
+        time.sleep(0.05)
+    return acumulado
+
+
+def test_registra_solo_los_cambios_de_estado_entregado(canal, capsys):
+    estado, puerto = canal
+    alarma = estado.registrar_alarma("fallo_captura")
+    estado.abrir_decision(alarma)
+
+    for _ in range(3):  # la Orange Pi consulta cada 2 s: no debe haber ruido
+        consultar_decision(puerto=puerto)
+    salida = _esperar_salida(capsys, "recibió: pendiente")
+    assert salida.count("recibió: pendiente") == 1
+
+    estado.resolver_alarma(alarma, "DESCARTE")
+    consultar_decision(puerto=puerto)
+    consultar_decision(puerto=puerto)
+    salida = _esperar_salida(capsys, "recibió: resuelta (destino DESCARTE)")
+    assert salida.count("recibió: resuelta (destino DESCARTE)") == 1
+    assert "pendiente" not in salida
+
+
+def test_conexion_sin_datos_no_se_reporta_como_error(canal, puertos, capsys):
+    _, p_dec = canal
+    p_lotes, _ = puertos
+    for puerto in (p_dec, p_lotes):
+        socket.create_connection(("127.0.0.1", puerto), timeout=3).close()
+    salida = ""
+    for _ in range(40):  # cada servidor imprime desde su propio hilo
+        salida += capsys.readouterr().out
+        if salida.count("sin enviar datos") >= 2:
+            break
+        time.sleep(0.05)
+    assert "[decision]" in salida and "[server]" in salida
+    assert salida.count("sin enviar datos") == 2
+    assert "Error" not in salida

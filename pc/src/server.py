@@ -26,7 +26,7 @@ from protocol_constants import (  # noqa: E402
 )
 
 from estado_panel import estado
-from framing import FramingInvalido, enviar_json, recv_exacto
+from framing import ConexionSinDatos, FramingInvalido, enviar_json, recv_exacto
 from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
 from ocr_interface import procesar_lote_ocr
 from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
@@ -34,7 +34,8 @@ from servidor_decision import iniciar_servidor_decision
 
 
 def _recibir_lote(sock):
-    (cantidad,) = struct.unpack(FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES))
+    (cantidad,) = struct.unpack(
+        FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES, inicio_mensaje=True))
     if cantidad > MAX_IMAGENES_POR_LOTE:
         raise FramingInvalido(f"cantidad de imágenes {cantidad} > {MAX_IMAGENES_POR_LOTE}")
     imagenes = []
@@ -91,6 +92,8 @@ def _manejar_cliente(conn, addr):
         enviar_json(conn, {CLAVE_RESULTADO_JSON: resultado})
         print(f"[server] Respuesta enviada a {addr}: {resultado}")
 
+    except ConexionSinDatos:
+        print(f"[server] {addr} abrió y cerró la conexión sin enviar datos (sonda de conectividad)")
     except (ConnectionResetError, struct.error, OSError) as e:
         print(f"[server] Error con {addr}: {e}")
     finally:

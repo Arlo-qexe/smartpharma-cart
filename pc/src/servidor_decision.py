@@ -14,14 +14,16 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_CONSULTA_JSON,
+    CLAVE_DESTINO_JSON,
     CLAVE_ERROR_JSON,
+    CLAVE_ESTADO_DECISION_JSON,
     CONSULTA_DECISION_REGENTE,
     ERROR_CONSULTA_INVALIDA,
     TIMEOUT_INACTIVIDAD_RECEPCION_S,
 )
 
 from estado_panel import EstadoPanel
-from framing import FramingInvalido, enviar_json, recibir_json
+from framing import ConexionSinDatos, FramingInvalido, enviar_json, recibir_json
 
 
 class _ManejadorConsulta(socketserver.BaseRequestHandler):
@@ -38,9 +40,26 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
             if consulta.get(CLAVE_CONSULTA_JSON) != CONSULTA_DECISION_REGENTE:
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
                 return
-            enviar_json(conn, self.server.estado.consultar_decision())
+            respuesta = self.server.estado.consultar_decision()
+            enviar_json(conn, respuesta)
+            self._registrar_si_cambio(respuesta)
+        except ConexionSinDatos:
+            print(f"[decision] {self.client_address[0]} abrió y cerró la conexión sin "
+                  "enviar datos (sonda de conectividad)")
         except OSError as e:  # incluye ConnectionResetError y timeouts
             print(f"[decision] Error con {self.client_address}: {e}")
+
+    def _registrar_si_cambio(self, respuesta):
+        """La Orange Pi consulta cada 2 s: se registra solo cuando cambia lo
+        entregado a ese cliente, para ver (p. ej.) que recibió `resuelta`."""
+        ip = self.client_address[0]
+        clave = (respuesta.get(CLAVE_ESTADO_DECISION_JSON), respuesta.get(CLAVE_DESTINO_JSON))
+        with self.server.lock_registro:
+            if self.server.ultimo_entregado.get(ip) == clave:
+                return
+            self.server.ultimo_entregado[ip] = clave
+        detalle = f" (destino {clave[1]})" if clave[1] else ""
+        print(f"[decision] {ip} recibió: {clave[0]}{detalle}")
 
 
 class _Servidor(socketserver.ThreadingTCPServer):
@@ -51,6 +70,8 @@ class _Servidor(socketserver.ThreadingTCPServer):
 def crear_servidor_decision(estado: EstadoPanel, puerto: int, host: str = "0.0.0.0"):
     servidor = _Servidor((host, puerto), _ManejadorConsulta)
     servidor.estado = estado
+    servidor.ultimo_entregado = {}      # ip -> (estado, destino) ya registrado
+    servidor.lock_registro = threading.Lock()
     return servidor
 
 

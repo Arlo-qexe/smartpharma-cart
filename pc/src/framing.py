@@ -20,11 +20,20 @@ class FramingInvalido(Exception):
     """El mensaje viola los límites de validación del framing."""
 
 
-def recv_exacto(sock, n):
+class ConexionSinDatos(ConnectionResetError):
+    """El cliente abrió y cerró la conexión sin enviar un solo byte (p. ej.
+    una prueba de conectividad). No es un error del protocolo."""
+
+
+def recv_exacto(sock, n, inicio_mensaje=False):
+    """Lee exactamente `n` bytes. Con `inicio_mensaje=True`, un cierre antes de
+    recibir el primer byte lanza ConexionSinDatos en vez de un error genérico."""
     datos = b""
     while len(datos) < n:
         chunk = sock.recv(n - len(datos))
         if not chunk:
+            if inicio_mensaje and not datos:
+                raise ConexionSinDatos("conexión cerrada sin enviar datos")
             raise ConnectionResetError("Conexión cerrada durante recv")
         datos += chunk
     return datos
@@ -39,7 +48,8 @@ def enviar_json(sock, diccionario):
 def recibir_json(sock, max_bytes=TAMANO_MAX_MENSAJE_JSON_BYTES):
     """Lee un mensaje JSON con prefijo de longitud. Lanza FramingInvalido si
     la longitud excede `max_bytes` o el contenido no es un objeto JSON."""
-    (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES))
+    (longitud,) = struct.unpack(
+        FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES, inicio_mensaje=True))
     if longitud > max_bytes:
         raise FramingInvalido(f"longitud {longitud} > {max_bytes}")
     try:
