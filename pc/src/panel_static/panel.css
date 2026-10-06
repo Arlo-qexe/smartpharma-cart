@@ -121,6 +121,24 @@ code { background: #fff; padding: 1px 5px; border-radius: 4px; }
 .btn-chico:disabled { opacity: .4; cursor: not-allowed; }
 .fotos a { cursor: zoom-in; }
 
+.chat {
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 160px; max-height: 55vh; overflow-y: auto;
+  padding: 12px; background: var(--menta); border-radius: 10px;
+}
+.mensaje { max-width: 85%; padding: 8px 12px; border-radius: 10px; background: #fff; border: 1px solid #c4d4d0; }
+.mensaje p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mensaje .autor { font-size: 12px; font-weight: 700; color: var(--suave); }
+.mensaje.operador { align-self: flex-end; background: var(--teal); border-color: var(--teal); color: #fff; }
+.mensaje.operador .autor { color: #d6eef0; }
+.mensaje.error { border-color: var(--rojo); color: var(--rojo); }
+.mensaje.pensando { opacity: .6; font-style: italic; }
+.mensaje.propuesta { border: 2px solid var(--amarillo); }
+.mensaje.propuesta .accion { margin-top: 8px; }
+.chat-form { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.chat-form textarea { width: 100%; padding: 8px; border: 1px solid var(--teal); border-radius: 8px; font: inherit; resize: vertical; }
+.aviso.prueba { padding: 8px 12px; border-radius: 8px; background: var(--amarillo); color: var(--tinta); font-weight: 600; }
+
 @media (max-width: 800px) {
   .tablero { grid-template-columns: 1fr; padding: 14px; }
   .panel-izq { padding: 0 0 16px; border-right: 0; border-bottom: 2px solid var(--linea); }

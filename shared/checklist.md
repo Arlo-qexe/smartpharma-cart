@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: respuesta a S-06).
-Anterior: 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-19, asistente fases 0 y 1).
+**Última actualización:** 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-19, asistente fase 3).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-02 cerrada, D-06, OP-15/OP-19, S-09).
 
 ## Cómo usarlo
 
@@ -117,11 +117,14 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   - [x] **Fase 1:** tres comandos de **solo lectura** con datos reales del panel
     (`estado_sistema`, `ultima_clasificacion`, `listar_alarmas`) y `resumen_estado()`
     para el prompt. No inventan lo que el sistema aún no sabe (fecha de vencimiento,
-    confianza OCR, estado mecánico del carro). 21 pruebas nuevas; 49 en total pasan.
-  - [ ] **Fase 2:** elegir modelo (descargar 2-3 GGUF, varios GB, pide confirmación;
+    confianza OCR, estado mecánico del carro).
+  - [ ] **Fase 2:** elegir modelo (necesario para usar el asistente de verdad) (descargar 2-3 GGUF, varios GB, pide confirmación;
     medir velocidad). Falta decidir la máquina de la demo: la de desarrollo actual no
     tiene GPU NVIDIA, así que correría en CPU.
-  - [ ] **Fase 3:** chat en el panel web (endpoint + caja de chat + confirmaciones).
+  - [x] **Fase 3:** chat en el panel web (pestaña "Asistente", endpoints `/api/asistente/*`,
+    confirmación con botones, una solicitud a la vez, propuestas con id). Opcional y
+    desactivado por defecto: `ASISTENTE_MODO=prueba` (reglas fijas, **no es un LLM**) o
+    `ASISTENTE_MODELO=/ruta/modelo.gguf`. Sin streaming por ahora. 69 pruebas pasan.
   - [ ] **Fase 4:** acciones; dependen de **S-06** (`iniciar_captura`) y **S-05**
     (`listar_proximas_a_vencer`).
   El asistente **no decide el destino de una alarma** (**D-07**): `limpiar_alarma`
@@ -343,6 +346,7 @@ estados a la misma consulta, sin otro canal.
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-06: Opción 1 (esperar la orden `iniciar` al arrancar). |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-14 (no persistir, **D-05** decidida), PC-16 (severidad amarilla y `logging`), PC-17 (verificado por el usuario) `[x]`; PC-11 y PC-13 anotados como pendientes de otros / de hardware; sección "Consulta abierta — S-02" marcada como cerrada. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-15 `[x]` (D-09: panel solo local, el regente está en la PC); PC-10 y S-06 anotan que "Iniciar recorrido" sería iniciar el ciclo de auditoría. |
+| 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-19 fase 3 `[x]`: el asistente en el panel web (opcional, modo de prueba sin modelo). Sin cambios de contrato. |
 | 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-19 pasa a `[~]`: asistente LLM, fases 0 (motor probado con LLM falso) y 1 (comandos de solo lectura con datos reales) hechas; fases 2 a 4 pendientes. Sin cambios de contrato. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Consulta abierta S-06 (botón "Iniciar recorrido": opciones 0 a 2, preguntas y tabla de respuestas), D-10 pendiente; PC-19 nuevo (asistente LLM por revisar). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-02 `Hecha` y D-06 cerrada: se implementa la recuperación de la sección 4.6 (`desactivar_alarma_local`, `INTERVALO_REINTENTO_PC_S`, bucle en la Orange Pi). OP-15 y OP-19 `[x]`; S-09 nueva para la ESP32-S3. |

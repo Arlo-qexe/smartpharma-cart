@@ -67,6 +67,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/mdns_service.py` — registro del servicio `_ocr-service._tcp.local.`.
 - `src/ocr_interface.py` — contrato con el módulo de reconocimiento (placeholder).
 - `src/servidor_decision.py` — servidor de consultas de decisión del regente (puerto 5001); `src/framing.py` — framing JSON compartido.
+- `src/asistente_api.py` — contrato mínimo entre el panel y el servicio del asistente (sin pydantic ni llama-cpp).
 - `assistant/comandos_panel.py` — comandos de solo lectura del asistente sobre el estado del panel (ver `assistant/CLAUDE.md`).
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
@@ -91,6 +92,10 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
   configura una sola vez en `server.py`. Nivel con `PC_LOG_LEVEL`
   (`DEBUG|INFO|WARNING|ERROR`, por defecto `INFO`). La excepción es el
   placeholder de `src/ocr_interface.py`, que es del equipo de IA.
+- **Asistente en el panel (opcional, desactivado por defecto):** pestaña "Asistente".
+  Se activa al arrancar `src/server.py` con `ASISTENTE_MODO=prueba` (sin modelo, reglas
+  fijas) o `ASISTENTE_MODELO=/ruta/modelo.gguf`. El panel funciona igual sin él. No decide
+  el destino de ninguna alarma (D-07). Ver `assistant/CLAUDE.md`.
 - Severidad de las alarmas en el panel: **roja** = la Orange Pi la espera,
   **amarilla** = sigue activa pero ya nadie la espera (queda por cerrar),
   **gris** = resuelta.

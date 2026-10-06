@@ -26,6 +26,10 @@ hacerlo. Lee primero @ASSISTANT_CONTEXT.md — ahí está el "por qué" de cada 
 pytest tests/test_assistant.py`). Usa un LLM falso inyectado con `Assistant(llm=...)`,
 así que no necesita descargar nada.
 
+**En el panel:** el asistente es opcional y viene desactivado. Arranca el servidor con
+`ASISTENTE_MODO=prueba python3 src/server.py` (sin modelo) o con
+`ASISTENTE_MODELO=/ruta/modelo.gguf` (modelo real) y abre la pestaña "Asistente".
+
 ## Probar con un modelo real en terminal
 
 ```bash
@@ -47,6 +51,10 @@ de datos existan — ver la tabla de la sección 8 de `ASSISTANT_CONTEXT.md`.
 - `comandos_panel.py` — comandos de SOLO LECTURA sobre el estado real del panel
   (`registrar_comandos_panel(estado)`, `resumen_estado(estado)`). Lee
   `../src/estado_panel.py`; no abre sockets ni toca el protocolo.
+- `servicio.py` — `ServicioAsistente`: lo que el panel web necesita (turnos, propuestas con
+  id, sin conocer HTTP) y `crear_servicio_desde_entorno()` (ver las variables de entorno).
+- `llm_prueba.py` — LLM de PRUEBA con reglas fijas (**no es un modelo**), para probar el
+  chat sin descargar nada: `ASISTENTE_MODO=prueba`.
 - `demo_cli.py` — arnés de prueba en terminal (comandos reales sobre un estado de
   ejemplo, más stubs de lo que depende de decisiones abiertas).
 - `ASSISTANT_CONTEXT.md` — contexto y decisiones de este submódulo (análogo a este

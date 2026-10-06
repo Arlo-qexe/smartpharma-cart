@@ -14,6 +14,11 @@ Rutas:
     POST /api/alarmas/<id>/resolver         cuerpo {"destino": "TIPO_X|DESCARTE"}: el regente
                                             resuelve la alarma y la Orange Pi recibe el destino
                                             en su próxima consulta (servidor_decision.py)
+    GET  /api/asistente/estado              {"disponible", "modo": "modelo|prueba|desactivado"}
+    POST /api/asistente/mensaje             {"texto"} -> respuesta o propuesta (ver asistente_api.py)
+    POST /api/asistente/confirmar|cancelar  {"id"} de una propuesta pendiente
+    POST /api/asistente/reiniciar           nueva conversación
+El asistente es opcional: sin él (asistente=None) estas rutas responden 503 / "desactivado".
 """
 import json
 import logging
@@ -28,6 +33,7 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 import protocol_constants as pc  # noqa: E402
 
+from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido  # noqa: E402
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
@@ -47,7 +53,13 @@ _ESTATICOS = {
 }
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
 _RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
+_RE_ASISTENTE = re.compile(r"^/api/asistente/(estado|mensaje|confirmar|cancelar|reiniciar)$")
 _MAX_CUERPO_POST_BYTES = 1024
+_MAX_CUERPO_ASISTENTE_BYTES = 8192   # 1000 caracteres pueden ser hasta ~4000 bytes en UTF-8
+_AYUDA_ASISTENTE_DESACTIVADO = (
+    "Arranca el servidor con ASISTENTE_MODO=prueba (sin modelo, reglas fijas) o con "
+    "ASISTENTE_MODELO=/ruta/al/modelo.gguf para activarlo."
+)
 
 # Todo el contenido es propio: nada de recursos externos ni scripts inline.
 _CSP = "default-src 'self'; img-src 'self'; frame-ancestors 'none'"
@@ -111,6 +123,13 @@ class _Handler(BaseHTTPRequestHandler):
             datos = estado.snapshot()
             datos["config"] = _configuracion()
             self._json(200, datos)
+        elif ruta == "/api/asistente/estado":
+            asistente = self.server.asistente
+            if asistente is None:
+                self._json(200, {"disponible": False, "modo": "desactivado",
+                                 "ayuda": _AYUDA_ASISTENTE_DESACTIVADO})
+            else:
+                self._json(200, {"disponible": True, "modo": asistente.modo})
         elif (m := _RE_FOTO.match(ruta)):
             foto = estado.foto(int(m.group(1)), int(m.group(2)))
             if foto is None:
@@ -120,13 +139,13 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._json(404, {"error": "no encontrado"})
 
-    def _leer_cuerpo_json(self):
+    def _leer_cuerpo_json(self, max_bytes=_MAX_CUERPO_POST_BYTES):
         """Cuerpo JSON opcional del POST; devuelve {} si no hay o es inválido."""
         try:
             n = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             return {}
-        if n <= 0 or n > _MAX_CUERPO_POST_BYTES:
+        if n <= 0 or n > max_bytes:
             return {}
         try:
             datos = json.loads(self.rfile.read(n).decode("utf-8"))
@@ -134,17 +153,54 @@ class _Handler(BaseHTTPRequestHandler):
             return {}
         return datos if isinstance(datos, dict) else {}
 
-    def do_POST(self):
-        ruta = urlsplit(self.path).path
-        m = _RE_RESOLVER.match(ruta)
-        if not m:
-            self._json(404, {"error": "no encontrado"})
-            return
+    def _origen_valido(self) -> bool:
         # Defensa básica contra CSRF desde otra página abierta en el navegador
         # del regente: el Origin de un navegador debe coincidir con el Host.
         origen = self.headers.get("Origin")
-        if origen and urlsplit(origen).netloc != self.headers.get("Host"):
+        return not origen or urlsplit(origen).netloc == self.headers.get("Host")
+
+    def _post_asistente(self, accion):
+        asistente = self.server.asistente
+        if asistente is None:
+            self._json(503, {"error": "asistente_no_disponible"})
+            return
+        cuerpo = self._leer_cuerpo_json(_MAX_CUERPO_ASISTENTE_BYTES)
+        try:
+            if accion == "mensaje":
+                resultado = asistente.mensaje(cuerpo.get("texto"))
+            elif accion == "reiniciar":
+                asistente.reiniciar()
+                resultado = {"ok": True}
+            else:  # confirmar | cancelar
+                pid = cuerpo.get("id")
+                if not isinstance(pid, int) or isinstance(pid, bool):
+                    self._json(400, {"error": "id_invalido"})
+                    return
+                resultado = (asistente.confirmar if accion == "confirmar" else asistente.cancelar)(pid)
+        except AsistenteOcupado:
+            self._json(409, {"error": "asistente_ocupado"})
+        except PropuestaInexistente:
+            self._json(404, {"error": "propuesta_inexistente"})
+        except TextoInvalido:
+            self._json(400, {"error": "texto_invalido"})
+        except Exception:
+            log.exception("Error en el asistente (%s)", accion)
+            self._json(500, {"error": "error_interno"})
+        else:
+            self._json(200, resultado)
+
+    def do_POST(self):
+        ruta = urlsplit(self.path).path
+        m_asistente = _RE_ASISTENTE.match(ruta)
+        m = _RE_RESOLVER.match(ruta)
+        if not m and not (m_asistente and m_asistente.group(1) != "estado"):
+            self._json(404, {"error": "no encontrado"})
+            return
+        if not self._origen_valido():
             self._json(403, {"error": "origen no permitido"})
+            return
+        if m_asistente:
+            self._post_asistente(m_asistente.group(1))
             return
         destino = self._leer_cuerpo_json().get("destino")
         resultado = self.server.estado.resolver_alarma(int(m.group(1)), destino)
@@ -161,16 +217,17 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def crear_servidor_panel(estado: EstadoPanel, host: str = PANEL_HOST,
-                         puerto: int = PANEL_PUERTO) -> ThreadingHTTPServer:
+                         puerto: int = PANEL_PUERTO, asistente=None) -> ThreadingHTTPServer:
     servidor = ThreadingHTTPServer((host, puerto), _Handler)
     servidor.daemon_threads = True
     servidor.estado = estado
+    servidor.asistente = asistente      # opcional: ver asistente_api.py
     return servidor
 
 
 def iniciar_panel(estado: EstadoPanel, host: str = PANEL_HOST,
-                  puerto: int = PANEL_PUERTO) -> ThreadingHTTPServer:
+                  puerto: int = PANEL_PUERTO, asistente=None) -> ThreadingHTTPServer:
     """Levanta el panel en un hilo daemon y devuelve el servidor."""
-    servidor = crear_servidor_panel(estado, host, puerto)
+    servidor = crear_servidor_panel(estado, host, puerto, asistente)
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
     return servidor

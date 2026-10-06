@@ -105,6 +105,24 @@ def _manejar_cliente(conn, addr):
         conn.close()
 
 
+def _crear_asistente():
+    """El asistente es opcional: si no está configurado, o falla al cargar (p. ej. el
+    modelo no existe), el servidor y el panel siguen sin él."""
+    log_asistente = logging.getLogger("asistente")
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "assistant"))
+        from servicio import crear_servicio_desde_entorno
+        servicio = crear_servicio_desde_entorno(estado)
+    except Exception:
+        log_asistente.exception("No se pudo iniciar el asistente; el panel sigue sin él")
+        return None
+    if servicio is None:
+        log_asistente.info("Asistente desactivado (ver ASISTENTE_MODO / ASISTENTE_MODELO)")
+    else:
+        log_asistente.info("Asistente activo (modo %s)", servicio.modo)
+    return servicio
+
+
 def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
     servidor = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -120,8 +138,9 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
 
 if __name__ == "__main__":
     configurar_logging()
+    asistente = _crear_asistente()
     try:
-        iniciar_panel(estado)
+        iniciar_panel(estado, asistente=asistente)
         logging.getLogger("panel").info("Panel de control en http://%s:%d/", PANEL_HOST, PANEL_PUERTO)
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.

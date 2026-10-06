@@ -53,7 +53,7 @@ funcionar completamente sin él (botones normales siguen existiendo).
 - Panel de control: **decidido (D-02 en `shared/checklist.md`)**, es una página web
   generada por la PC con la biblioteca estándar (`../src/panel_web.py`). El chat será
   una caja en esa página que llame, por HTTP, a `handle()` / `confirm()` / `cancel()`
-  desde un hilo de trabajo en el servidor. **Aún no está construido** (Fase 3).
+  desde un hilo de trabajo en el servidor. **Construido en la Fase 3** (ver sección 11).
 - Modelo de visión (OCR de fecha de vencimiento) y su uso de VRAM: **(TBD)**, a cargo
   del equipo de IA — ver `../src/ocr_interface.py` para el contrato de entrada/salida.
 
@@ -142,9 +142,11 @@ el resumen que se inyecta en cada prompt.
   documentación.
 - `comandos_panel.py`: comandos de solo lectura sobre el estado real del panel y
   `resumen_estado()`.
+- `servicio.py`: `ServicioAsistente` (turnos, propuestas con id) y
+  `crear_servicio_desde_entorno()`; `llm_prueba.py`: LLM de prueba (reglas fijas).
 - `demo_cli.py`: arnés de prueba en terminal (comandos reales sobre un estado de
   ejemplo, más stubs).
-- `../tests/test_assistant.py`: pruebas sin modelo (LLM falso).
+- `../tests/test_assistant.py`, `../tests/test_asistente_panel.py`: pruebas sin modelo (LLM falso).
 - `ASSISTANT_CONTEXT.md`: este archivo.
 
 ## 10. Preguntas abiertas
@@ -171,7 +173,16 @@ Por fases, de lo más barato a lo más caro:
    son varios GB y `curl`/`wget` piden confirmación), correr `demo_cli.py` con cada
    uno y anotar precisión y velocidad con frases reales de un operador. Decidir
    GPU vs CPU según la máquina de la demo.
-3. **Chat en el panel:** endpoint HTTP + caja de chat en `panel_static/`, hilo de
-   trabajo, botones de confirmación. El panel debe funcionar igual sin el asistente.
+3. **Hecho — chat en el panel** (pestaña "Asistente"). `servicio.py` envuelve a
+   `Assistant` para el panel: una conversación y una solicitud a la vez, y las
+   propuestas llevan un id (confirmar con un id viejo no ejecuta nada). Endpoints en
+   `../src/panel_web.py`: `GET /api/asistente/estado`, `POST /api/asistente/mensaje |
+   confirmar | cancelar | reiniciar`. Es **opcional**: sin configurar queda desactivado
+   y el panel funciona igual. Se activa al arrancar el servidor con
+   `ASISTENTE_MODO=prueba` (sin modelo: `llm_prueba.py`, reglas fijas, **no es un
+   LLM**) o `ASISTENTE_MODELO=/ruta/modelo.gguf` (modelo real, `ASISTENTE_GPU_LAYERS`
+   para las capas en GPU). *Límites actuales:* sin streaming (la respuesta llega
+   completa), una sola conversación compartida, y como aún no hay comandos que pidan
+   confirmación, los botones Ejecutar/Cancelar solo se ejercitan en las pruebas.
 4. **Acciones** (`iniciar_captura`, etc.): solo cuando existan S-06 y S-05.
 5. Ampliar este archivo con los flujos del panel; el asistente recupera de aquí.

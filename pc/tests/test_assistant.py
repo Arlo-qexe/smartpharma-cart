@@ -22,28 +22,7 @@ from comandos_panel import (  # noqa: E402
     resumen_estado,
 )
 from estado_panel import EstadoPanel  # noqa: E402
-
-
-class LLMFalso:
-    """Imita `Llama.create_chat_completion` con respuestas programadas."""
-
-    def __init__(self, *respuestas):
-        self.respuestas = list(respuestas)
-        self.llamadas = []
-
-    def create_chat_completion(self, messages, response_format, temperature, max_tokens):
-        self.llamadas.append({"messages": messages, "schema": response_format["schema"]})
-        r = self.respuestas.pop(0)
-        texto = r if isinstance(r, str) else json.dumps(r)
-        return {"choices": [{"message": {"content": texto}}]}
-
-
-def reply(texto):
-    return {"action": "reply", "text": texto}
-
-
-def cmd(nombre, **args):
-    return {"action": "command", "name": nombre, "args": args}
+from llm_falso import LLMFalso, cmd, reply  # noqa: E402
 
 
 @pytest.fixture

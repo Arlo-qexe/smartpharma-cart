@@ -27,6 +27,10 @@
       <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>
       ALERTAS <span id="insignia" class="insignia" hidden></span>
     </button>
+    <button data-vista="asistente">
+      <svg viewBox="0 0 24 24"><path d="M4 5h16v11H10l-5 4v-4H4z"/></svg>
+      ASISTENTE
+    </button>
     <button data-vista="config">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
       CONFIGURACIÓN
@@ -89,6 +93,19 @@
           <tbody></tbody>
         </table>
       </div>
+    </section>
+
+    <section id="vista-asistente" class="vista" hidden>
+      <h2>Asistente</h2>
+      <p id="asistente-aviso" class="aviso"></p>
+      <div id="chat" class="chat" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form" hidden>
+        <textarea id="chat-texto" rows="2" maxlength="1000" placeholder="Escribe tu solicitud… (Enter envía, Mayús+Enter salto de línea)"></textarea>
+        <div class="accion">
+          <button type="submit" id="chat-enviar" class="btn-chico">Enviar</button>
+          <button type="button" id="chat-nuevo" class="btn-chico">Nueva conversación</button>
+        </div>
+      </form>
     </section>
 
     <section id="vista-config" class="vista" hidden>

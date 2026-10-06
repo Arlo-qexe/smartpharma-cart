@@ -303,10 +303,155 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "ArrowRight") moverVisor(1);
 });
 
+// ---------------------------------------------------------------------------
+// Asistente: el servidor atiende de a una solicitud y una conversación. Todo el
+// texto se pinta con textContent (nada de innerHTML).
+const chat = { cargado: false, cargando: false, disponible: false, modo: "", ayuda: "", ocupado: false, tarjeta: null };
+
+const ERRORES_ASISTENTE = {
+  asistente_ocupado: "El asistente está ocupado con otra solicitud. Espera un momento.",
+  propuesta_inexistente: "Esa propuesta ya no está vigente.",
+  texto_invalido: "El mensaje está vacío o es demasiado largo (máx. 1000 caracteres).",
+  asistente_no_disponible: "El asistente no está disponible.",
+  error_interno: "El asistente tuvo un error interno (revisa el log de la PC).",
+};
+
+async function cargarEstadoAsistente() {
+  if (chat.cargando) return;
+  chat.cargando = true;
+  try {
+    const d = await (await fetch("/api/asistente/estado", { cache: "no-store" })).json();
+    chat.disponible = d.disponible;
+    chat.modo = d.modo;
+    chat.ayuda = d.ayuda || "";
+  } catch (e) {
+    chat.disponible = false;
+    chat.modo = "desactivado";
+    chat.ayuda = "No se pudo consultar al asistente.";
+  }
+  chat.cargando = false;
+  chat.cargado = true;
+  renderAsistente();
+}
+
+function renderAsistente() {
+  if (!chat.cargado) {
+    cargarEstadoAsistente();
+    $("asistente-aviso").textContent = "Consultando al asistente…";
+    return;
+  }
+  const aviso = $("asistente-aviso");
+  $("chat-form").hidden = !chat.disponible;
+  aviso.classList.toggle("prueba", chat.modo === "prueba");
+  if (!chat.disponible) {
+    aviso.textContent = "Asistente desactivado. " + chat.ayuda;
+  } else if (chat.modo === "prueba") {
+    aviso.textContent =
+      "MODO DE PRUEBA (sin modelo): responde con reglas fijas a unas pocas preguntas " +
+      "(alarmas, estado, últimas clasificaciones). No es un modelo de lenguaje.";
+  } else {
+    aviso.textContent =
+      "Asistente local. Es una ayuda: no decide el destino de ninguna alarma, eso lo " +
+      "decides tú en la pestaña Alertas.";
+  }
+}
+
+function establecerOcupado(ocupado) {
+  chat.ocupado = ocupado;
+  $("chat-texto").disabled = ocupado;
+  $("chat-enviar").disabled = ocupado;
+  $("chat-nuevo").disabled = ocupado;
+  if (!ocupado) $("chat-texto").focus();
+}
+
+function agregarMensaje(rol, texto) {
+  const caja = $("chat");
+  const m = crear("div", "mensaje " + rol);
+  m.appendChild(crear("span", "autor", rol === "operador" ? "Tú" : rol === "error" ? "Error" : "Asistente"));
+  m.appendChild(crear("p", "", texto));
+  caja.appendChild(m);
+  caja.scrollTop = caja.scrollHeight;
+  return m;
+}
+
+function mostrarPropuesta(d) {
+  const tarjeta = crear("div", "mensaje propuesta");
+  tarjeta.appendChild(crear("span", "autor", "El asistente propone una acción"));
+  tarjeta.appendChild(crear("p", "", d.resumen));
+  const botones = crear("div", "accion");
+  const ejecutar = crear("button", "btn-chico", "Ejecutar");
+  const cancelar = crear("button", "btn-chico", "Cancelar");
+  const cerrar = () => { ejecutar.disabled = true; cancelar.disabled = true; chat.tarjeta = null; };
+  ejecutar.addEventListener("click", () => { cerrar(); llamarAsistente("confirmar", { id: d.id }); });
+  cancelar.addEventListener("click", () => { cerrar(); llamarAsistente("cancelar", { id: d.id }); });
+  botones.append(ejecutar, cancelar);
+  tarjeta.appendChild(botones);
+  $("chat").appendChild(tarjeta);
+  $("chat").scrollTop = $("chat").scrollHeight;
+  chat.tarjeta = { ejecutar, cancelar };
+}
+
+async function llamarAsistente(accion, cuerpo) {
+  establecerOcupado(true);
+  const pensando = agregarMensaje("asistente", "Pensando…");
+  pensando.classList.add("pensando");
+  try {
+    const resp = await fetch("/api/asistente/" + accion, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo || {}),
+    });
+    const datos = await resp.json().catch(() => ({}));
+    pensando.remove();
+    if (!resp.ok) {
+      agregarMensaje("error", ERRORES_ASISTENTE[datos.error] || `Error del asistente (${resp.status}).`);
+    } else if (datos.tipo === "propuesta") {
+      mostrarPropuesta(datos);
+    } else if (datos.tipo === "respuesta") {
+      agregarMensaje("asistente", datos.texto);
+    }
+    return resp.ok;
+  } catch (e) {
+    pensando.remove();
+    agregarMensaje("error", "No se pudo contactar al servidor.");
+    return false;
+  } finally {
+    establecerOcupado(false);
+  }
+}
+
+$("chat-form").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const texto = $("chat-texto").value.trim();
+  if (!texto || chat.ocupado) return;
+  if (chat.tarjeta) {            // seguir escribiendo cancela la propuesta pendiente (lo hace el servidor)
+    chat.tarjeta.ejecutar.disabled = true;
+    chat.tarjeta.cancelar.disabled = true;
+    chat.tarjeta = null;
+  }
+  agregarMensaje("operador", texto);
+  $("chat-texto").value = "";
+  llamarAsistente("mensaje", { texto });
+});
+$("chat-texto").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && !ev.shiftKey) {
+    ev.preventDefault();
+    $("chat-form").requestSubmit();
+  }
+});
+$("chat-nuevo").addEventListener("click", async () => {
+  if (await llamarAsistente("reiniciar")) {
+    vaciar($("chat"));
+    chat.tarjeta = null;
+    agregarMensaje("asistente", "Conversación nueva.");
+  }
+});
+
 const RENDERS = {
   inicio: renderInicio,
   inventario: renderInventario,
   alertas: renderAlertas,
+  asistente: renderAsistente,
   config: renderConfig,
 };
 
@@ -321,7 +466,7 @@ function cambiarVista(nueva) {
   for (const b of document.querySelectorAll("#pestanas button")) {
     b.classList.toggle("activa", b.dataset.vista === nueva);
   }
-  for (const v of ["inicio", "inventario", "alertas", "config"]) {
+  for (const v of ["inicio", "inventario", "alertas", "asistente", "config"]) {
     $("vista-" + v).hidden = v !== nueva;
   }
   claveFotos = null;
