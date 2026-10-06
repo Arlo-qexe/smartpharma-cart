@@ -26,7 +26,8 @@
 // ---------------------------------------------------------------------------
 // Acciones: Orange Pi -> ESP32-S3
 // ---------------------------------------------------------------------------
-#define ACCION_INTRODUCIR_OBJETO      "introducir_objeto"
+#define ACCION_ACTIVAR_DISPENSADOR    "activar_dispensador"  // acciona el servo; confirma con EVENTO_OBJETO_EN_POSICION
+#define ACCION_INTRODUCIR_OBJETO      ACCION_ACTIVAR_DISPENSADOR  // ALIAS en desuso (antes "introducir_objeto")
 #define ACCION_GIRAR_POSICION         "girar_posicion"       // campo adicional: "cara"
 #define ACCION_ACTIVAR_ALARMA_LOCAL   "activar_alarma_local"
 #define ACCION_CLASIFICAR             "clasificar"           // campo adicional: "destino"
@@ -42,11 +43,7 @@
 #define EVENTO_OBJETO_EN_POSICION     "objeto_en_posicion"
 #define EVENTO_EN_POSICION            "en_posicion"          // campo adicional: "cara"
 
-// --- PENDIENTE DE DECISIÓN (ver docs/arquitectura_comunicacion.md, sección 5.5) ---
-// Mecanismo del dispensador (servo): aún no se ha definido si se controla
-// desde aquí (recomendado) o desde la Orange Pi. Si se confirma en la
-// ESP32-S3, descomentar y sincronizar con protocol_constants.py:
-// #define ACCION_ACTIVAR_DISPENSADOR "activar_dispensador"
+// Dispensador: DECIDIDO, lo controla la ESP32-S3 (ACCION_ACTIVAR_DISPENSADOR arriba).
 
 // ---------------------------------------------------------------------------
 // Parámetros de captura

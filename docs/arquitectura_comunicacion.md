@@ -191,7 +191,7 @@ uno de los cinco giros de rotación durante la ráfaga de fotos.
 
 | Dirección | Mensaje | Propósito |
 |---|---|---|
-| Orange Pi → ESP32-S3 | `{"accion": "introducir_objeto"}` | Autoriza la entrada de un nuevo objeto |
+| Orange Pi → ESP32-S3 | `{"accion": "activar_dispensador"}` | Acciona el dispensador: autoriza la entrada de un nuevo objeto (antes `introducir_objeto`) |
 | ESP32-S3 → Orange Pi | `{"evento": "objeto_en_posicion"}` | Confirma que el objeto llegó a la zona de captura |
 | Orange Pi → ESP32-S3 | `{"accion": "girar_posicion", "cara": N}` | Ordena rotar el objeto a la cara N |
 | ESP32-S3 → Orange Pi | `{"evento": "en_posicion", "cara": N}` | Confirma el giro de la cara N completado |
@@ -203,7 +203,7 @@ uno de los cinco giros de rotación durante la ráfaga de fotos.
 ### 5.4 Límite de reintentos en la introducción del objeto
 
 Si la ESP32-S3 no confirma `objeto_en_posicion` a tiempo, la Orange Pi repite
-`introducir_objeto` hasta `LIMITE_REINTENTOS_INTRODUCIR_OBJETO` (5) veces; si
+`activar_dispensador` hasta `LIMITE_REINTENTOS_INTRODUCIR_OBJETO` (5) veces; si
 se agotan, fija `lote_valido = falso` sin iniciar la ráfaga, y continúa con
 un lote vacío hacia la PC.
 
@@ -213,7 +213,7 @@ antes de llegar siquiera a la etapa de captura o red.
 
 ### 5.5 Mecanismo físico de introducción: el dispensador
 
-La orden `introducir_objeto` se implementa físicamente mediante un
+La orden `activar_dispensador` (antes `introducir_objeto`) se implementa mediante un
 **dispensador accionado por servomotor**, que permite el paso individual de
 un objeto hacia la plataforma de clasificación. Este mecanismo es la
 garantía física de la regla de no concurrencia de la sección 2: al liberar
@@ -224,15 +224,11 @@ Ciclo por objeto: el dispensador libera un objeto → el mecanismo de
 clasificación lo posiciona para la ráfaga de captura → se ejecuta la
 clasificación → se repite para el siguiente objeto, sin solaparse.
 
-**Pendiente de decisión:** si el servomotor del dispensador se controla
-desde la ESP32-S3 (consistente con el resto de actuadores) o directamente
-desde la Orange Pi (para reducir la carga de la ESP32-S3).
-
-**Recomendación:** mantenerlo en la ESP32-S3 — controlar un servomotor no
-representa una carga significativa para un microcontrolador que ya coordina
-3 motores DC con encoder del manipulador y el enlace UART. Moverlo a la
-Orange Pi abriría un segundo canal de control de actuadores fuera del
-protocolo UART documentado, sin beneficio real de rendimiento.
+**Decisión (2026-10-06):** el servomotor del dispensador lo controla la
+ESP32-S3 — consistente con el resto de actuadores, y evita abrir un segundo
+canal de control fuera del protocolo UART. La orden es `activar_dispensador`
+(`ACCION_ACTIVAR_DISPENSADOR`) y **reemplaza** a `introducir_objeto`: se confirma
+igual, con `objeto_en_posicion`, y conserva el límite de reintentos de 5.
 
 ## 6. Proceso de captura de imágenes
 
@@ -293,7 +289,7 @@ tercero, la Orange Pi activa la alarma física local en la ESP32-S3 (ver 4.4).
 | Selección e implementación del servicio de reconocimiento | Fuera del alcance de este equipo (frente de IA) |
 | Calibración de tiempos (pausas, timeouts) | Pendiente de pruebas con hardware real |
 | Mecanismo exacto de los paneles de alarma | Pendiente de diseño de interfaz |
-| Ubicación del control del servomotor del dispensador | Pendiente de decisión (ver sección 5.5) |
+| Ubicación del control del servomotor del dispensador | Decidido: ESP32-S3, comando `activar_dispensador` (ver sección 5.5) |
 
 ## 10. Parámetros de configuración
 

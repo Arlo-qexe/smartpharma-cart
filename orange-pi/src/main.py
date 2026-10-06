@@ -7,7 +7,7 @@ de comunicación con la PC (S-02; hoy un `input()` provisional) y la prueba con
 la ESP32-S3 real (OP-16).
 
 Flujo por objeto:
-  1. introducir_objeto (con límite de reintentos)
+  1. activar_dispensador (con límite de reintentos)
   2. ráfaga de 5 fotos (girar_posicion / en_posicion por cada cara)
   3. envío del lote a la PC (o lote vacío si la captura falló)
   4. si falló la red: activar_alarma_local; si la PC respondió
@@ -21,9 +21,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     ACCION_ACTIVAR_ALARMA_LOCAL,
+    ACCION_ACTIVAR_DISPENSADOR,
     ACCION_CLASIFICAR,
     ACCION_GIRAR_POSICION,
-    ACCION_INTRODUCIR_OBJETO,
     CARAS_POR_OBJETO,
     EVENTO_EN_POSICION,
     EVENTO_OBJETO_EN_POSICION,
@@ -42,10 +42,10 @@ import time
 
 
 def introducir_objeto(enlace: EnlaceUART) -> bool:
-    """Ordena introducir un objeto, con el límite de reintentos definido en
+    """Ordena activar el dispensador (entra un objeto), con el límite de reintentos definido en
     el contrato. Devuelve True si se confirmó objeto_en_posicion."""
     for intento in range(1, LIMITE_REINTENTOS_INTRODUCIR_OBJETO + 1):
-        enlace.enviar({"accion": ACCION_INTRODUCIR_OBJETO})
+        enlace.enviar({"accion": ACCION_ACTIVAR_DISPENSADOR})
         respuesta = enlace.recibir(timeout=5.0)
         if respuesta and respuesta.get("evento") == EVENTO_OBJETO_EN_POSICION:
             return True

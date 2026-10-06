@@ -157,7 +157,9 @@ def desempaquetar_mensaje_uart(linea: str):
 # Mensajes UART definidos (Orange Pi <-> ESP32-S3)
 # ---------------------------------------------------------------------------
 # Orange Pi -> ESP32-S3
-ACCION_INTRODUCIR_OBJETO = "introducir_objeto"
+ACCION_ACTIVAR_DISPENSADOR = "activar_dispensador" # acciona el servo del dispensador (informe 5.5);
+                                                   # se confirma con EVENTO_OBJETO_EN_POSICION
+ACCION_INTRODUCIR_OBJETO = ACCION_ACTIVAR_DISPENSADOR  # ALIAS en desuso (antes "introducir_objeto"); usar el nuevo nombre
 ACCION_GIRAR_POSICION = "girar_posicion"           # campo adicional: "cara": N
 ACCION_ACTIVAR_ALARMA_LOCAL = "activar_alarma_local"
 ACCION_CLASIFICAR = "clasificar"                   # campo adicional: "destino": "<TIPO_X>"
@@ -166,18 +168,14 @@ ACCION_CLASIFICAR = "clasificar"                   # campo adicional: "destino":
 EVENTO_OBJETO_EN_POSICION = "objeto_en_posicion"   # llegada inicial (una vez por objeto)
 EVENTO_EN_POSICION = "en_posicion"                 # confirma cada giro, campo: "cara": N
 
-# --- PENDIENTE DE DECISIÓN (ver docs/arquitectura_comunicacion.md, sección 5.5) ---
-# Mecanismo del dispensador (servo): aún no se ha definido si se controla desde
-# la ESP32-S3 (recomendado) o desde la Orange Pi. Si se confirma en la ESP32-S3,
-# agregar aquí algo como:
-#   ACCION_ACTIVAR_DISPENSADOR = "activar_dispensador"
-# NO usar este nombre en código hasta que se confirme y se actualice este
-# archivo + protocol_constants.h + docs/CHANGELOG_protocolo.md.
+# Dispensador (servo): DECIDIDO — lo controla la ESP32-S3 (informe 5.5). La orden
+# `activar_dispensador` reemplaza a `introducir_objeto` y se confirma igual, con
+# `objeto_en_posicion`. Ver docs/CHANGELOG_protocolo.md (2026-10-06).
 
 # ---------------------------------------------------------------------------
 # Límites de reintento
 # ---------------------------------------------------------------------------
-LIMITE_REINTENTOS_INTRODUCIR_OBJETO = 5
+LIMITE_REINTENTOS_INTRODUCIR_OBJETO = 5   # reintentos de ACCION_ACTIVAR_DISPENSADOR (nombre conservado)
 
 # ---------------------------------------------------------------------------
 # Captura de imágenes

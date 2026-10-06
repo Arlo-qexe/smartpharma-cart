@@ -14,6 +14,23 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-06 — Arlo-qexe (con Claude Code, lado Orange Pi)
+- **Decisión:** el servomotor del dispensador lo controla la **ESP32-S3** (informe
+  5.5), como un comando propio.
+- **Cambio de mensaje (Orange Pi → ESP32-S3):** `introducir_objeto` se
+  **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`). La
+  confirmación no cambia: `objeto_en_posicion`. El límite de reintentos sigue
+  siendo `LIMITE_REINTENTOS_INTRODUCIR_OBJETO` (5; nombre conservado).
+- `ACCION_INTRODUCIR_OBJETO` queda como **alias en desuso** de
+  `ACCION_ACTIVAR_DISPENSADOR` (mismo valor en el cable), para que el firmware
+  actual siga compilando. **Impacto para esp32-firmware:** al recompilar, el
+  texto en el cable pasa a ser `"activar_dispensador"`; conviene cambiar
+  `main.ino` al nombre nuevo y reemplazar el TODO por el control real del servo.
+  **Impacto para pc:** ninguno (la PC no usa este mensaje).
+- Orange Pi: `main.py` envía `ACCION_ACTIVAR_DISPENSADOR`.
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`,
+  `shared/schemas/messages.schema.json`, `docs/arquitectura_comunicacion.md`.
+
 ## 2026-10-05 (2) — Arlo.exe (con Claude Code, lado PC)
 - **Nuevo mensaje Orange Pi → PC: consulta de la decisión del regente**
   (opción A de `docs/propuesta_canal_regente.md`, aprobada por el lado

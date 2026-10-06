@@ -7,8 +7,8 @@ eventos). El contenido de las fotos no importa: es un lote simulado.
 Uso (desde orange-pi/, con el venv activado):
     python tests/prueba_extremo_a_extremo.py [--retraso SEGUNDOS]
 
-`--retraso` simula lo que tarda el mecanismo en cada movimiento (introducir el
-objeto y cada uno de los 5 giros): la ESP32-S3 simulada tarda SEGUNDOS en
+`--retraso` simula lo que tarda el mecanismo en cada movimiento (activar el
+dispensador y cada uno de los 5 giros): la ESP32-S3 simulada tarda SEGUNDOS en
 confirmar. Por defecto 2.5 s. Si supera el `timeout` con que main.py espera la
 confirmación (5 s), la confirmación nunca llega: simula un fallo mecánico y
 main.py debe abortar el lote (informe 6.2) o agotar los reintentos (5.4).
@@ -30,14 +30,14 @@ from capture.camera import abrir_camara  # noqa: E402
 from network.mdns_discovery import DescubridorPC  # noqa: E402
 from protocol_constants import (  # noqa: E402
     ACCION_GIRAR_POSICION,
-    ACCION_INTRODUCIR_OBJETO,
+    ACCION_ACTIVAR_DISPENSADOR,
     EVENTO_EN_POSICION,
     EVENTO_OBJETO_EN_POSICION,
 )
 
 
 class EnlaceSimulado:
-    """ESP32-S3 falsa: confirma `introducir_objeto` y cada `girar_posicion`
+    """ESP32-S3 falsa: confirma `activar_dispensador` y cada `girar_posicion`
     tras `retraso_s` segundos de "movimiento mecánico"."""
 
     def __init__(self, retraso_s: float = 2.5):
@@ -47,7 +47,7 @@ class EnlaceSimulado:
     def enviar(self, mensaje):
         print(f"[esp32-sim] <- {mensaje}")
         accion = mensaje.get("accion")
-        if accion == ACCION_INTRODUCIR_OBJETO:
+        if accion == ACCION_ACTIVAR_DISPENSADOR:
             self._pendiente = {"evento": EVENTO_OBJETO_EN_POSICION}
         elif accion == ACCION_GIRAR_POSICION:
             self._pendiente = {"evento": EVENTO_EN_POSICION, "cara": mensaje["cara"]}
