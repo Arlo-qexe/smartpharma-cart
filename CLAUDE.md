@@ -64,6 +64,25 @@ repo trae tres piezas que hacen esto automático:
 Ningún agente necesita "saber" del otro directamente: el repo remoto + estos
 hooks + el aviso en Telegram son el canal de comunicación completo.
 
+## Checklist de coordinación entre lados (leer en cada sesión)
+
+@shared/checklist.md es el estado compartido de **PC** y **Orange Pi**: qué está
+hecho, qué falta, las **solicitudes** de un lado al otro y las **decisiones**
+tomadas. Es lo que evita que los dos agentes diverjan, porque cada uno solo ve
+su propia carpeta. Reglas:
+
+- **Al iniciar una sesión** (después del `git pull`), revisa tu sección y las
+  solicitudes de la tabla dirigidas a tu lado antes de proponer cambios.
+- **Edita solo tu propia sección.** Para pedirle algo al otro lado, agrega una
+  fila en "Solicitudes entre lados"; si no estás de acuerdo, ponla en `En
+  discusión` con el motivo — no la cambies en silencio.
+- **Al terminar algo, márcalo en el mismo commit.** Un cambio en `shared/` sigue
+  la regla de oro (commit + push en el mismo turno, con entrada en
+  `docs/CHANGELOG_protocolo.md`); el checklist no reemplaza al contrato ni al
+  changelog, los complementa.
+- Si el estado que ves en el checklist contradice el código o este archivo,
+  **avisa y corrígelo** en vez de asumir cuál tiene razón.
+
 ## Entornos virtuales (venv) — obligatorio en ambos lados
 
 `orange-pi/` y `pc/` corren en máquinas con arquitectura distinta (ARM64 vs
@@ -95,15 +114,16 @@ escribir en el primer mensaje de una sesión de trabajo (no de setup) es algo
 como:
 
 > "Antes de proponer cambios, resume en qué quedó [orange-pi/pc] según tu
-> CLAUDE.md y los pendientes de la sección correspondiente, y confirma que el
-> venv está activado."
+> CLAUDE.md, los pendientes de la sección correspondiente y `shared/checklist.md`
+> (tu sección y las solicitudes dirigidas a tu lado), y confirma que el venv
+> está activado."
 
 Esto obliga al agente a anclarse en el estado real del proyecto (no en lo que
 "cree recordar" de una sesión anterior) antes de tocar código.
 
 ## Estructura del repo
 
-- `shared/` — contrato de comunicación (constantes + esquemas). Fuente única de verdad.
+- `shared/` — contrato de comunicación (constantes + esquemas). Fuente única de verdad. Incluye `checklist.md`, el estado compartido entre lados.
 - `orange-pi/` — gateway de captura y red (Python). Ver `orange-pi/CLAUDE.md`.
 - `pc/` — servidor de reconocimiento (Python). Ver `pc/CLAUDE.md`.
 - `esp32-firmware/` — control físico en tiempo real (C++/Arduino). Ver `esp32-firmware/CLAUDE.md`.
@@ -123,6 +143,6 @@ Esto obliga al agente a anclarse en el estado real del proyecto (no en lo que
 ## Pendientes conocidos del proyecto
 
 - Calibración de tiempos (pausas, timeouts) con hardware real — ver `shared/protocol_constants.py`.
-- Diseño de la interfaz del panel de control / alarma (contrato ya definido, interfaz sin construir).
+- Panel de control / alarma: ya construido en `pc/` (página web); lo que falta de él (botón "Iniciar recorrido", campos OCR/FEFO) está en `shared/checklist.md`.
 - Decisión: control del servomotor del dispensador desde la ESP32-S3 (recomendado) vs. la Orange Pi — ver sección 5.5 de `docs/arquitectura_comunicacion.md`.
 - El módulo de reconocimiento (OCR/clasificación) es responsabilidad del equipo de IA — este repo solo define el contrato de entrada/salida con él (ver `pc/src/ocr_interface.py`).
