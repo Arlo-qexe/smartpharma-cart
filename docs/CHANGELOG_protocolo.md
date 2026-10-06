@@ -14,6 +14,23 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-06 (2) — Arlo-qexe (con Claude Code, lado Orange Pi)
+- **Nuevo mensaje Orange Pi → ESP32-S3:** `desactivar_alarma_local`
+  (`ACCION_DESACTIVAR_ALARMA_LOCAL`), sin campos adicionales y **sin evento de
+  confirmación** (igual que `activar_alarma_local`). Apaga el indicador físico.
+- **Constante nueva:** `INTERVALO_REINTENTO_PC_S = 10.0` (solo Orange Pi; no va en
+  el `.h`).
+- **Motivo:** recuperación tras un fallo de comunicación con la PC (S-02/D-06,
+  decisión del usuario D-07: el ciclo no se reanuda solo, el regente confirma).
+  Flujo en `docs/arquitectura_comunicacion.md`, sección 4.6: sondeo con lote vacío
+  cada 10 s sin tope; al primer éxito se apaga la alarma local y se espera la
+  decisión del regente.
+- **Impacto para esp32-firmware:** manejar la acción nueva (apagar zumbador/LED).
+  Mientras no exista, el mensaje se ignora y la alarma queda encendida.
+  **Impacto para pc:** ninguno (la PC ya trata un lote vacío así).
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`,
+  `shared/schemas/messages.schema.json`, `docs/arquitectura_comunicacion.md`.
+
 ## 2026-10-06 — Arlo-qexe (con Claude Code, lado Orange Pi)
 - **Decisión:** el servomotor del dispensador lo controla la **ESP32-S3** (informe
   5.5), como un comando propio.

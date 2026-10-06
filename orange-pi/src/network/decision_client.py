@@ -64,7 +64,7 @@ def consultar_decision(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> di
         return json.loads(_recv_exacto(sock, longitud).decode("utf-8"))
 
 
-def esperar_decision(descubridor, activar_alarma_local,
+def esperar_decision(descubridor, activar_alarma_local, desactivar_alarma_local=None,
                      intervalo: float = INTERVALO_CONSULTA_DECISION_S,
                      consultar=consultar_decision,
                      dormir=time.sleep, reloj=time.monotonic) -> str:
@@ -76,7 +76,9 @@ def esperar_decision(descubridor, activar_alarma_local,
       la alarma local).
     - Fallo de conexión: invalida la caché mDNS y reintenta; tras
       TIMEOUT_TOTAL_TRANSACCION_S seguidos de fallos llama una vez a
-      `activar_alarma_local` y sigue intentando.
+      `activar_alarma_local` y sigue intentando; en cuanto la PC vuelve a
+      responder llama a `desactivar_alarma_local` (si se dio) y la alarma
+      puede volver a activarse en una caída posterior.
     """
     fallando_desde = None
     alarma_activada = False
@@ -101,6 +103,11 @@ def esperar_decision(descubridor, activar_alarma_local,
             continue
 
         fallando_desde = None
+        if alarma_activada:
+            print("[decision] La PC volvió a responder: se apaga la alarma local")
+            if desactivar_alarma_local is not None:
+                desactivar_alarma_local()
+            alarma_activada = False
         estado = respuesta.get(CLAVE_ESTADO_DECISION_JSON)
         if estado == ESTADO_DECISION_RESUELTA:
             destino = respuesta.get(CLAVE_DESTINO_JSON)

@@ -30,6 +30,7 @@
 #define ACCION_INTRODUCIR_OBJETO      ACCION_ACTIVAR_DISPENSADOR  // ALIAS en desuso (antes "introducir_objeto")
 #define ACCION_GIRAR_POSICION         "girar_posicion"       // campo adicional: "cara"
 #define ACCION_ACTIVAR_ALARMA_LOCAL   "activar_alarma_local"
+#define ACCION_DESACTIVAR_ALARMA_LOCAL "desactivar_alarma_local"  // apaga el indicador (informe 4.6)
 #define ACCION_CLASIFICAR             "clasificar"           // campo adicional: "destino"
 
 // Valor especial de "destino" en ACCION_CLASIFICAR: descarte definitivo

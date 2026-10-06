@@ -45,6 +45,14 @@
       "required": ["accion"],
       "additionalProperties": false
     },
+    "orangepi_a_esp32__desactivar_alarma_local": {
+      "type": "object",
+      "properties": {
+        "accion": { "const": "desactivar_alarma_local" }
+      },
+      "required": ["accion"],
+      "additionalProperties": false
+    },
     "orangepi_a_esp32__clasificar": {
       "type": "object",
       "properties": {

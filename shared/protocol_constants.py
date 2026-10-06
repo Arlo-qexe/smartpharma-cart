@@ -162,6 +162,7 @@ ACCION_ACTIVAR_DISPENSADOR = "activar_dispensador" # acciona el servo del dispen
 ACCION_INTRODUCIR_OBJETO = ACCION_ACTIVAR_DISPENSADOR  # ALIAS en desuso (antes "introducir_objeto"); usar el nuevo nombre
 ACCION_GIRAR_POSICION = "girar_posicion"           # campo adicional: "cara": N
 ACCION_ACTIVAR_ALARMA_LOCAL = "activar_alarma_local"
+ACCION_DESACTIVAR_ALARMA_LOCAL = "desactivar_alarma_local"   # apaga el indicador; ver informe 4.6
 ACCION_CLASIFICAR = "clasificar"                   # campo adicional: "destino": "<TIPO_X>"
 
 # ESP32-S3 -> Orange Pi
@@ -171,6 +172,16 @@ EVENTO_EN_POSICION = "en_posicion"                 # confirma cada giro, campo: 
 # Dispensador (servo): DECIDIDO — lo controla la ESP32-S3 (informe 5.5). La orden
 # `activar_dispensador` reemplaza a `introducir_objeto` y se confirma igual, con
 # `objeto_en_posicion`. Ver docs/CHANGELOG_protocolo.md (2026-10-06).
+
+# ---------------------------------------------------------------------------
+# Recuperación tras un fallo de comunicación con la PC (informe 4.6)
+# ---------------------------------------------------------------------------
+# Mientras la alarma local esté encendida, la Orange Pi envía a la PC un LOTE
+# VACÍO cada INTERVALO_REINTENTO_PC_S, sin tope, hasta que la PC responda (el
+# lote vacío es el sondeo y fuerza el camino del regente: alarma en el panel y
+# decisión). Al primer éxito deja de sondear, envía ACCION_DESACTIVAR_ALARMA_LOCAL
+# y espera la decisión del regente (4.5). El ciclo NO se reanuda solo.
+INTERVALO_REINTENTO_PC_S = 10.0             # valor inicial; calibrar
 
 # ---------------------------------------------------------------------------
 # Límites de reintento

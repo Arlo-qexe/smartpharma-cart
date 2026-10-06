@@ -54,6 +54,7 @@ source .venv/bin/activate      # en cada terminal nueva
 - `src/network/mdns_discovery.py` — descubrimiento y caché de la PC vía mDNS.
 - `src/network/tcp_client.py` — envío de lotes por TCP con reintentos.
 - `src/network/decision_client.py` — consulta de la decisión del regente (puerto 5001, cada 2 s, espera sin tope).
+- `src/network/recuperacion.py` — tras un fallo de comunicación con la PC: sondeo con lote vacío cada 10 s hasta que responda (sección 4.6).
 - `src/uart/uart_link.py` — enlace serie con la ESP32-S3 (framing, checksum).
 - `src/capture/camera.py` — control de cámara, ráfaga de 5 fotos, compresión JPEG en memoria.
 - `src/main.py` — orquestador del ciclo completo (máquina de estados de alto nivel).

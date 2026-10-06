@@ -16,9 +16,11 @@ sys.path.insert(0, str(RAIZ.parent / "shared"))
 
 import main  # noqa: E402
 from network import decision_client as dc  # noqa: E402
+from network import recuperacion  # noqa: E402
 from protocol_constants import (  # noqa: E402
     ACCION_ACTIVAR_ALARMA_LOCAL,
     ACCION_CLASIFICAR,
+    ACCION_DESACTIVAR_ALARMA_LOCAL,
     DESTINO_DESCARTE,
     RESULTADO_ERROR_REVISION_MANUAL,
     TIMEOUT_TOTAL_TRANSACCION_S,
@@ -101,6 +103,17 @@ class EsperarDecision(unittest.TestCase):
         self.assertEqual(llamadas, [1])
         self.assertEqual(desc.invalidaciones, n_fallos)
 
+    def test_pc_que_vuelve_apaga_la_alarma_local(self):
+        eventos, reloj = [], Reloj()
+        n_fallos = int(TIMEOUT_TOTAL_TRANSACCION_S / 2) + 5
+        dc.esperar_decision(
+            DescubridorFalso(), lambda: eventos.append("on"), lambda: eventos.append("off"),
+            intervalo=2.0,
+            consultar=respuestas(*([ConnectionRefusedError("x")] * n_fallos),
+                                 {"estado": "pendiente"}, {"estado": "resuelta", "destino": "TIPO_A"}),
+            dormir=reloj.dormir, reloj=reloj)
+        self.assertEqual(eventos, ["on", "off"])
+
     def test_fallos_cortos_no_activan_alarma(self):
         llamadas = []
         self.esperar(ConnectionResetError(), {"estado": "resuelta", "destino": "TIPO_A"},
@@ -128,6 +141,37 @@ class ConsultarDecisionPorSocket(unittest.TestCase):
         srv.close()
         self.assertEqual(visto["consulta"], {"consulta": "decision_regente"})
         self.assertEqual(r, {"estado": "resuelta", "destino": "TIPO_A"})
+
+
+class Recuperacion(unittest.TestCase):
+    def correr(self, *resultados, alarma_encendida=False):
+        eventos, sondeos, reloj = [], [], Reloj()
+        it = iter(resultados)
+
+        def enviar(desc, imagenes):
+            sondeos.append(len(imagenes))
+            return next(it)
+        recuperacion.recuperar_comunicacion(
+            DescubridorFalso(), lambda: eventos.append("on"), lambda: eventos.append("off"),
+            alarma_encendida=alarma_encendida, intervalo=10.0, enviar=enviar, dormir=reloj.dormir)
+        return eventos, sondeos, reloj.t
+
+    OK = ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, False)
+    FALLO = ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, True)
+
+    def test_sondea_con_lote_vacio_cada_10s_y_se_detiene_al_primer_exito(self):
+        eventos, sondeos, t = self.correr(self.FALLO, self.FALLO, self.FALLO, self.OK, alarma_encendida=True)
+        self.assertEqual(sondeos, [0, 0, 0, 0])   # siempre lotes vacíos; nunca más tras responder
+        self.assertEqual(t, 30.0)                 # 3 esperas de 10 s
+        self.assertEqual(eventos, ["off"])        # la alarma ya estaba encendida: solo se apaga
+
+    def test_f2_la_pc_ya_responde_no_enciende_la_alarma(self):
+        eventos, sondeos, _ = self.correr(self.OK)
+        self.assertEqual((eventos, sondeos), ([], [0]))
+
+    def test_si_la_alarma_no_estaba_la_enciende_tras_el_primer_fallo(self):
+        eventos, _, _ = self.correr(self.FALLO, self.FALLO, self.OK)
+        self.assertEqual(eventos, ["on", "off"])
 
 
 class ConMockPC(unittest.TestCase):
@@ -200,7 +244,7 @@ class EnlaceFalso:
 
 
 class CicloMain(unittest.TestCase):
-    def correr(self, enlace, lote, decision=None, imagenes=None):
+    def correr(self, enlace, lote, decision=None, imagenes=None, parchar_esperar=True):
         originales = (main.introducir_objeto, main.capturar_lote_completo,
                       main.enviar_lote, main.esperar_decision)
         enviados_a_pc = []
@@ -212,11 +256,12 @@ class CicloMain(unittest.TestCase):
             return lote
         main.enviar_lote = fake_enviar
 
-        def fake_esperar(d, alarma):
+        def fake_esperar(d, on, off=None):
             if isinstance(decision, Exception):
                 raise decision
             return decision
-        main.esperar_decision = fake_esperar
+        if parchar_esperar:
+            main.esperar_decision = fake_esperar
         try:
             return main.ciclo_de_un_objeto(enlace, None, None), enviados_a_pc
         finally:
@@ -236,12 +281,27 @@ class CicloMain(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(e.enviados, [{"accion": ACCION_CLASIFICAR, "destino": "DESCARTE"}])
 
-    def test_decision_perdida_alarma_y_no_clasifica(self):
+    def test_decision_perdida_se_recupera_y_vuelve_a_esperar(self):
         e = EnlaceFalso()
-        ok, _ = self.correr(e, ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, False),
-                            decision=dc.DecisionPerdida("x"))
-        self.assertFalse(ok)
-        self.assertEqual(e.enviados, [{"accion": ACCION_ACTIVAR_ALARMA_LOCAL}])
+        llamadas = []
+        originales = (main.recuperar_comunicacion, main.esperar_decision)
+        main.recuperar_comunicacion = lambda *a, **k: llamadas.append("recuperar")
+        secuencia = iter([dc.DecisionPerdida("x"), "DESCARTE"])
+
+        def esperar(d, on, off):
+            r = next(secuencia)
+            if isinstance(r, Exception):
+                raise r
+            return r
+        main.esperar_decision = esperar
+        try:
+            ok, _ = self.correr(e, ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, False),
+                                decision="no se usa", parchar_esperar=False)
+        finally:
+            main.recuperar_comunicacion, main.esperar_decision = originales
+        self.assertTrue(ok)
+        self.assertEqual(llamadas, ["recuperar"])
+        self.assertEqual(e.enviados, [{"accion": ACCION_CLASIFICAR, "destino": "DESCARTE"}])
 
     def test_introducir_objeto_fallido_envia_lote_vacio_a_la_pc(self):
         e = EnlaceFalso(confirmar=False)
@@ -250,12 +310,26 @@ class CicloMain(unittest.TestCase):
         self.assertEqual(a_pc, [0])
         self.assertEqual(e.enviados[-1], {"accion": ACCION_CLASIFICAR, "destino": "TIPO_B"})
 
-    def test_fallo_de_red_activa_alarma_local(self):
+    def test_fallo_de_red_activa_alarma_sondea_y_espera_al_regente(self):
         e = EnlaceFalso()
-        with mock.patch("builtins.input", return_value=""):
-            ok, _ = self.correr(e, ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, True))
+        llamadas = []
+        original = main.recuperar_comunicacion
+
+        def fake_recuperar(desc, on, off, alarma_encendida=False, **k):
+            llamadas.append(alarma_encendida)
+            on(); off()
+        main.recuperar_comunicacion = fake_recuperar
+        try:
+            ok, _ = self.correr(e, ({"clasificacion": RESULTADO_ERROR_REVISION_MANUAL}, True),
+                                decision="TIPO_C")
+        finally:
+            main.recuperar_comunicacion = original
         self.assertTrue(ok)
+        self.assertEqual(llamadas, [True])   # la alarma ya estaba encendida (F1)
         self.assertEqual(e.enviados[0], {"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+        self.assertIn({"accion": ACCION_DESACTIVAR_ALARMA_LOCAL}, e.enviados)
+        # El ciclo no se reanuda solo: clasifica con el destino del regente, no con el error.
+        self.assertEqual(e.enviados[-1], {"accion": ACCION_CLASIFICAR, "destino": "TIPO_C"})
 
 
 if __name__ == "__main__":

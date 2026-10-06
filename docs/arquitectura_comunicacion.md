@@ -145,7 +145,7 @@ decidió, hasta obtener una respuesta `resuelta`. Es la opción A de
 |---|---|
 | `{"estado": "pendiente"}` | El regente aún no decide: seguir consultando. |
 | `{"estado": "resuelta", "destino": "<X>"}` | `<X>` es `TIPO_X` o `DESCARTE`: la Orange Pi ordena `clasificar` con ese destino. |
-| `{"estado": "ninguna"}` | La PC no tiene decisión en espera (p. ej. se reinició y perdió el estado). Se recomienda mantener la caja en posición y activar la alarma local. |
+| `{"estado": "ninguna"}` | La PC no tiene decisión en espera (p. ej. se reinició y perdió el estado). La Orange Pi mantiene la caja y se recupera según la sección 4.6. |
 | `{"error": "consulta_invalida"}` | La consulta no cumple el formato. |
 
 - **Sin IDs de correlación:** la PC guarda una sola decisión en espera, la del
@@ -157,8 +157,32 @@ decidió, hasta obtener una respuesta `resuelta`. Es la opción A de
 - **Tiempo de espera:** el límite de 30 s (4.3) aplica solo al intercambio de
   imágenes. La espera del regente no tiene tope en la PC; si el equipo quiere
   uno, debe definirse en el lado Orange Pi.
-- **Fallos de comunicación con la PC** (8.1, punto 3) no usan este canal: no hay
-  a quién consultar, y se resuelven con la alarma física local (4.4).
+- **Fallos de comunicación con la PC** (8.1, punto 3) no usan este canal mientras
+  dura la falla: no hay a quién consultar. Se resuelven con la alarma física local
+  (4.4) y la recuperación de la sección 4.6.
+
+### 4.6 Recuperación tras un fallo de comunicación con la PC
+
+Decisión (S-02/D-06 del checklist): el ciclo **no se reanuda solo**; el regente
+confirma, porque durante la alarma la caja pudo retirarse a mano. Cubre tres
+situaciones: **F1** se agotan los 30 s enviando el lote (4.4), **F2** la PC
+responde `ninguna` en la espera (4.5, perdió el estado), **F3** la PC deja de
+responder durante la espera de la decisión.
+
+1. La Orange Pi mantiene la caja y, en F1 y F3, deja encendida la alarma local
+   (`activar_alarma_local`; en F3 tras `TIMEOUT_TOTAL_TRANSACCION_S` de consultas
+   fallidas).
+2. Sondea a la PC con un **lote vacío** cada `INTERVALO_REINTENTO_PC_S` (10 s),
+   **sin tope**, con re-descubrimiento mDNS. La PC lo trata como cualquier lote
+   vacío: responde `ERROR_REVISION_MANUAL`, alarma en su panel y abre la decisión.
+3. Al **primer** sondeo con respuesta deja de sondear (si no, cada lote vacío
+   crearía una alarma nueva y reemplazaría la decisión en espera), envía
+   `desactivar_alarma_local` y pasa a consultar la decisión del regente (4.5).
+4. El regente resuelve en el panel con `TIPO_X`, o `DESCARTE` si retiró la caja.
+   Solo entonces la Orange Pi ordena `clasificar`.
+
+En F2 la PC ya responde, así que el primer sondeo tiene éxito y no se enciende la
+alarma local. Las fotos del objeto no llegan al panel (se envía un lote vacío).
 
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
@@ -196,9 +220,8 @@ uno de los cinco giros de rotación durante la ráfaga de fotos.
 | Orange Pi → ESP32-S3 | `{"accion": "girar_posicion", "cara": N}` | Ordena rotar el objeto a la cara N |
 | ESP32-S3 → Orange Pi | `{"evento": "en_posicion", "cara": N}` | Confirma el giro de la cara N completado |
 | Orange Pi → ESP32-S3 | `{"accion": "activar_alarma_local"}` | Enciende el indicador físico ante un fallo de red prolongado |
+| Orange Pi → ESP32-S3 | `{"accion": "desactivar_alarma_local"}` | Apaga el indicador físico cuando la PC vuelve a responder (sección 4.6) |
 | Orange Pi → ESP32-S3 | `{"accion": "clasificar", "destino": "TIPO_X"}` | Ordena accionar el mecanismo de clasificación |
-
-> **Pendiente:** mensaje del dispensador — ver sección 5.5.
 
 ### 5.4 Límite de reintentos en la introducción del objeto
 
