@@ -6,7 +6,7 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-14 a PC-18, D-05).
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-10, PC-15, D-09).
 Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-02 cerrada, D-06, OP-15/OP-19, S-09).
 
 ## Cómo usarlo
@@ -55,6 +55,11 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 
 - [ ] **PC-10** Botón "Iniciar recorrido" del panel: hoy deshabilitado. Necesita
   un mensaje PC → Orange Pi que **no existe en el contrato** (ver **S-06**).
+  *Interpretación del usuario (2026-10-05): iniciar el **ciclo de auditoría***
+  (hoy la Orange Pi arranca el ciclo sola al ejecutarse `main.py`), no mover el
+  carrito. Falta diseñar la orden (iniciar/pausar/detener, solo entre objetos) y
+  el canal; como la Orange Pi no recibe conexiones entrantes, tendría que
+  consultarla ella, como con la decisión del regente.
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**). *Sigue pendiente del equipo de IA
@@ -77,9 +82,11 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   reinicia, la Orange Pi recibe `ninguna` y se recupera sola con el sondeo de la
   sección 4.6, así que solo se pierde el historial del panel. Se reevalúa si
   hace falta auditoría o trazabilidad. (Las fotos no se guardan, por diseño.)
-- [?] **PC-15** El panel escucha en `127.0.0.1` por defecto (sin autenticación).
-  Si el regente lo abre desde otro equipo hay que usar `PANEL_HOST=0.0.0.0`.
-  ¿Quién usa el panel y desde dónde en la demo?
+- [x] **PC-15** Acceso al panel: **el regente trabaja frente a la PC**, así que el
+  panel sigue escuchando solo en `127.0.0.1` (sin autenticación; **D-09**). Si
+  más adelante el regente usa otro dispositivo, hay que arrancar con
+  `PANEL_HOST=0.0.0.0` (cualquiera en esa red podría abrir el panel y resolver
+  alarmas) y conviene añadir una clave compartida antes; reevaluar entonces.
 - [x] **PC-16** Mejoras del panel pedidas por el usuario (2026-10-05):
   **severidad "amarilla"** de alertas — roja = la Orange Pi la espera (bloquea el
   ciclo), amarilla = sigue activa pero ya nadie la espera (queda por cerrar), gris
@@ -192,7 +199,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Hecha | Confirmados los dos primeros. Formato del destino: el cliente acepta cualquier cadena no vacía y deja a la PC la validación (`[A-Z0-9_]{1,32}`). |
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
 | S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
-| S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Abierta | Bloquea **PC-10**. |
+| S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi (iniciar/pausar ciclo) y un canal; el diseño actual solo tiene Orange Pi → PC. | Abierta | Bloquea **PC-10**. **Aclaración del usuario (2026-10-05):** el botón sería **iniciar el ciclo de auditoría** (no mover el carrito). Pendiente: que la Orange Pi diga si lo quiere y cómo (consulta periódica a la PC, igual que la decisión). |
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
@@ -251,6 +258,7 @@ Acuerdo registrado en **Decisiones tomadas** (D-06 y D-07); S-02 está `Hecha`.
 | D-03 | 2026-10-05 | El panel muestra las fotos del lote, solo desde RAM (últimos 5 lotes), nunca a disco. | Usuario |
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
 | D-05 | 2026-10-05 | **No persistir** el historial ni la decisión en espera del panel por ahora (**PC-14**): la Orange Pi se recupera sola tras un reinicio de la PC (sección 4.6). Se reevalúa si hace falta auditoría. | Usuario |
+| D-09 | 2026-10-05 | El panel de la PC sigue escuchando solo en `127.0.0.1`: el regente trabaja frente a la PC (**PC-15**). | Usuario |
 | D-06 | 2026-10-06 | **Cerrada** (del lado Orange Pi y contrato): tras un fallo de comunicación, sondeo con lote vacío cada 10 s sin tope, alarma local hasta `desactivar_alarma_local` y confirmación del regente en el panel (sección 4.6). La ESP32-S3 se adapta después (**S-09**), según el usuario. | Usuario + lados PC y Orange Pi |
 | D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
 | D-08 | 2026-10-06 | El servo del dispensador lo controla la **ESP32-S3**; `activar_dispensador` reemplaza a `introducir_objeto` (ver `docs/CHANGELOG_protocolo.md`, **S-08**). | Lado Orange Pi |
@@ -262,6 +270,7 @@ Acuerdo registrado en **Decisiones tomadas** (D-06 y D-07); S-02 está `Hecha`.
 | Fecha | Quién | Cambio |
 |---|---|---|
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-14 (no persistir, **D-05** decidida), PC-16 (severidad amarilla y `logging`), PC-17 (verificado por el usuario) `[x]`; PC-11 y PC-13 anotados como pendientes de otros / de hardware; sección "Consulta abierta — S-02" marcada como cerrada. |
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-15 `[x]` (D-09: panel solo local, el regente está en la PC); PC-10 y S-06 anotan que "Iniciar recorrido" sería iniciar el ciclo de auditoría. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-02 `Hecha` y D-06 cerrada: se implementa la recuperación de la sección 4.6 (`desactivar_alarma_local`, `INTERVALO_REINTENTO_PC_S`, bucle en la Orange Pi). OP-15 y OP-19 `[x]`; S-09 nueva para la ESP32-S3. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Fila PC y fila Usuario de la consulta S-02; D-06 actualizado; D-07 (confirmación del regente) y D-08 (dispensador en la ESP32-S3) registradas. El panel cambia el texto de la alarma de lote vacío. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-02: Opción 1 con confirmación del regente (mecanismo y alternativa en su fila). |
