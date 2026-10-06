@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14, OP-16, OP-21).
-Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 y S-07).
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-12 cerrado, PC-18).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-14, OP-16, OP-21).
 
 ## Cómo usarlo
 
@@ -58,13 +58,15 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**).
-- [~] **PC-12** Prueba de punta a punta con la Orange Pi real. **Preparada del
-  lado PC:** `ufw` está `inactive` (verificado con `sudo ufw status verbose`), así
-  que no hay nada que abrir, y el servidor corre con estado limpio en
-  `192.168.20.53` (5000/TCP lotes, 5001/TCP decisión; panel solo local en 8080).
-  **Falta:** que la Orange Pi confirme la conexión desde su lado y hacer el ciclo
-  completo. Nota: si la PC cambia de red (p. ej. hotspot de la demo) hay que
-  volver a revisar el firewall y la IP.
+- [x] **PC-12** Prueba de punta a punta con la Orange Pi real (ESP32-S3 simulada),
+  cerrada tras **OP-21**. Corroborado en el registro y el panel de la PC: 3 lotes
+  de 5 imágenes respondidos `TIPO_A`; un lote vacío → alarma `fallo_captura` →
+  el regente resolvió `DESCARTE` en el panel. Las fotos llegaron íntegras al
+  panel: JPEG válidos de 1920×1080 (433-463 KB c/u). `ufw` inactivo, sin puertos
+  que abrir. *Limitaciones:* la ESP32-S3 era simulada, y la PC no puede
+  confirmar por sí sola que la Orange Pi recibió el destino (ver **PC-18**). Si
+  la PC cambia de red (p. ej. hotspot de la demo) hay que volver a revisar el
+  firewall y la IP.
 - [ ] **PC-13** Calibrar con hardware real: `TIMEOUT_INACTIVIDAD_RECEPCION_S`,
   `TIMEOUT_RESPUESTA_RECONOCIMIENTO_S`, `INTERVALO_CONSULTA_DECISION_S` y el tope
   de 10 MiB por imagen (este último es una estimación, no una medición).
@@ -77,6 +79,12 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [ ] **PC-16** Mejoras menores del panel: revisión en celular/tablet, sonido o
   parpadeo ante alarma, severidad "amarilla" de alertas, `logging` en vez de
   `print()`.
+- [ ] **PC-18** La PC solo registra errores del servidor de decisión, no las
+  consultas: en su log no se ve que la Orange Pi leyó `resuelta`. Registrar los
+  cambios de estado entregados (sin ruido por cada consulta de 2 s). Además, las
+  conexiones que se abren y cierran sin enviar nada (p. ej. pruebas de
+  conectividad con `/dev/tcp`) salen como "Error … Conexión cerrada durante
+  recv": ruido sin consecuencia, se podría bajar de nivel.
 - [ ] **PC-17** Verificar el panel en un navegador real tras cada cambio de CSS/JS
   (hasta hoy solo se probó el servidor y la sintaxis; los fallos visuales los ha
   encontrado el usuario).
@@ -192,6 +200,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-12 `[x]` tras revisar OP-21 contra el registro y el panel de la PC; PC-18 nuevo. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-21 nuevo (prueba de punta a punta contra la PC real: camino normal y camino del regente); OP-16 pasa a `[~]` (falta la ESP32-S3 real). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-14 `[x]`: el mock atiende el puerto 5001. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | S-07 `Hecha` (firewall inactivo verificado, servidor corriendo limpio); PC-12 pasa a `[~]`. |
