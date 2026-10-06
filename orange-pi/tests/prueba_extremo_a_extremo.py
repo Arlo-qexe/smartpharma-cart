@@ -7,8 +7,11 @@ eventos). El contenido de las fotos no importa: es un lote simulado.
 Uso (desde orange-pi/, con el venv activado):
     python tests/prueba_extremo_a_extremo.py [--retraso SEGUNDOS]
 
-`--retraso` pausa SEGUNDOS entre la confirmación `objeto_en_posicion` y la
-ráfaga de fotos (p. ej. para colocar algo frente a la cámara). Por defecto 0.
+`--retraso` simula lo que tarda el mecanismo en cada movimiento (introducir el
+objeto y cada uno de los 5 giros): la ESP32-S3 simulada tarda SEGUNDOS en
+confirmar. Por defecto 2.5 s. Si supera el `timeout` con que main.py espera la
+confirmación (5 s), la confirmación nunca llega: simula un fallo mecánico y
+main.py debe abortar el lote (informe 6.2) o agotar los reintentos (5.4).
 
 Si la PC responde ERROR_REVISION_MANUAL, la prueba espera sin tope a que el
 regente resuelva en el panel de la PC.
@@ -34,9 +37,10 @@ from protocol_constants import (  # noqa: E402
 
 
 class EnlaceSimulado:
-    """ESP32-S3 falsa: confirma `introducir_objeto` y cada `girar_posicion`."""
+    """ESP32-S3 falsa: confirma `introducir_objeto` y cada `girar_posicion`
+    tras `retraso_s` segundos de "movimiento mecánico"."""
 
-    def __init__(self, retraso_s: float = 0.0):
+    def __init__(self, retraso_s: float = 2.5):
         self._pendiente = None
         self._retraso_s = retraso_s
 
@@ -45,21 +49,26 @@ class EnlaceSimulado:
         accion = mensaje.get("accion")
         if accion == ACCION_INTRODUCIR_OBJETO:
             self._pendiente = {"evento": EVENTO_OBJETO_EN_POSICION}
-            if self._retraso_s:
-                print(f"[esp32-sim] objeto en posición; esperando {self._retraso_s:g}s antes de confirmar...")
-                time.sleep(self._retraso_s)
         elif accion == ACCION_GIRAR_POSICION:
             self._pendiente = {"evento": EVENTO_EN_POSICION, "cara": mensaje["cara"]}
 
     def recibir(self, timeout=None):
-        r, self._pendiente = self._pendiente, None
-        return r
+        evento, self._pendiente = self._pendiente, None
+        if evento is None:
+            return None
+        if timeout is not None and self._retraso_s > timeout:
+            time.sleep(timeout)
+            print(f"[esp32-sim] {evento['evento']} tardaría {self._retraso_s:g}s > timeout {timeout:g}s: sin confirmación")
+            return None
+        time.sleep(self._retraso_s)
+        print(f"[esp32-sim] -> {evento}")
+        return evento
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--retraso", type=float, default=0.0,
-                    help="segundos entre la llegada del objeto y la ráfaga de fotos")
+    ap.add_argument("--retraso", type=float, default=2.5,
+                    help="segundos que tarda cada movimiento en confirmarse (def. 2.5)")
     args = ap.parse_args()
     camara = abrir_camara()
     # Envuelve la captura para informar el tamaño de cada foto real.
