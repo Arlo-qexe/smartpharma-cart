@@ -54,7 +54,10 @@ def test_pagina_y_estaticos(panel):
     assert b'id="visor"' in cuerpo  # visor de fotos ampliadas
     assert "default-src 'self'" in headers["Content-Security-Policy"]
     assert _get(base + "/static/panel.js")[0] == 200
-    assert _get(base + "/static/panel.css")[0] == 200
+    status, _, css = _get(base + "/static/panel.css")
+    assert status == 200
+    # Regresión: .banner usa display:flex y, sin esta regla, `hidden` no lo oculta.
+    assert b"[hidden] { display: none !important; }" in css
     assert _codigo(base + "/static/../server.py") == 404
 
 
