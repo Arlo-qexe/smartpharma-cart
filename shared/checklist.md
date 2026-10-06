@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-02 cerrada, D-06, OP-15/OP-19, S-09).
-Anterior: 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: respuesta a S-02, D-07/D-08).
+**Última actualización:** 2026-10-05 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-14 a PC-18, D-05).
+Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-02 cerrada, D-06, OP-15/OP-19, S-09).
 
 ## Cómo usarlo
 
@@ -57,7 +57,8 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   un mensaje PC → Orange Pi que **no existe en el contrato** (ver **S-06**).
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
-  (depende del equipo de IA, ver **S-05**).
+  (depende del equipo de IA, ver **S-05**). *Sigue pendiente del equipo de IA
+  (confirmado por el usuario, 2026-10-05).*
 - [x] **PC-12** Prueba de punta a punta con la Orange Pi real (ESP32-S3 simulada),
   cerrada tras **OP-21**. Corroborado en el registro y el panel de la PC: 3 lotes
   de 5 imágenes respondidos `TIPO_A`; un lote vacío → alarma `fallo_captura` →
@@ -70,24 +71,34 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
 - [ ] **PC-13** Calibrar con hardware real: `TIMEOUT_INACTIVIDAD_RECEPCION_S`,
   `TIMEOUT_RESPUESTA_RECONOCIMIENTO_S`, `INTERVALO_CONSULTA_DECISION_S` y el tope
   de 10 MiB por imagen (este último es una estimación, no una medición).
-- [?] **PC-14** El estado del panel (historial y decisión en espera) vive solo
-  en RAM: si la PC se reinicia, la Orange Pi recibe `ninguna`. ¿Se persiste?
-  (Las fotos no, por diseño.) Ver **D-05**.
+  *Aún no se puede hacer (usuario, 2026-10-05): falta el hardware real completo.*
+- [x] **PC-14** Persistencia del estado del panel: **decidido no persistir por ahora**
+  (**D-05**). El historial y la decisión en espera viven solo en RAM; si la PC se
+  reinicia, la Orange Pi recibe `ninguna` y se recupera sola con el sondeo de la
+  sección 4.6, así que solo se pierde el historial del panel. Se reevalúa si
+  hace falta auditoría o trazabilidad. (Las fotos no se guardan, por diseño.)
 - [?] **PC-15** El panel escucha en `127.0.0.1` por defecto (sin autenticación).
   Si el regente lo abre desde otro equipo hay que usar `PANEL_HOST=0.0.0.0`.
   ¿Quién usa el panel y desde dónde en la demo?
-- [ ] **PC-16** Mejoras menores del panel: revisión en celular/tablet, sonido o
-  parpadeo ante alarma, severidad "amarilla" de alertas, `logging` en vez de
-  `print()`.
+- [x] **PC-16** Mejoras del panel pedidas por el usuario (2026-10-05):
+  **severidad "amarilla"** de alertas — roja = la Orange Pi la espera (bloquea el
+  ciclo), amarilla = sigue activa pero ya nadie la espera (queda por cerrar), gris
+  = resuelta; el banner cambia de color igual — y **`logging`** en lugar de
+  `print()` (loggers `server`, `decision`, `panel`, `mdns`, `alarma`; nivel con
+  `PC_LOG_LEVEL`). *Excepción:* el placeholder `ocr_interface.py`, del equipo de IA.
+  *No se harán por ahora (decisión del usuario):* sonido o parpadeo ante alarma y
+  revisión en celular/tablet. La severidad amarilla de la maqueta basada en FEFO
+  ("próximo a vencer") depende de **PC-11**.
 - [x] **PC-18** Registro del servidor de decisión: ahora la PC anota cuando una
-  consulta entrega un estado nuevo a la Orange Pi (`[decision] <ip> recibió:
+  consulta entrega un estado nuevo a la Orange Pi (log `decision`: `<ip> recibió:
   pendiente | resuelta (destino X) | ninguna`), sin una línea por cada consulta de
   2 s; así su log confirma que la Orange Pi recibió el destino. Las conexiones que
   se abren y cierran sin datos (pruebas de conectividad) se muestran como
-  "sonda de conectividad", ya no como error. 26 pruebas pasan.
-- [ ] **PC-17** Verificar el panel en un navegador real tras cada cambio de CSS/JS
-  (hasta hoy solo se probó el servidor y la sintaxis; los fallos visuales los ha
-  encontrado el usuario).
+  "sonda de conectividad", ya no como error.
+- [x] **PC-17** Verificar el panel en un navegador real tras cada cambio de CSS/JS:
+  el usuario lo ha ido comprobando en las pruebas y **no ha visto más fallos
+  visuales** (2026-10-05). Sigue siendo buena práctica revisar el navegador tras
+  cada cambio de CSS/JS. Pruebas automáticas de la PC: 28 pasan.
 
 ### Fuera de alcance de este repo (a propósito)
 
@@ -190,9 +201,10 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 
 ## Consulta abierta — S-02: reanudar el ciclo tras un fallo de comunicación
 
-Detalle completo: `docs/propuesta_reanudacion_fallo_comunicacion.md`. **No hay nada
-implementado ni decidido**; las opciones tocan a la Orange Pi, a la ESP32-S3 y al
-contrato.
+Detalle completo: `docs/propuesta_reanudacion_fallo_comunicacion.md`.
+**Cerrada el 2026-10-06 (D-06 / S-02 `Hecha`); se conserva como registro** de las
+opciones y de las respuestas de cada lado. Lo que quedó decidido está en la sección
+4.6 del informe; lo que falta es solo el firmware de la ESP32-S3 (**S-09**).
 
 **Situaciones:** **F1** se agotan los 30 s enviando el lote · **F2** la PC responde
 `ninguna` en la espera (perdió el estado) · **F3** la PC deja de contestar durante
@@ -226,7 +238,7 @@ retira la caja a mano, ¿el mecanismo necesita igual un `clasificar`?
 | **ESP32-S3** | *(pendiente — o quien lleve el firmware)* | |
 | **Usuario / regente** | **El ciclo NO se reanuda solo tras un fallo de comunicación: requiere confirmación del regente**, porque durante la alarma la caja puede haberse retirado a mano (en ese caso el regente elige `DESCARTE`). Esta decisión la tomó el usuario (lado PC). | Arlo.exe (usuario), 2026-10-05 |
 
-Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a `Hecha`.
+Acuerdo registrado en **Decisiones tomadas** (D-06 y D-07); S-02 está `Hecha`.
 
 ---
 
@@ -238,7 +250,7 @@ Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a 
 | D-02 | 2026-10-05 | El panel de control es una página web generada por la PC con la biblioteca estándar de Python; se migra a Flask solo si crece. | Usuario |
 | D-03 | 2026-10-05 | El panel muestra las fotos del lote, solo desde RAM (últimos 5 lotes), nunca a disco. | Usuario |
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
-| D-05 | — | *(pendiente)* Persistir o no el historial/decisión del panel (**PC-14**). | — |
+| D-05 | 2026-10-05 | **No persistir** el historial ni la decisión en espera del panel por ahora (**PC-14**): la Orange Pi se recupera sola tras un reinicio de la PC (sección 4.6). Se reevalúa si hace falta auditoría. | Usuario |
 | D-06 | 2026-10-06 | **Cerrada** (del lado Orange Pi y contrato): tras un fallo de comunicación, sondeo con lote vacío cada 10 s sin tope, alarma local hasta `desactivar_alarma_local` y confirmación del regente en el panel (sección 4.6). La ESP32-S3 se adapta después (**S-09**), según el usuario. | Usuario + lados PC y Orange Pi |
 | D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
 | D-08 | 2026-10-06 | El servo del dispensador lo controla la **ESP32-S3**; `activar_dispensador` reemplaza a `introducir_objeto` (ver `docs/CHANGELOG_protocolo.md`, **S-08**). | Lado Orange Pi |
@@ -249,6 +261,7 @@ Cuando haya acuerdo, se registra en **Decisiones tomadas** (D-06) y S-02 pasa a 
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | PC-14 (no persistir, **D-05** decidida), PC-16 (severidad amarilla y `logging`), PC-17 (verificado por el usuario) `[x]`; PC-11 y PC-13 anotados como pendientes de otros / de hardware; sección "Consulta abierta — S-02" marcada como cerrada. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-02 `Hecha` y D-06 cerrada: se implementa la recuperación de la sección 4.6 (`desactivar_alarma_local`, `INTERVALO_REINTENTO_PC_S`, bucle en la Orange Pi). OP-15 y OP-19 `[x]`; S-09 nueva para la ESP32-S3. |
 | 2026-10-05 | Arlo.exe (lado PC, con Claude Code) | Fila PC y fila Usuario de la consulta S-02; D-06 actualizado; D-07 (confirmación del regente) y D-08 (dispensador en la ESP32-S3) registradas. El panel cambia el texto de la alarma de lote vacío. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | Respuesta del lado Orange Pi a la consulta S-02: Opción 1 con confirmación del regente (mecanismo y alternativa en su fila). |
