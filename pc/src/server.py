@@ -72,7 +72,7 @@ def _manejar_cliente(conn, addr):
 
         motivo_alarma = None
         if len(imagenes) == 0:
-            print(f"[server] Lote vacío de {addr} — fallo de captura reportado por la Orange Pi")
+            print(f"[server] Lote vacío de {addr} — captura fallida o reintento tras perder la conexión")
             resultado = RESULTADO_ERROR_REVISION_MANUAL
             motivo_alarma = "fallo_captura"
         else:

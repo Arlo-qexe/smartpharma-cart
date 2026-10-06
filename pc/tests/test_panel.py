@@ -53,7 +53,10 @@ def test_pagina_y_estaticos(panel):
     assert status == 200 and b"SmartPharma Cart" in cuerpo
     assert b'id="visor"' in cuerpo  # visor de fotos ampliadas
     assert "default-src 'self'" in headers["Content-Security-Policy"]
-    assert _get(base + "/static/panel.js")[0] == 200
+    status, _, js = _get(base + "/static/panel.js")
+    assert status == 200
+    # El lote vacío también es el sondeo tras perder la conexión (consulta S-02).
+    assert "reintento tras perder la conexión".encode() in js
     status, _, css = _get(base + "/static/panel.css")
     assert status == 200
     # Regresión: .banner usa display:flex y, sin esta regla, `hidden` no lo oculta.

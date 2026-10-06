@@ -3,7 +3,7 @@
 const INTERVALO_MS = 2000;
 const ERROR_REVISION = "ERROR_REVISION_MANUAL";
 const MOTIVOS = {
-  fallo_captura: "Fallo de captura (lote vacío)",
+  fallo_captura: "Lote vacío (captura fallida o reintento tras perder la conexión)",
   sin_consenso_ocr: "Sin consenso en el reconocimiento",
   framing_invalido: "Lote inválido (framing)",
 };
