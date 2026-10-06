@@ -30,14 +30,16 @@ def _get(url):
         return r.status, r.headers, r.read()
 
 
-def _post(url, headers=None):
-    req = urllib.request.Request(url, method="POST", headers=headers or {})
+def _post(url, cuerpo=None, headers=None):
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    req = urllib.request.Request(url, data=datos, method="POST", headers=headers or {})
     with urllib.request.urlopen(req, timeout=3) as r:
         return r.status, json.loads(r.read())
 
 
-def _codigo(url, metodo="GET", headers=None):
-    req = urllib.request.Request(url, method=metodo, headers=headers or {})
+def _codigo(url, metodo="GET", headers=None, cuerpo=None):
+    datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
+    req = urllib.request.Request(url, data=datos, method=metodo, headers=headers or {})
     try:
         urllib.request.urlopen(req, timeout=3)
     except urllib.error.HTTPError as e:
@@ -61,7 +63,7 @@ def test_estado_vacio_y_config(panel):
     datos = json.loads(_get(base + "/api/estado")[2])
     assert datos["lotes"] == [] and datos["alarmas"] == []
     assert datos["alarma_activa"] is False
-    assert any(c["nombre"] == "Puerto TCP" for c in datos["config"])
+    assert any(c["nombre"] == "Puerto TCP (consulta de decisión)" for c in datos["config"])
 
 
 def test_lote_fotos_y_alarma(panel):
@@ -83,25 +85,44 @@ def test_lote_fotos_y_alarma(panel):
     assert _codigo(f"{base}/foto/{lote_id}/5") == 404
     assert _codigo(f"{base}/foto/999/0") == 404
 
-    assert _post(f"{base}/api/alarmas/{alarma_id}/desactivar")[1] == {"ok": True}
+    # Alarma que la Orange Pi no espera: solo se cierra, sin decisión.
+    assert _post(f"{base}/api/alarmas/{alarma_id}/resolver")[1] == {
+        "ok": True, "decision_aplicada": False}
     datos = json.loads(_get(base + "/api/estado")[2])
     assert datos["alarma_activa"] is False
     assert datos["alarmas"][0]["activa"] is False
 
 
-def test_desactivar_alarma_inexistente(panel):
+def test_resolver_alarma_con_decision_pendiente(panel):
+    estado, base = panel
+    alarma_id = estado.registrar_alarma("fallo_captura")
+    estado.abrir_decision(alarma_id)
+    url = f"{base}/api/alarmas/{alarma_id}/resolver"
+
+    assert _codigo(url, "POST") == 400                              # falta el destino
+    assert _codigo(url, "POST", cuerpo={"destino": "tipo a!"}) == 400
+    assert estado.consultar_decision() == {"estado": "pendiente"}
+
+    assert _post(url, {"destino": "TIPO_B"})[1] == {"ok": True, "decision_aplicada": True}
+    assert estado.consultar_decision() == {"estado": "resuelta", "destino": "TIPO_B"}
+    datos = json.loads(_get(base + "/api/estado")[2])
+    assert datos["alarmas"][0]["destino"] == "TIPO_B"
+    assert datos["alarmas"][0]["espera_decision"] is False
+
+
+def test_resolver_alarma_inexistente(panel):
     _, base = panel
-    assert _codigo(base + "/api/alarmas/42/desactivar", "POST") == 404
+    assert _codigo(base + "/api/alarmas/42/resolver", "POST") == 404
 
 
 def test_post_con_origen_ajeno_se_rechaza(panel):
     estado, base = panel
     alarma_id = estado.registrar_alarma("fallo_captura")
-    url = f"{base}/api/alarmas/{alarma_id}/desactivar"
+    url = f"{base}/api/alarmas/{alarma_id}/resolver"
     assert _codigo(url, "POST", {"Origin": "http://malicioso.example"}) == 403
     assert estado.snapshot()["alarma_activa"] is True
     host = base.removeprefix("http://")
-    assert _post(url, {"Origin": base})[0] == 200
+    assert _post(url, headers={"Origin": base})[0] == 200
     assert estado.snapshot()["alarma_activa"] is False
     assert host  # el Origin legítimo coincide con el Host
 

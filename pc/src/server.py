@@ -2,8 +2,10 @@
 Servidor TCP de la PC: recibe el lote de imágenes de la Orange Pi, lo pasa al
 contrato de reconocimiento (ocr_interface.py), y responde con la
 clasificación (ver docs/arquitectura_comunicacion.md, secciones 4 y 8).
+
+Si el lote termina en ERROR_REVISION_MANUAL, la PC deja una decisión en espera
+para el regente; la Orange Pi la consulta por servidor_decision.py.
 """
-import json
 import socket
 import struct
 import sys
@@ -13,60 +15,43 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_RESULTADO_JSON,
+    FRAMING_LENGTH_BYTES,
     FRAMING_STRUCT_FORMAT,
     MAX_IMAGENES_POR_LOTE,
     RESULTADO_ERROR_REVISION_MANUAL,
     TAMANO_MAX_IMAGEN_BYTES,
+    TCP_PUERTO_DECISION_DEFECTO,
     TCP_PUERTO_DEFECTO,
     TIMEOUT_INACTIVIDAD_RECEPCION_S,
 )
 
-from ocr_interface import procesar_lote_ocr
-from mdns_service import registrar_servicio_mdns, detener_servicio_mdns
 from estado_panel import estado
+from framing import FramingInvalido, enviar_json, recv_exacto
+from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
+from ocr_interface import procesar_lote_ocr
 from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
-
-
-class FramingInvalido(Exception):
-    """El lote viola los límites de validación del framing."""
-
-
-def _recv_exacto(sock, n):
-    datos = b""
-    while len(datos) < n:
-        chunk = sock.recv(n - len(datos))
-        if not chunk:
-            raise ConnectionResetError("Conexión cerrada durante recv")
-        datos += chunk
-    return datos
+from servidor_decision import iniciar_servidor_decision
 
 
 def _recibir_lote(sock):
-    raw_cantidad = _recv_exacto(sock, 4)
-    (cantidad,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_cantidad)
+    (cantidad,) = struct.unpack(FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES))
     if cantidad > MAX_IMAGENES_POR_LOTE:
         raise FramingInvalido(f"cantidad de imágenes {cantidad} > {MAX_IMAGENES_POR_LOTE}")
     imagenes = []
     for _ in range(cantidad):
-        raw_tam = _recv_exacto(sock, 4)
-        (tam,) = struct.unpack(FRAMING_STRUCT_FORMAT, raw_tam)
+        (tam,) = struct.unpack(FRAMING_STRUCT_FORMAT, recv_exacto(sock, FRAMING_LENGTH_BYTES))
         if tam > TAMANO_MAX_IMAGEN_BYTES:
             raise FramingInvalido(f"tamaño de imagen {tam} > {TAMANO_MAX_IMAGEN_BYTES}")
-        imagenes.append(_recv_exacto(sock, tam))
+        imagenes.append(recv_exacto(sock, tam))
     return imagenes
 
 
-def _enviar_respuesta(sock, diccionario):
-    payload = json.dumps(diccionario).encode("utf-8")
-    sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(payload)))
-    sock.sendall(payload)
-
-
-def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None):
+def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None) -> int:
     """Registra la alarma en el panel web (panel_web.py) para que el regente
-    la vea (ver docs/arquitectura_comunicacion.md, sección 8)."""
-    estado.registrar_alarma(motivo, lote_id)
+    la vea (ver docs/arquitectura_comunicacion.md, sección 8). Devuelve su id."""
+    alarma_id = estado.registrar_alarma(motivo, lote_id)
     print(f"[ALARMA] Disparada — motivo: {motivo}")
+    return alarma_id
 
 
 def _manejar_cliente(conn, addr):
@@ -77,8 +62,11 @@ def _manejar_cliente(conn, addr):
             imagenes = _recibir_lote(conn)
         except FramingInvalido as e:
             print(f"[server] Framing inválido de {addr}: {e}")
-            disparar_alarma_dashboard("framing_invalido")
-            _enviar_respuesta(conn, {CLAVE_RESULTADO_JSON: RESULTADO_ERROR_REVISION_MANUAL})
+            alarma_id = disparar_alarma_dashboard("framing_invalido")
+            # La decisión se abre ANTES de responder: la primera consulta de la
+            # Orange Pi ya debe encontrarla "pendiente".
+            estado.abrir_decision(alarma_id)
+            enviar_json(conn, {CLAVE_RESULTADO_JSON: RESULTADO_ERROR_REVISION_MANUAL})
             return
 
         motivo_alarma = None
@@ -94,9 +82,13 @@ def _manejar_cliente(conn, addr):
 
         lote_id = estado.registrar_lote(addr[0], imagenes, resultado)
         if motivo_alarma:
-            disparar_alarma_dashboard(motivo_alarma, lote_id)
+            alarma_id = disparar_alarma_dashboard(motivo_alarma, lote_id)
+            estado.abrir_decision(alarma_id)
+        else:
+            # Llegó un lote sin error: la Orange Pi ya siguió adelante.
+            estado.cerrar_decision()
 
-        _enviar_respuesta(conn, {CLAVE_RESULTADO_JSON: resultado})
+        enviar_json(conn, {CLAVE_RESULTADO_JSON: resultado})
         print(f"[server] Respuesta enviada a {addr}: {resultado}")
 
     except (ConnectionResetError, struct.error, OSError) as e:
@@ -125,6 +117,12 @@ if __name__ == "__main__":
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.
         print(f"[panel] No se pudo iniciar el panel ({e}); el servidor sigue sin panel")
+    try:
+        iniciar_servidor_decision(estado, TCP_PUERTO_DECISION_DEFECTO)
+        print(f"[decision] Consultas de decisión en el puerto {TCP_PUERTO_DECISION_DEFECTO}")
+    except OSError as e:
+        print(f"[decision] No se pudo abrir el puerto de decisión ({e}); "
+              "la Orange Pi no podrá consultar la decisión del regente")
     zc, info = registrar_servicio_mdns(puerto=TCP_PUERTO_DEFECTO)
     try:
         iniciar_servidor(puerto=TCP_PUERTO_DEFECTO)

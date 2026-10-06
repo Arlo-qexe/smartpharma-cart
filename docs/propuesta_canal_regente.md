@@ -1,9 +1,11 @@
 # Propuesta: cómo se entera la Orange Pi de la decisión del regente
 
-> **Estado: PROPUESTA para decisión del equipo. No está implementada y no
-> modifica `shared/`.** Autor: Arlo.exe (con Claude Code, lado PC) — 2026-10-05.
-> Si el equipo aprueba una opción, el cambio al contrato va primero en
-> `shared/`, con entrada en `CHANGELOG_protocolo.md`, según la regla de oro.
+> **Estado: opción A APROBADA por el lado Orange Pi (2026-10-05) e implementada
+> en `shared/` y en el lado PC.** Ver `arquitectura_comunicacion.md`, sección 4.5,
+> y `CHANGELOG_protocolo.md`. Este documento se conserva como registro de las
+> alternativas y de las preguntas abiertas (sección 5), cuyo estado actual está
+> anotado allí.
+> Autor original: Arlo.exe (con Claude Code, lado PC) — 2026-10-05.
 
 ## 1. El problema
 
@@ -102,6 +104,13 @@ mDNS con caché, sin IDs, flujo secuencial), conserva la alarma física ante fal
 de red y no requiere que la Orange Pi acepte conexiones entrantes.
 
 ## 5. Preguntas abiertas para el equipo
+
+> **Estado tras elegir A** (lo asumido por la implementación del lado PC, a
+> confirmar por el equipo): 1) sin tope de espera en la PC; 2) destinos =
+> `TIPO_X` o `DESCARTE`, formato `[A-Z0-9_]{1,32}`; 3) si la PC se reinicia,
+> responde `ninguna`; 4) los fallos de comunicación siguen con alarma local;
+> 5) sin autenticación (alcance de la sección 9); 6) "Iniciar recorrido"
+> sigue pendiente y necesitará su propio mensaje.
 
 1. **¿Existe un tope de espera al regente?** ¿Se espera indefinidamente, o a
    cierto tiempo se descarta/se avisa de nuevo?

@@ -54,6 +54,41 @@
       "required": ["accion", "destino"],
       "additionalProperties": false
     },
+    "orangepi_a_pc__consulta_decision": {
+      "type": "object",
+      "description": "Consulta TCP corta de la Orange Pi a la PC (puerto TCP_PUERTO_DECISION_DEFECTO) tras recibir ERROR_REVISION_MANUAL. Ver docs/propuesta_canal_regente.md.",
+      "properties": {
+        "consulta": { "const": "decision_regente" }
+      },
+      "required": ["consulta"],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_decision": {
+      "description": "Respuesta de la PC a la consulta de decisión del regente.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "estado": { "enum": ["pendiente", "ninguna"] } },
+          "required": ["estado"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "estado": { "const": "resuelta" },
+            "destino": { "type": "string", "pattern": "^[A-Z0-9_]{1,32}$", "description": "TIPO_X o DESCARTE" }
+          },
+          "required": ["estado", "destino"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "error": { "const": "consulta_invalida" } },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "pc_a_orangepi__respuesta_clasificacion": {
       "type": "object",
       "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",

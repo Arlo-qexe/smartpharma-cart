@@ -31,6 +31,11 @@
 #define ACCION_ACTIVAR_ALARMA_LOCAL   "activar_alarma_local"
 #define ACCION_CLASIFICAR             "clasificar"           // campo adicional: "destino"
 
+// Valor especial de "destino" en ACCION_CLASIFICAR: descarte definitivo
+// decidido por el regente (informe 8.2). Espejo de DESTINO_DESCARTE en el .py.
+// La ESP32-S3 debe mapearlo a su propia posición/contenedor de descarte.
+#define DESTINO_DESCARTE              "DESCARTE"
+
 // ---------------------------------------------------------------------------
 // Eventos: ESP32-S3 -> Orange Pi
 // ---------------------------------------------------------------------------

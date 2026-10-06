@@ -66,6 +66,7 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 - `src/server.py` — servidor TCP (recepción de lotes, framing, orquestación de la respuesta).
 - `src/mdns_service.py` — registro del servicio `_ocr-service._tcp.local.`.
 - `src/ocr_interface.py` — contrato con el módulo de reconocimiento (placeholder).
+- `src/servidor_decision.py` — servidor de consultas de decisión del regente (puerto 5001); `src/framing.py` — framing JSON compartido.
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
 - `tests/test_server.py`, `tests/test_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
@@ -85,10 +86,15 @@ equipo de IA entregue su código, se conecta reemplazando el cuerpo de
   `src/panel_static/`); por defecto escucha en `127.0.0.1:8080` (`PANEL_HOST`,
   `PANEL_PUERTO`). Si crece, se puede migrar a Flask: la lógica vive en
   `estado_panel.py`, independiente del servidor web.
-- **Pendiente del equipo:** cómo se entera la Orange Pi de que el regente
-  desactivó una alarma o definió un destino (hoy "Desactivar" solo marca la
-  alarma como resuelta en la PC) y el botón "Iniciar recorrido" (deshabilitado:
-  no hay canal PC → Orange Pi). Requiere cambio en `shared/`. Propuesta con
-  opciones para el equipo: @../docs/propuesta_canal_regente.md.
+- **Decisión del regente (opción A, ya implementada):** tras un
+  `ERROR_REVISION_MANUAL` la PC deja UNA decisión en espera
+  (`estado_panel.py`); el regente la resuelve en la pestaña Alertas (destino
+  `TIPO_X` o `DESCARTE`) y la Orange Pi la consulta por
+  `src/servidor_decision.py` (puerto `TCP_PUERTO_DECISION_DEFECTO`). Ver
+  sección 4.5 de @../docs/arquitectura_comunicacion.md. Cliente de referencia
+  de una consulta: `consultar_decision()` en `tests/mock_orangepi_client.py`.
+- **Pendiente del equipo:** el botón "Iniciar recorrido" del panel
+  (deshabilitado: necesita su propio mensaje PC → Orange Pi, cambio en
+  `shared/`) y los campos OCR/FEFO que debe entregar el reconocimiento.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

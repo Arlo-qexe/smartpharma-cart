@@ -65,6 +65,48 @@ TAMANO_MAX_IMAGEN_BYTES = 10 * 1024 * 1024
 # válido tiene exactamente CARAS_POR_OBJETO imágenes, o 0 si falló la captura.
 
 # ---------------------------------------------------------------------------
+# Decisión del regente (Orange Pi -> PC) — opción A de
+# docs/propuesta_canal_regente.md: la Orange Pi CONSULTA a la PC por una
+# conexión TCP corta y nueva por consulta (mismo patrón que el envío de lotes).
+#
+# Cuándo: tras recibir RESULTADO_ERROR_REVISION_MANUAL, la Orange Pi NO ordena
+# `clasificar`: consulta cada INTERVALO_CONSULTA_DECISION_S hasta obtener
+# ESTADO_DECISION_RESUELTA, y entonces ordena `clasificar` con ese destino.
+#
+# Framing (igual que 4.2, en ambos sentidos):
+#   Consulta:  [4 bytes: longitud del JSON] + {"consulta": "decision_regente"}
+#   Respuesta: [4 bytes: longitud del JSON] + uno de:
+#       {"estado": "pendiente"}                       el regente aún no decide
+#       {"estado": "resuelta", "destino": "<X>"}      <X> = TIPO_X o DESTINO_DESCARTE
+#       {"estado": "ninguna"}                         la PC no tiene decisión en espera
+#       {"error": "consulta_invalida"}
+#
+# Sin IDs de correlación (principio de secuencialidad): la PC guarda UNA sola
+# decisión en espera, la del último lote con error. No se borra al leerla (si
+# la respuesta se pierde, la Orange Pi puede repetir la consulta); se reemplaza
+# cuando llega el siguiente lote.
+# "ninguna" mientras la Orange Pi esperaba significa que la PC perdió el estado
+# (p. ej. se reinició): se recomienda mantener la caja en posición y activar la
+# alarma local.
+# ---------------------------------------------------------------------------
+TCP_PUERTO_DECISION_DEFECTO = 5001          # misma IP/host que el servicio de lotes (mDNS)
+CLAVE_CONSULTA_JSON = "consulta"
+CONSULTA_DECISION_REGENTE = "decision_regente"
+CLAVE_ESTADO_DECISION_JSON = "estado"
+ESTADO_DECISION_PENDIENTE = "pendiente"
+ESTADO_DECISION_RESUELTA = "resuelta"
+ESTADO_DECISION_NINGUNA = "ninguna"
+CLAVE_DESTINO_JSON = "destino"
+CLAVE_ERROR_JSON = "error"
+ERROR_CONSULTA_INVALIDA = "consulta_invalida"
+DESTINO_DESCARTE = "DESCARTE"               # descarte definitivo (informe 8.2); también es un valor válido de ACCION_CLASIFICAR
+# Una consulta cada 2 s: el regente tarda minutos, así que no hace falta más
+# rapidez, y cada consulta es una conexión TCP completa en una LAN compartida.
+INTERVALO_CONSULTA_DECISION_S = 2.0         # valor inicial; calibrar
+# Tamaño máximo del JSON de una consulta (la PC rechaza longitudes mayores).
+TAMANO_MAX_MENSAJE_JSON_BYTES = 4096
+
+# ---------------------------------------------------------------------------
 # Enlace serie (Orange Pi <-> ESP32-S3) — UART con checksum
 # ---------------------------------------------------------------------------
 UART_BAUDRATE = 115200

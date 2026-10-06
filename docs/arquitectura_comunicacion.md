@@ -127,6 +127,39 @@ control en pantalla puede no estar disponible para avisar al regente. Se
 activa solo al agotar el límite total, no en cada reintento, para minimizar
 la fatiga de alarmas ante fallos transitorios que se resuelven solos.
 
+### 4.5 Consulta de la decisión del regente (Orange Pi → PC)
+
+Tras recibir `ERROR_REVISION_MANUAL`, la Orange Pi **no ordena `clasificar`**:
+consulta a la PC cada `INTERVALO_CONSULTA_DECISION_S` (2 s) si el regente ya
+decidió, hasta obtener una respuesta `resuelta`. Es la opción A de
+`propuesta_canal_regente.md`, aprobada por el lado Orange Pi el 2026-10-05.
+
+- **Transporte:** conexión TCP nueva por consulta, al mismo host descubierto por
+  mDNS pero en el puerto `TCP_PUERTO_DECISION_DEFECTO` (5001); mismo framing
+  que 4.2 (`[4 bytes longitud] + JSON`) en ambos sentidos. Si la conexión
+  falla, se aplica la misma política de caché/redescubrimiento de 3.2.
+- **Consulta:** `{"consulta": "decision_regente"}`.
+- **Respuestas:**
+
+| Respuesta | Significado |
+|---|---|
+| `{"estado": "pendiente"}` | El regente aún no decide: seguir consultando. |
+| `{"estado": "resuelta", "destino": "<X>"}` | `<X>` es `TIPO_X` o `DESCARTE`: la Orange Pi ordena `clasificar` con ese destino. |
+| `{"estado": "ninguna"}` | La PC no tiene decisión en espera (p. ej. se reinició y perdió el estado). Se recomienda mantener la caja en posición y activar la alarma local. |
+| `{"error": "consulta_invalida"}` | La consulta no cumple el formato. |
+
+- **Sin IDs de correlación:** la PC guarda una sola decisión en espera, la del
+  último lote con error (flujo secuencial). **No se borra al leerla**, así una
+  respuesta perdida se resuelve repitiendo la consulta; se reemplaza cuando
+  llega el siguiente lote.
+- **La primera consulta ya encuentra `pendiente`:** la PC abre la decisión
+  antes de responder `ERROR_REVISION_MANUAL`.
+- **Tiempo de espera:** el límite de 30 s (4.3) aplica solo al intercambio de
+  imágenes. La espera del regente no tiene tope en la PC; si el equipo quiere
+  uno, debe definirse en el lado Orange Pi.
+- **Fallos de comunicación con la PC** (8.1, punto 3) no usan este canal: no hay
+  a quién consultar, y se resuelven con la alarma física local (4.4).
+
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
 ### 5.1 Decisión: enlace serie con estructura de mensaje y suma de verificación
@@ -249,8 +282,8 @@ tercero, la Orange Pi activa la alarma física local en la ESP32-S3 (ver 4.4).
 1. La caja permanece físicamente en posición — no se acciona el mecanismo de clasificación mientras el error está activo.
 2. El ciclo se detiene: la Orange Pi no autoriza el siguiente objeto.
 3. El regente percibe la alarma, revisa la caja manualmente, y determina la clasificación correcta o el descarte definitivo.
-4. El regente desactiva la alarma correspondiente; se notifica el desbloqueo a la Orange Pi.
-5. Solo entonces la Orange Pi ordena el mecanismo de clasificación, con el destino automático o el determinado por el regente.
+4. El regente resuelve la alarma en el panel de la PC escribiendo el destino (`TIPO_X` o `DESCARTE`).
+5. La Orange Pi, que consulta periódicamente (sección 4.5), recibe el destino y solo entonces ordena el mecanismo de clasificación (`clasificar`) con ese destino.
 
 ## 9. Alcance y exclusiones deliberadas
 
@@ -277,6 +310,9 @@ no la copies a mano en otro lugar.
 | Tiempo de convergencia de autoenfoque | 0.5 s | `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` |
 | Caras fotografiadas por objeto | 5 | `CARAS_POR_OBJETO` |
 | Umbral de votación del reconocimiento | Mayoría simple (>50%) | `UMBRAL_VOTACION_MAYORIA` |
+| Puerto de consulta de decisión del regente | 5001 | `TCP_PUERTO_DECISION_DEFECTO` |
+| Intervalo de consulta de decisión | 2 s | `INTERVALO_CONSULTA_DECISION_S` |
+| Destino de descarte definitivo | `DESCARTE` | `DESTINO_DESCARTE` |
 
 ---
 

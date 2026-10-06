@@ -11,7 +11,9 @@ Rutas:
     GET  /static/<panel.css|panel.js>       recursos de la página
     GET  /api/estado                        JSON: lotes, alarmas, configuración
     GET  /foto/<lote_id>/<indice>           JPEG de una cara (solo desde RAM)
-    POST /api/alarmas/<id>/desactivar       marca la alarma como resuelta (solo en la PC)
+    POST /api/alarmas/<id>/resolver         cuerpo {"destino": "TIPO_X|DESCARTE"}: el regente
+                                            resuelve la alarma y la Orange Pi recibe el destino
+                                            en su próxima consulta (servidor_decision.py)
 """
 import json
 import os
@@ -25,7 +27,12 @@ from urllib.parse import urlsplit
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 import protocol_constants as pc  # noqa: E402
 
-from estado_panel import EstadoPanel  # noqa: E402
+from estado_panel import (  # noqa: E402
+    CERRADA_SIN_DECISION,
+    DESTINO_INVALIDO,
+    RESUELTA_CON_DECISION,
+    EstadoPanel,
+)
 
 PANEL_HOST = os.environ.get("PANEL_HOST", "127.0.0.1")
 PANEL_PUERTO = int(os.environ.get("PANEL_PUERTO", "8080"))
@@ -36,7 +43,8 @@ _ESTATICOS = {
     "panel.js": "text/javascript; charset=utf-8",
 }
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
-_RE_DESACTIVAR = re.compile(r"^/api/alarmas/(\d+)/desactivar$")
+_RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
+_MAX_CUERPO_POST_BYTES = 1024
 
 # Todo el contenido es propio: nada de recursos externos ni scripts inline.
 _CSP = "default-src 'self'; img-src 'self'; frame-ancestors 'none'"
@@ -46,7 +54,9 @@ def _configuracion() -> list:
     """Parámetros del contrato (solo lectura), importados de shared/."""
     return [
         {"nombre": "Servicio mDNS", "valor": pc.MDNS_SERVICE_TYPE},
-        {"nombre": "Puerto TCP", "valor": str(pc.TCP_PUERTO_DEFECTO)},
+        {"nombre": "Puerto TCP (lotes)", "valor": str(pc.TCP_PUERTO_DEFECTO)},
+        {"nombre": "Puerto TCP (consulta de decisión)", "valor": str(pc.TCP_PUERTO_DECISION_DEFECTO)},
+        {"nombre": "Intervalo de consulta de decisión", "valor": f"{pc.INTERVALO_CONSULTA_DECISION_S} s"},
         {"nombre": "Timeout de conexión TCP", "valor": f"{pc.TIMEOUT_CONEXION_TCP_S} s"},
         {"nombre": "Timeout de respuesta del reconocimiento", "valor": f"{pc.TIMEOUT_RESPUESTA_RECONOCIMIENTO_S} s"},
         {"nombre": "Límite total de transacción", "valor": f"{pc.TIMEOUT_TOTAL_TRANSACCION_S} s"},
@@ -107,9 +117,23 @@ class _Handler(BaseHTTPRequestHandler):
         else:
             self._json(404, {"error": "no encontrado"})
 
+    def _leer_cuerpo_json(self):
+        """Cuerpo JSON opcional del POST; devuelve {} si no hay o es inválido."""
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            return {}
+        if n <= 0 or n > _MAX_CUERPO_POST_BYTES:
+            return {}
+        try:
+            datos = json.loads(self.rfile.read(n).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return {}
+        return datos if isinstance(datos, dict) else {}
+
     def do_POST(self):
         ruta = urlsplit(self.path).path
-        m = _RE_DESACTIVAR.match(ruta)
+        m = _RE_RESOLVER.match(ruta)
         if not m:
             self._json(404, {"error": "no encontrado"})
             return
@@ -119,10 +143,17 @@ class _Handler(BaseHTTPRequestHandler):
         if origen and urlsplit(origen).netloc != self.headers.get("Host"):
             self._json(403, {"error": "origen no permitido"})
             return
-        if self.server.estado.desactivar_alarma(int(m.group(1))):
-            print(f"[panel] Alarma {m.group(1)} desactivada por el regente")
-            self._json(200, {"ok": True})
-        else:
+        destino = self._leer_cuerpo_json().get("destino")
+        resultado = self.server.estado.resolver_alarma(int(m.group(1)), destino)
+        if resultado == RESUELTA_CON_DECISION:
+            print(f"[panel] Alarma {m.group(1)} resuelta por el regente: destino {destino}")
+            self._json(200, {"ok": True, "decision_aplicada": True})
+        elif resultado == CERRADA_SIN_DECISION:
+            print(f"[panel] Alarma {m.group(1)} cerrada (la Orange Pi ya no la esperaba)")
+            self._json(200, {"ok": True, "decision_aplicada": False})
+        elif resultado == DESTINO_INVALIDO:
+            self._json(400, {"error": "destino_invalido"})
+        else:  # NO_EXISTE
             self._json(404, {"error": "alarma inexistente"})
 
 

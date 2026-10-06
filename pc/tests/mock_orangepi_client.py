@@ -17,8 +17,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
+    CLAVE_CONSULTA_JSON,
     CLAVE_RESULTADO_JSON,
+    CONSULTA_DECISION_REGENTE,
     FRAMING_STRUCT_FORMAT,
+    TCP_PUERTO_DECISION_DEFECTO,
     TCP_PUERTO_DEFECTO,
 )
 
@@ -36,6 +39,16 @@ def _recv_exacto(sock, n):
 def _leer_respuesta(sock):
     (longitud,) = struct.unpack(FRAMING_STRUCT_FORMAT, _recv_exacto(sock, 4))
     return json.loads(_recv_exacto(sock, longitud).decode("utf-8"))
+
+
+def consultar_decision(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
+    """Imita UNA consulta de la Orange Pi tras un ERROR_REVISION_MANUAL: conexión
+    nueva, consulta con framing, lee la respuesta y cierra. Devuelve el dict, p. ej.
+    {"estado": "pendiente"} o {"estado": "resuelta", "destino": "TIPO_A"}."""
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_DECISION_REGENTE}).encode("utf-8")
+    with socket.create_connection((ip, puerto), timeout=3) as sock:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
+        return _leer_respuesta(sock)
 
 
 def enviar_lote_de_prueba(ip="127.0.0.1", puerto=TCP_PUERTO_DEFECTO, num_imagenes=5, tamano_bytes=2000):

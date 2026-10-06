@@ -81,10 +81,11 @@
 
     <section id="vista-alertas" class="vista" hidden>
       <h2>Alertas</h2>
-      <p class="aviso">Desactivar una alarma solo la marca como resuelta en este panel. Cómo se entera la Orange Pi está pendiente de decisión del equipo.</p>
+      <p class="aviso">Cuando un lote termina en revisión manual, la Orange Pi espera tu decisión: escribe el destino (un tipo de producto o <code>DESCARTE</code>) y pulsa Confirmar. La Orange Pi lo recibe en su siguiente consulta y ordena clasificar. Las alarmas antiguas, que la Orange Pi ya no espera, solo se cierran.</p>
+      <datalist id="destinos"></datalist>
       <div class="tabla-envoltura">
         <table id="tabla-alertas">
-          <thead><tr><th></th><th>Hora</th><th>Motivo</th><th>Lote</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th></th><th>Hora</th><th>Motivo</th><th>Lote</th><th>Estado</th><th>Acción</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>

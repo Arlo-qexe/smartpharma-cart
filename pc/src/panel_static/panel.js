@@ -43,11 +43,18 @@ function renderBanner() {
   const activas = estado.alarmas.filter((a) => a.activa);
   const banner = $("banner");
   banner.hidden = activas.length === 0;
+  vaciar(banner);
   if (activas.length) {
-    banner.textContent =
+    const esperando = activas.some((a) => a.espera_decision);
+    banner.appendChild(crear("span", "",
       "ALARMA ACTIVA — " + motivoHumano(activas[0].motivo) +
-      ". Revisa la caja manualmente." +
-      (activas.length > 1 ? ` (${activas.length} alarmas activas)` : "");
+      (esperando ? ". La Orange Pi espera tu decisión." : ". Revisa la caja manualmente.") +
+      (activas.length > 1 ? ` (${activas.length} alarmas activas)` : "")));
+    if (vista !== "alertas") {
+      const boton = crear("button", "btn-chico", "Resolver");
+      boton.addEventListener("click", () => cambiarVista("alertas"));
+      banner.appendChild(boton);
+    }
   }
   const insignia = $("insignia");
   insignia.hidden = activas.length === 0;
@@ -150,15 +157,74 @@ function renderInventario() {
   }
 }
 
-async function desactivar(id) {
+const borradores = new Map(); // alarma id -> destino a medio escribir
+let firmaAlertas = null;
+
+async function resolver(id, destino, nodoError) {
+  nodoError.textContent = "";
   try {
-    await fetch(`/api/alarmas/${id}/desactivar`, { method: "POST" });
+    const resp = await fetch(`/api/alarmas/${id}/resolver`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destino: destino.trim().toUpperCase() }),
+    });
+    if (resp.status === 400) {
+      nodoError.textContent = "Destino inválido: solo A-Z, 0-9 y _ (máx. 32).";
+      return;
+    }
+    borradores.delete(id);
   } finally {
+    firmaAlertas = null;
     refrescar();
   }
 }
 
+function celdaAccion(a) {
+  const td = crear("td");
+  if (!a.activa) return td;
+  const caja = crear("div", "accion");
+  if (a.espera_decision) {
+    const campo = crear("input");
+    campo.setAttribute("list", "destinos");
+    campo.placeholder = "TIPO_X o DESCARTE";
+    campo.maxLength = 32;
+    campo.value = borradores.get(a.id) || "";
+    campo.addEventListener("input", () => borradores.set(a.id, campo.value));
+    const error = crear("span", "error-chico");
+    const confirmar = crear("button", "btn-chico", "Confirmar");
+    confirmar.addEventListener("click", () => resolver(a.id, campo.value, error));
+    campo.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") resolver(a.id, campo.value, error);
+    });
+    caja.append(campo, confirmar, error);
+  } else {
+    const cerrar = crear("button", "btn-chico", "Cerrar");
+    cerrar.addEventListener("click", () => resolver(a.id, "", crear("span")));
+    caja.appendChild(cerrar);
+  }
+  td.appendChild(caja);
+  return td;
+}
+
+function textoEstadoAlarma(a) {
+  if (a.activa) return a.espera_decision ? "Esperando decisión del regente" : "Activa (antigua)";
+  return a.destino ? `Resuelta → ${a.destino}` : "Cerrada";
+}
+
 function renderAlertas() {
+  // Se reconstruye solo si cambió algo, para no borrar lo que el regente está escribiendo.
+  const firma = JSON.stringify([estado.alarmas, estado.destinos_sugeridos]);
+  if (firma === firmaAlertas) return;
+  firmaAlertas = firma;
+
+  const lista = $("destinos");
+  vaciar(lista);
+  for (const d of estado.destinos_sugeridos) {
+    const op = crear("option");
+    op.value = d;
+    lista.appendChild(op);
+  }
+
   const cuerpo = $("tabla-alertas").tBodies[0];
   vaciar(cuerpo);
   if (!estado.alarmas.length) filaVacia(cuerpo, 6, "Sin alertas.");
@@ -170,14 +236,8 @@ function renderAlertas() {
     tr.appendChild(crear("td", "", fmtHora(a.ts)));
     tr.appendChild(crear("td", "", motivoHumano(a.motivo)));
     tr.appendChild(crear("td", "", a.lote_id ? "#" + a.lote_id : "—"));
-    tr.appendChild(crear("td", "", a.activa ? "Activa" : "Resuelta " + fmtHora(a.ts_resuelta)));
-    const tdAccion = crear("td");
-    if (a.activa) {
-      const boton = crear("button", "btn-chico", "Desactivar");
-      boton.addEventListener("click", () => desactivar(a.id));
-      tdAccion.appendChild(boton);
-    }
-    tr.appendChild(tdAccion);
+    tr.appendChild(crear("td", "", textoEstadoAlarma(a)));
+    tr.appendChild(celdaAccion(a));
     cuerpo.appendChild(tr);
   }
 }
@@ -257,6 +317,7 @@ function cambiarVista(nueva) {
     $("vista-" + v).hidden = v !== nueva;
   }
   claveFotos = null;
+  firmaAlertas = null;
   render();
 }
 
