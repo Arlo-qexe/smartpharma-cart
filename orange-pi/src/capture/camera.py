@@ -1,10 +1,17 @@
 """
-Control de la cámara USB (Arducam): autoenfoque y captura de la ráfaga de
-5 fotos, comprimidas a JPEG en memoria (ver docs/arquitectura_comunicacion.md,
-sección 6.1).
+Control de la cámara USB (UVC): autoenfoque y captura de la ráfaga de
+5 fotos a 1080p, comprimidas a JPEG en memoria (ver
+docs/arquitectura_comunicacion.md, sección 6.1).
 
-Requiere: pip install opencv-python
+Cámara de desarrollo: HP 430/435 FHD Webcam. Cámara final prevista: Arducam
+USB (comportamiento UVC equivalente). La cámara se busca por NOMBRE en
+/dev/v4l/by-id, nunca por índice: el índice /dev/videoN cambia entre
+arranques y /dev/video0 en esta placa es el decodificador `cedrus`, no una
+cámara.
+
+Requiere: pip install opencv-python-headless
 """
+import os
 import sys
 import time
 from pathlib import Path
@@ -17,12 +24,46 @@ try:
 except ImportError:
     cv2 = None  # permite importar este módulo sin OpenCV instalado (p. ej. para tests)
 
+V4L_BY_ID = Path("/dev/v4l/by-id")
+# Fragmentos (sin distinguir mayúsculas) del nombre by-id, por orden de preferencia.
+# Se puede forzar otro con la variable de entorno SMARTPHARMA_CAMARA.
+NOMBRES_CAMARA = ("arducam", "hp_430_435_fhd_webcam")
+ANCHO_CAPTURA = 1920
+ALTO_CAPTURA = 1080
 
-def abrir_camara(indice: int = 0):
+
+def buscar_camara_por_nombre(nombres=None) -> str:
+    """Devuelve la ruta /dev/videoN del nodo de captura (`-video-index0`) de la
+    primera cámara cuyo nombre by-id contenga alguno de `nombres`."""
+    if nombres is None:
+        forzado = os.environ.get("SMARTPHARMA_CAMARA")
+        nombres = (forzado,) if forzado else NOMBRES_CAMARA
+    enlaces = sorted(V4L_BY_ID.glob("*-video-index0")) if V4L_BY_ID.is_dir() else []
+    for nombre in nombres:
+        for enlace in enlaces:
+            if nombre.lower() in enlace.name.lower():
+                return os.path.realpath(enlace)
+    disponibles = [e.name for e in enlaces] or "ninguna"
+    raise RuntimeError(f"No se encontró cámara {nombres}; disponibles en {V4L_BY_ID}: {disponibles}")
+
+
+def abrir_camara(nombres=None, ancho: int = ANCHO_CAPTURA, alto: int = ALTO_CAPTURA):
+    """Abre la cámara USB por nombre, en MJPG a `ancho`x`alto` (1080p) y con
+    autoenfoque activado."""
     if cv2 is None:
-        raise RuntimeError("opencv-python no está instalado (pip install opencv-python)")
-    camara = cv2.VideoCapture(indice)
+        raise RuntimeError("opencv no está instalado (pip install opencv-python-headless)")
+    ruta = buscar_camara_por_nombre(nombres)
+    camara = cv2.VideoCapture(ruta, cv2.CAP_V4L2)
+    if not camara.isOpened():
+        raise RuntimeError(f"No se pudo abrir la cámara en {ruta}")
+    # MJPG primero: a 1080p, YUYV por USB 2.0 da muy pocos fps.
+    camara.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+    camara.set(cv2.CAP_PROP_FRAME_WIDTH, ancho)
+    camara.set(cv2.CAP_PROP_FRAME_HEIGHT, alto)
     camara.set(cv2.CAP_PROP_AUTOFOCUS, 1)
+    real = (int(camara.get(cv2.CAP_PROP_FRAME_WIDTH)), int(camara.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    if real != (ancho, alto):
+        print(f"[camera] Aviso: se pidió {ancho}x{alto} y la cámara entrega {real[0]}x{real[1]}")
     return camara
 
 

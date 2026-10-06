@@ -93,7 +93,7 @@ def main():
     # UART0 en los pines 8/10 del header, liberado de la consola serial.
     # Ver orange-pi/CLAUDE.md para el procedimiento completo de verificación.
     enlace = EnlaceUART(puerto="/dev/ttyS0")
-    camara = abrir_camara(indice=0)
+    camara = abrir_camara()
     descubridor = DescubridorPC()
 
     print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
