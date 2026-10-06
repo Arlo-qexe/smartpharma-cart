@@ -2,9 +2,9 @@
 Orquestador del ciclo completo en la Orange Pi (ver docs/arquitectura_comunicacion.md
 para la descripción detallada de cada paso, y CLAUDE.md raíz para el resumen rápido).
 
-Este archivo es un ESQUELETO: la lógica de alto nivel y las llamadas a los
-demás módulos ya están encadenadas correctamente, pero varios detalles de
-hardware (puerto serie real, índice de cámara, etc.) están marcados con TODO.
+Pendiente (ver shared/checklist.md): cómo se reanuda el ciclo tras un fallo
+de comunicación con la PC (S-02; hoy un `input()` provisional) y la prueba con
+la ESP32-S3 real (OP-16).
 
 Flujo por objeto:
   1. introducir_objeto (con límite de reintentos)

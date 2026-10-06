@@ -86,8 +86,3 @@ def comprimir_jpeg(frame, calidad: int = 90) -> bytes:
     if not ok:
         raise RuntimeError("Fallo comprimiendo el frame a JPEG")
     return buffer.tobytes()
-
-
-# TODO: implementar `capturar_ráfaga_completa(camara, enlace_uart)` en main.py,
-# combinando esto con las órdenes `girar_posicion` / `en_posicion` del enlace
-# UART y la pausa de estabilización (PAUSA_ESTABILIZACION_MECANICA_S).
