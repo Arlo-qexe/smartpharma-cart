@@ -130,6 +130,64 @@ class ConsultarDecisionPorSocket(unittest.TestCase):
         self.assertEqual(r, {"estado": "resuelta", "destino": "TIPO_A"})
 
 
+class ConMockPC(unittest.TestCase):
+    """Cliente real (enviar_lote + esperar_decision) contra tests/mock_pc_server.py."""
+
+    @staticmethod
+    def libre():
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", 0))
+            return s.getsockname()[1]
+
+    def levantar(self, **kw):
+        sys.path.insert(0, str(RAIZ / "tests"))
+        import mock_pc_server
+        self.p_lotes, self.p_dec = self.libre(), self.libre()
+        mock_pc_server.iniciar_mock(puerto=self.p_lotes, puerto_decision=self.p_dec,
+                                    bloquear=False, **kw)
+        desc = DescubridorFalso()
+        desc.obtener_destino = lambda: ("127.0.0.1", self.p_lotes)
+        return desc
+
+    def esperar(self, desc):
+        return dc.esperar_decision(
+            desc, lambda: self.fail("no debía activarse la alarma local"), intervalo=0.1,
+            consultar=lambda ip: dc.consultar_decision(ip, self.p_dec))
+
+    def test_lote_vacio_abre_decision_y_se_resuelve(self):
+        from network.tcp_client import enviar_lote
+        desc = self.levantar(segundos_hasta_decision=0.5, destino_decision="DESCARTE")
+        resultado, fallo = enviar_lote(desc, [])
+        self.assertEqual((resultado["clasificacion"], fallo), (RESULTADO_ERROR_REVISION_MANUAL, False))
+        self.assertEqual(dc.consultar_decision("127.0.0.1", self.p_dec), {"estado": "pendiente"})
+        self.assertEqual(self.esperar(desc), "DESCARTE")
+
+    def test_lote_correcto_cierra_la_decision(self):
+        from network.tcp_client import enviar_lote
+        desc = self.levantar(segundos_hasta_decision=0)
+        enviar_lote(desc, [])
+        self.assertEqual(dc.consultar_decision("127.0.0.1", self.p_dec)["estado"], "resuelta")
+        resultado, _ = enviar_lote(desc, [b"j"] * 5)
+        self.assertEqual(resultado["clasificacion"], "TIPO_A")
+        with self.assertRaises(dc.DecisionPerdida):
+            self.esperar(desc)
+
+    def test_sin_decision_responde_ninguna(self):
+        from network.tcp_client import enviar_lote
+        desc = self.levantar(con_decision=False)
+        enviar_lote(desc, [])
+        with self.assertRaises(dc.DecisionPerdida):
+            self.esperar(desc)
+
+    def test_consulta_invalida(self):
+        self.levantar()
+        for payload in (b'{"consulta": "otra"}', b"no es json"):
+            with socket.create_connection(("127.0.0.1", self.p_dec), timeout=3) as c:
+                c.sendall(struct.pack("!I", len(payload)) + payload)
+                (n,) = struct.unpack("!I", c.recv(4))
+                self.assertEqual(json.loads(c.recv(n)), {"error": "consulta_invalida"})
+
+
 class EnlaceFalso:
     def __init__(self, confirmar=True):
         self.enviados, self.confirmar = [], confirmar
