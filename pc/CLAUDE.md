@@ -48,6 +48,20 @@ punta a punta. **No implementes aquí ningún modelo de OCR** — cuando el
 equipo de IA entregue su código, se conecta reemplazando el cuerpo de
 `procesar_lote_ocr()`, sin tocar nada de `server.py`.
 
+## Cómo arrancar el lado PC
+
+```bash
+bash pc/scripts/start_pc.sh        # desde cualquier carpeta; Ctrl+C para detener
+```
+
+Activa el venv, deja fuera el `PYTHONPATH` de ROS, avisa con un mensaje claro si falta
+el venv o si otro servidor ya ocupa los puertos, y lanza `src/server.py` con la
+**configuración de pruebas actual**: asistente en modo de prueba (sin modelo, reglas
+fijas). Los puertos se leen de `shared/` y `panel_web.py`, no están escritos en el script.
+Se puede sobrescribir al lanzar: `ASISTENTE_MODO= bash pc/scripts/start_pc.sh` (vacío =
+asistente desactivado), `ASISTENTE_MODELO=/ruta/modelo.gguf`, `PC_LOG_LEVEL=DEBUG`,
+`PANEL_PUERTO=...`, `PC_VENV=...`. No hace `git pull`: hazlo antes si hace falta.
+
 ## Cómo probar sin la Orange Pi real
 
 - `tests/mock_orangepi_client.py` simula el cliente: se conecta, envía un
