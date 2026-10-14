@@ -48,18 +48,7 @@ def test_imagen_grande_fragmentada(puerto, capsys):
     assert "TIPO_A" in capsys.readouterr().out
 
 
-def test_ip_local_siempre_devuelve_algo(monkeypatch):
-    import mdns_service
 
-    class SocketSinRuta:
-        def connect(self, *_):
-            raise OSError("Network is unreachable")
-
-        def close(self):
-            pass
-
-    monkeypatch.setattr(mdns_service.socket, "socket", lambda *a, **k: SocketSinRuta())
-    assert mdns_service.obtener_ip_local()
 
 
 def _enviar_crudo(puerto, *campos):

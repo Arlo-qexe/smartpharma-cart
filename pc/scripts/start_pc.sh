@@ -12,7 +12,13 @@
 #   ASISTENTE_MODELO=...    modelo real .gguf (Fase 2, aún sin probar); tiene prioridad.
 #   PC_LOG_LEVEL=INFO       nivel de log (DEBUG|INFO|WARNING|ERROR)
 #   PANEL_HOST / PANEL_PUERTO   panel web (por defecto 127.0.0.1 y su puerto de panel_web.py)
+#   PC_IP=192.168.x.y       fuerza la IP que se anuncia por mDNS (si la PC tiene varias redes
+#                           y la elegida no es la de la Orange Pi). Sin ella se usa la de la
+#                           ruta por defecto, y sin ruta por defecto la de la interfaz real.
 #   PC_VENV=...             otro entorno virtual (por defecto pc/.venv)
+#
+# IMPORTANTE: conecta la PC a la red de la demo ANTES de lanzarlo. La IP se fija al arrancar;
+# si cambias de red con el servidor corriendo, detenlo (Ctrl+C) y vuelve a lanzarlo.
 #
 # Los puertos NO se escriben aquí: se leen de shared/protocol_constants.py y panel_web.py.
 # Detener: Ctrl+C. Todo el estado vive en RAM y se pierde al detener (a propósito).
@@ -69,12 +75,24 @@ elif [ "${ASISTENTE_MODO:-}" = "prueba" ]; then
 else
   etiqueta_asistente="desactivado"
 fi
-ip_local="$(hostname -I 2>/dev/null | awk '{print $1}')"
+# La IP que realmente se anunciará por mDNS (misma lógica que usa el servidor).
+IFS='|' read -r IP_ANUNCIADA ORIGEN_IP < <(python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from mdns_service import elegir_ip_anunciada
+ip, origen = elegir_ip_anunciada()
+print(f'{ip}|{origen}')
+")
 
 echo "=== SmartPharma Cart — lado PC ==="
 echo " Panel del regente : http://$H_PANEL:$P_PANEL/"
 echo " Lotes (TCP)       : $P_LOTES    Decisión y orden del ciclo (TCP): $P_DECISION"
-echo " IP de la PC       : ${ip_local:-desconocida}"
+echo " IP que se anuncia : $IP_ANUNCIADA  ($ORIGEN_IP)"
+case "$IP_ANUNCIADA" in
+  127.*)
+    echo " ATENCIÓN: esa IP es de loopback y la Orange Pi NO podrá conectarse." >&2
+    echo "           Conecta la PC a la red de la demo y vuelve a lanzar, o fuerza PC_IP=<ip>." >&2 ;;
+esac
 echo " Asistente         : $etiqueta_asistente"
 echo " Detener con Ctrl+C (el estado en RAM se pierde)"
 echo "=================================="

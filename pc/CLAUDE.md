@@ -62,6 +62,21 @@ Se puede sobrescribir al lanzar: `ASISTENTE_MODO= bash pc/scripts/start_pc.sh` (
 asistente desactivado), `ASISTENTE_MODELO=/ruta/modelo.gguf`, `PC_LOG_LEVEL=DEBUG`,
 `PANEL_PUERTO=...`, `PC_VENV=...`. No hace `git pull`: hazlo antes si hace falta.
 
+### Red y qué IP anuncia la PC
+
+La PC se anuncia por mDNS con **una sola IP, elegida al arrancar** (`mdns_service.py::elegir_ip_anunciada`):
+1) `PC_IP` si se define; 2) la de la ruta por defecto; 3) sin ruta por defecto, la primera IPv4
+utilizable de las interfaces reales (se descartan loopback, enlace-local `169.254.x` y las
+virtuales de Docker/puentes); 4) `127.0.0.1` solo si no hay nada mejor (el log lo advierte:
+la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuelve a `127.0.1.1`.
+`start_pc.sh` muestra la IP elegida y de dónde sale. Reglas prácticas:
+- **Conecta la PC a la red de la demo antes de arrancar**; si cambias de red con el servidor
+  corriendo, reinícialo (la IP no se actualiza sola).
+- Con varias redes activas (p. ej. Ethernet con Internet + Wi-Fi de la demo), fuerza la
+  correcta: `PC_IP=192.168.x.y bash pc/scripts/start_pc.sh`.
+- La PC no necesita Internet. El firewall (`ufw`) es del equipo, no de la red: si se activa,
+  abrir 5000/TCP, 5001/TCP y 5353/UDP.
+
 ## Cómo probar sin la Orange Pi real
 
 - `tests/mock_orangepi_client.py` simula el cliente: se conecta, envía un
