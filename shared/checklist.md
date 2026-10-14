@@ -6,8 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-06 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-10 cerrado, S-06 limpiada).
-Anterior: 2026-10-06 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-22 probado con el botón).
+**Última actualización:** 2026-10-13 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-20, D-11, S-10).
+Anterior: 2026-10-06 (reloj de la PC) — Arlo.exe (lado PC: PC-10 cerrado, S-06 limpiada).
 
 ## Cómo usarlo
 
@@ -111,6 +111,12 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   visuales** (2026-10-05). Sigue siendo buena práctica revisar el navegador tras
   cada cambio de CSS/JS. Pruebas automáticas de la PC: 28 pasan.
 
+- [x] **PC-20** IP que la PC anuncia por mDNS, ahora robusta (2026-10-13). Se encontró un fallo:
+  sin ruta por defecto el respaldo usaba el hostname, que en Ubuntu es `127.0.1.1`, y la
+  Orange Pi no habría podido conectarse. Ahora: `PC_IP` (forzar) → ruta por defecto →
+  interfaz real (sin loopback, enlace-local ni Docker; Wi-Fi/Ethernet primero) → loopback
+  con aviso. `start_pc.sh` muestra la IP elegida y su origen. **La IP se fija al arrancar:**
+  conectar la PC a la red *antes* de lanzar y reiniciar si se cambia de red. 91 pruebas pasan.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -239,6 +245,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi y un canal; el diseño tenía solo Orange Pi → PC. | Hecha | **Opción 1 decidida por ambos lados (D-10), implementada en los dos y probada de punta a punta.** Contrato en `shared/` (`CONSULTA_ORDEN_CICLO`, `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`/`ORDEN_CICLO_INICIAR`, `VIGENCIA_ORDEN_CICLO_S`; sección 4.7 del informe). Lado PC: **PC-10**; lado Orange Pi: commit `d7dfc06`, **OP-22**. Interpretación del usuario: el botón *inicia el ciclo de auditoría* (no mueve el carrito). Pausar/detener (opción 2) queda fuera. Opciones y respuestas, en "Consulta abierta — S-06". |
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
+| S-10 | PC → Orange Pi | **Red de la demo (D-11):** conectar la Orange Pi al router móvil D-Link DWR-932W (su plantilla netplan de demo; el SSID y la clave **no** se registran aquí) y repetir las pruebas de conexión con la PC en esa red. | Abierta | La PC anuncia su IP por mDNS (puerto 5000) y la Orange Pi usa la misma IP para el 5001. Con la PC ya conectada al router, `start_pc.sh` muestra la IP que se anuncia. Comprobar antes **que el router no tenga aislamiento de clientes** (ping en ambos sentidos). |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
 
 ---
@@ -345,6 +352,7 @@ estados a la misma consulta, sin otro canal.
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
 | D-05 | 2026-10-05 | **No persistir** el historial ni la decisión en espera del panel por ahora (**PC-14**): la Orange Pi se recupera sola tras un reinicio de la PC (sección 4.6). Se reevalúa si hace falta auditoría. | Usuario |
 | D-10 | 2026-10-06 | **Opción 1 de S-06:** el ciclo de auditoría espera una orden `iniciar` de la PC al arrancar; la da el regente con el botón "Iniciar recorrido". Solo iniciar (sin pausar/detener, que queda fuera). La orden es de un solo uso y vence a los 60 s. | Usuario (PC y Orange Pi) |
+| D-11 | 2026-10-13 | **Red de la demo:** router móvil propio D-Link DWR-932W, en lugar de la Wi-Fi de la universidad (que puede aislar clientes y bloquear mDNS). La PC no necesita cambios específicos para esa red (ver **PC-20**); la Orange Pi debe conectarse a ella (**S-10**). | Usuario |
 | D-09 | 2026-10-05 | El panel de la PC sigue escuchando solo en `127.0.0.1`: el regente trabaja frente a la PC (**PC-15**). | Usuario |
 | D-06 | 2026-10-06 | **Cerrada** (del lado Orange Pi y contrato): tras un fallo de comunicación, sondeo con lote vacío cada 10 s sin tope, alarma local hasta `desactivar_alarma_local` y confirmación del regente en el panel (sección 4.6). La ESP32-S3 se adapta después (**S-09**), según el usuario. | Usuario + lados PC y Orange Pi |
 | D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
@@ -356,6 +364,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-13 | Arlo.exe (lado PC, con Claude Code) | PC-20 `[x]` (elección robusta de la IP anunciada por mDNS; `PC_IP`); D-11 (red de la demo: router móvil D-Link DWR-932W) y S-10 (conectar la Orange Pi a esa red). |
 | 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-10 cerrado tras revisar OP-22 contra el registro de la PC (el botón entregó `iniciar` una sola vez y el ciclo corrió); fila de S-06 limpiada (conservaba texto de cuando estaba pendiente). |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22: probado de punta a punta con el botón "Iniciar recorrido" del panel y `main()` real. |
 | 2026-10-06 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-22 nuevo: `main.py` espera la orden `iniciar` al arrancar (S-06 opción 1); S-06 pasa a `Hecha`. |
