@@ -45,6 +45,10 @@ import argparse
 import time
 
 
+# UART0 hacia la ESP32-S3 (pines 8/10 del header). La lee también scripts/start_Opi.sh.
+PUERTO_UART = "/dev/ttyS0"
+
+
 def introducir_objeto(enlace: EnlaceUART) -> bool:
     """Ordena activar el dispensador (entra un objeto), con el límite de reintentos definido en
     el contrato. Devuelve True si se confirmó objeto_en_posicion."""
@@ -138,7 +142,7 @@ def main(argv=None):
     # Puerto confirmado en hardware real (Orange Pi Zero 2W, Armbian Trixie):
     # UART0 en los pines 8/10 del header, liberado de la consola serial.
     # Ver orange-pi/CLAUDE.md para el procedimiento completo de verificación.
-    enlace = EnlaceUART(puerto="/dev/ttyS0")
+    enlace = EnlaceUART(puerto=PUERTO_UART)
     try:
         camara = abrir_camara()
     except Exception:
