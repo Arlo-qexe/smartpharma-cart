@@ -134,6 +134,32 @@ ORDEN_CICLO_INICIAR = "iniciar"
 VIGENCIA_ORDEN_CICLO_S = 60.0               # valor inicial; calibrar
 
 # ---------------------------------------------------------------------------
+# Continuar o detener el ciclo, ENTRE objetos (Orange Pi -> PC) — opción 2 de S-06
+# (shared/checklist.md), informe 4.8. Misma conexión corta, puerto y framing que las
+# consultas anteriores.
+#
+# ANTES DE CADA OBJETO (el primero incluido) la Orange Pi consulta una vez:
+#   Consulta:  {"consulta": "estado_ciclo"}
+#   Respuesta: {"ciclo": "continuar"}   introducir el objeto (la PC lo cuenta)
+#              {"ciclo": "detener"}     NO introducir más: volver a esperar `iniciar`
+#                                       (CONSULTA_ORDEN_CICLO) como al arrancar
+#              {"error": "consulta_invalida"}
+#
+# La PC decide cuándo detener: el regente pulsó "Detener", o se alcanzó la cantidad
+# de cajas que fijó al iniciar. Detener solo actúa ENTRE objetos (principio
+# secuencial): un objeto en vuelo, o con una decisión del regente pendiente, se
+# termina primero. Tras `detener` hace falta una orden `iniciar` nueva.
+# Si la PC no contesta esta consulta, la Orange Pi CONTINÚA (respuesta del lado Orange
+# Pi a S-06, pregunta 4): el envío del lote ya dispara la recuperación de 4.6.
+# Una PC que no sabe de ningún ciclo en marcha (p. ej. se reinició) responde
+# `detener`: ningún reinicio sigue adelante sin una decisión humana.
+# ---------------------------------------------------------------------------
+CONSULTA_ESTADO_CICLO = "estado_ciclo"
+CLAVE_CICLO_JSON = "ciclo"
+CICLO_CONTINUAR = "continuar"
+CICLO_DETENER = "detener"
+
+# ---------------------------------------------------------------------------
 # Enlace serie (Orange Pi <-> ESP32-S3) — UART con checksum
 # ---------------------------------------------------------------------------
 UART_BAUDRATE = 115200

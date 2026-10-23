@@ -123,6 +123,32 @@
         }
       ]
     },
+    "orangepi_a_pc__consulta_estado_ciclo": {
+      "type": "object",
+      "description": "Consulta TCP corta de la Orange Pi a la PC (puerto TCP_PUERTO_DECISION_DEFECTO) ANTES DE CADA OBJETO: ¿continuar o detener? Ver informe 4.8.",
+      "properties": {
+        "consulta": { "const": "estado_ciclo" }
+      },
+      "required": ["consulta"],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_estado_ciclo": {
+      "description": "Respuesta de la PC a la consulta de continuar/detener el ciclo.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": { "ciclo": { "enum": ["continuar", "detener"] } },
+          "required": ["ciclo"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": { "error": { "const": "consulta_invalida" } },
+          "required": ["error"],
+          "additionalProperties": false
+        }
+      ]
+    },
     "pc_a_orangepi__respuesta_clasificacion": {
       "type": "object",
       "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",

@@ -14,6 +14,30 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-23 — Arlo-qexe (con Claude Code, lado PC)
+- **Nuevo mensaje Orange Pi → PC: continuar o detener el ciclo, entre objetos** (opción 2
+  de S-06; el usuario pidió un botón "Detener" y una casilla con la cantidad de cajas,
+  porque hoy el ciclo no se detiene salvo con Ctrl+C en la Orange Pi). Detalle en
+  `arquitectura_comunicacion.md`, sección 4.8.
+- Flujo: **antes de cada objeto** la Orange Pi consulta `{"consulta": "estado_ciclo"}`
+  (puerto 5001, framing de 4.2) y recibe `{"ciclo": "continuar"}` o `{"ciclo": "detener"}`.
+  Con `detener` no introduce más objetos y vuelve a esperar `iniciar` (4.7). La PC cuenta
+  las cajas y decide: botón "Detener" del panel o cantidad alcanzada. La orden `iniciar`
+  **no cambia** (no lleva la cantidad).
+- Constantes nuevas en `shared/protocol_constants.py`: `CONSULTA_ESTADO_CICLO`,
+  `CLAVE_CICLO_JSON`, `CICLO_CONTINUAR`, `CICLO_DETENER`. `protocol_constants.h` no cambia.
+- **Compatible hacia atrás:** una Orange Pi que no consulta `estado_ciclo` sigue
+  funcionando como hasta ahora (el ciclo no se detiene; el panel lo muestra como
+  "deteniendo" hasta que ella pregunte).
+- **Impacto para orange-pi (S-11):** consultar `estado_ciclo` antes de cada
+  `activar_dispensador`; si responde `detener`, volver a `esperar_orden_inicio`; si la PC
+  no contesta, continuar. **Impacto para esp32-firmware:** ninguno.
+- Esquema: `orangepi_a_pc__consulta_estado_ciclo`, `pc_a_orangepi__respuesta_estado_ciclo`.
+- Lado PC: `estado_panel.py` (ciclo y conteo), `servidor_decision.py`, botón "Detener" y
+  casilla de cantidad en el panel (`POST /api/ciclo/detener`).
+- Archivos: `shared/protocol_constants.py`, `shared/schemas/messages.schema.json`,
+  `docs/arquitectura_comunicacion.md`.
+
 ## 2026-10-06 (3) — Arlo.exe (con Claude Code, lado PC)
 - **Nuevo mensaje Orange Pi → PC: orden de inicio del ciclo de auditoría** (consulta
   S-06, opción 1, aprobada por el usuario de la PC y por el lado Orange Pi). Hasta

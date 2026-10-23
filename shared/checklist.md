@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-24 probado, OP-25 prueba de 12 ciclos con el botón).
+**Última actualización:** 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 detener el ciclo, cantidad de cajas e indicador de la Orange Pi; S-11).
+Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-24 probado, OP-25 prueba de 12 ciclos con el botón).
 Anterior: 2026-10-22 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-21, conexión con la PC en WSL2).
 Anterior: 2026-10-14 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 red de la demo, OP-24 start_Opi.sh, S-10 aceptada).
 Anterior: 2026-10-13 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-20, D-11, S-10).
@@ -64,8 +65,8 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   informe. **Lado Orange Pi hecho (OP-22)** y **probado de punta a punta** con el botón
   real (2026-10-06): el registro de la PC lo corrobora (botón → `iniciar` entregado a
   `192.168.20.72` → lote de 5 imágenes respondido `TIPO_A` unos 20 s después → una
-  consulta posterior respondida `esperando`, coherente con un nuevo arranque). Pausar o
-  detener el ciclo (opción 2) no existe.
+  consulta posterior respondida `esperando`, coherente con un nuevo arranque). Detener el
+  ciclo se agregó después (**PC-22**, **S-11**); pausar/reanudar no existe.
 - [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**). *Sigue pendiente del equipo de IA
@@ -119,6 +120,19 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   interfaz real (sin loopback, enlace-local ni Docker; Wi-Fi/Ethernet primero) → loopback
   con aviso. `start_pc.sh` muestra la IP elegida y su origen. **La IP se fija al arrancar:**
   conectar la PC a la red *antes* de lanzar y reiniciar si se cambia de red. 91 pruebas pasan.
+- [~] **PC-22** Detener el ciclo, cantidad de cajas e indicador de la Orange Pi (2026-10-23, pedido
+  del usuario: hoy el ciclo no se detiene salvo con Ctrl+C en la Orange Pi). **Lado PC hecho,
+  falta el lado Orange Pi (S-11).** Contrato nuevo en `shared/` (informe 4.8): **antes de cada
+  objeto** la Orange Pi consulta `{"consulta": "estado_ciclo"}` y la PC responde
+  `{"ciclo": "continuar"|"detener"}`. La PC cuenta las cajas y decide (botón "Detener" o cantidad
+  alcanzada); detener actúa solo entre objetos; una PC reiniciada responde `detener`. Panel:
+  casilla "Cajas a procesar" (vacía = sin límite), botón "Detener" junto a "Iniciar recorrido"
+  (`POST /api/ciclo/detener`, y `/iniciar` acepta `{"cantidad": N}`) e **indicador de conexión
+  con la Orange Pi** (verde si hubo un mensaje suyo en los últimos 45 s; es el último mensaje
+  recibido, no un ping). También: el clasificador placeholder ahora responde **al azar**
+  `TIPO_A/B/C` (antes siempre `TIPO_A`; sigue siendo del equipo de IA). 119 pruebas pasan y se
+  revisó el panel renderizado en un navegador. *Pendiente:* probarlo de punta a punta con la
+  Orange Pi real cuando implemente **S-11**; sin ella el botón queda en "Deteniendo…".
 - [~] **PC-21** Conexión Orange Pi ↔ PC con la PC en **WSL2** (2026-10-22). Entorno restaurado
   desde GitHub (venv completo, 91 pruebas pasan). Hallazgos y estado:
   - WSL2 en modo NAT anunciaba `172.22.x.x`, inalcanzable para la Orange Pi, y mDNS no
@@ -292,6 +306,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
 | S-10 | PC → Orange Pi | **Red de la demo (D-11):** conectar la Orange Pi al router móvil D-Link DWR-932W (su plantilla netplan de demo; el SSID y la clave **no** se registran aquí) y repetir las pruebas de conexión con la PC en esa red. | Aceptada | La PC anuncia su IP por mDNS (puerto 5000) y la Orange Pi usa la misma IP para el 5001. Con la PC ya conectada al router, `start_pc.sh` muestra la IP que se anuncia. Comprobar antes **que el router no tenga aislamiento de clientes** (ping en ambos sentidos). **Lado Orange Pi (2026-10-14), ver OP-23:** red agregada y router visible, pero la conexión y las pruebas con la PC en ese router siguen pendientes. |
+| S-11 | PC → Orange Pi | **Detener el ciclo y cantidad de cajas (PC-22, informe 4.8):** antes de cada `activar_dispensador` (el primer objeto incluido), consultar `{"consulta": "estado_ciclo"}` (puerto 5001, framing de 4.2, una conexión por consulta). `{"ciclo": "continuar"}` → introducir el objeto; `{"ciclo": "detener"}` → no introducir más y **volver a `esperar_orden_inicio`** (como al arrancar; hace falta una orden `iniciar` nueva). Si la PC no contesta, **continuar** (recuperación de 4.6). Constantes: `CONSULTA_ESTADO_CICLO`, `CLAVE_CICLO_JSON`, `CICLO_CONTINUAR`, `CICLO_DETENER`. Cliente de referencia: `consultar_estado_ciclo()` en `pc/tests/mock_orangepi_client.py`. | Abierta | La PC ya responde. No cambia la orden `iniciar` ni la ESP32-S3. La cantidad la cuenta la PC: la Orange Pi solo obedece. Si no estás de acuerdo con la forma (p. ej. preguntar al final del ciclo en vez de al principio), ponla `En discusión` con el motivo. |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
 
 ---
@@ -410,6 +425,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 nuevo `[~]`: botón "Detener", casilla de cantidad de cajas e indicador de conexión de la Orange Pi; clasificador placeholder al azar. Contrato nuevo `estado_ciclo` (informe 4.8) y S-11 para el lado Orange Pi. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 probado con la cámara conectada; OP-25 nuevo: `--simular-esp` y prueba de punta a punta con el botón real (12 ciclos seguidos, todos `TIPO_A`, sin fallos) contra la PC en WSL2. Corrobora PC-21 desde el lado Orange Pi. |
 | 2026-10-22 | Arlo-qexe (lado PC, con Claude Code) | PC-21 nuevo `[~]`: la PC corre en WSL2 en modo espejo; fallo de ARP de WSL sobre Wi-Fi con parche temporal; `start_Opi.sh --verificar` pasó contra la PC (OP-24). Pendiente una solución estable y repetir en el router de la demo (S-10). |
 | 2026-10-14 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 nuevo (`start_Opi.sh`); OP-23 nuevo `[~]` (red del router de la demo agregada a `wlan0`, conexión sin probar); S-10 pasa a `Aceptada`. |

@@ -200,10 +200,35 @@ orden de la PC** antes de introducir el primer objeto. La da el regente con el b
   ningún reinicio arranca el ciclo sin una decisión humana. Una orden que nadie
   recoge **vence** a los `VIGENCIA_ORDEN_CICLO_S` (60 s).
 - **Sin PC no arranca:** la Orange Pi reintenta indefinidamente, **sin alarma local**
-  (no hay objeto en vuelo). Solo pausar/detener (opción 2) quedó fuera de esta
-  decisión; no existe todavía.
+  (no hay objeto en vuelo). Detener el ciclo se resolvió aparte (sección 4.8);
+  pausar y reanudar siguen sin existir.
 - Las pruebas sueltas sin PC usan una opción local de `main.py` (`--sin-orden`) que
   **no es parte del contrato**.
+
+### 4.8 Continuar o detener el ciclo, entre objetos (Orange Pi → PC)
+
+Decisión (S-06, opción 2 del checklist, pedida por el usuario el 2026-10-23): el regente
+puede **detener** el ciclo desde el panel y puede fijar al iniciarlo **cuántas cajas**
+procesar. Mismo canal que 4.5 y 4.7: conexión TCP corta, puerto
+`TCP_PUERTO_DECISION_DEFECTO`, framing de 4.2.
+
+- **Antes de cada objeto** (el primero incluido) la Orange Pi consulta una vez
+  `{"consulta": "estado_ciclo"}`. Respuestas: `{"ciclo": "continuar"}` (introduce el
+  objeto) o `{"ciclo": "detener"}` (no introduce más y vuelve a esperar la orden
+  `iniciar` de 4.7, como al arrancar).
+- **La PC decide y cuenta.** Cada `continuar` cuenta una caja iniciada; al alcanzar la
+  cantidad fijada responde `detener`. Sin cantidad, el ciclo sigue hasta que el regente
+  pulse "Detener". La orden `iniciar` de 4.7 **no cambia**: la Orange Pi no recibe la
+  cantidad, solo obedece `continuar`/`detener`.
+- **Solo actúa entre objetos** (principio secuencial): un objeto en vuelo, o con una
+  decisión del regente pendiente (4.5), se termina primero. Tras `detener` hace falta
+  una orden `iniciar` nueva (un solo uso, 4.7).
+- **Sin PC no se detiene:** si la PC no contesta esta consulta, la Orange Pi **continúa**:
+  el envío del lote ya dispara la recuperación de 4.6.
+- **Reinicio de la PC:** una PC que no sabe de ningún ciclo en marcha responde
+  `detener`, así que ningún reinicio sigue adelante sin una decisión humana.
+- Un `continuar` cuya respuesta se pierde y se repite cuenta dos cajas (la PC no usa IDs
+  de correlación); con cantidad fijada, la Orange Pi procesaría una caja menos.
 
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
