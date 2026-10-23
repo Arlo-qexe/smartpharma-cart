@@ -1,0 +1,5 @@
+# Solo para capturar/entrenar (no hace falta en la PC de producción si usas el .onnx con requirements-infer)
+ultralytics>=8.3
+opencv-python>=4.8
+onnx
+onnxruntime

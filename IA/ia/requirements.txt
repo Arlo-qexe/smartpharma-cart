@@ -1,0 +1,2 @@
+# Núcleo del módulo de reconocimiento (corre en CPU, sin GPU)
+Pillow>=10
