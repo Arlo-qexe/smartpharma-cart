@@ -51,7 +51,7 @@ h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: .02em; }
 
 main { margin-top: 14px; }
 .tablero {
-  display: grid; grid-template-columns: 1.15fr 1fr; gap: 0;
+  display: grid; grid-template-columns: 1.35fr 1fr; gap: 0;
   background: var(--menta); border-radius: 10px; padding: 18px 20px;
 }
 .panel-izq { padding-right: 20px; border-right: 2px solid var(--linea); min-width: 0; }
@@ -59,8 +59,9 @@ main { margin-top: 14px; }
 .sub { margin: 0 0 10px; color: var(--suave); }
 .aviso { margin: 8px 0 0; color: var(--suave); font-size: 13px; }
 
-.fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
-.fotos figure { margin: 0; text-align: center; font-size: 12px; color: var(--suave); }
+/* 3 por fila (5 fotos = 3 + 2): fotos más grandes que con la rejilla automática de 4 por fila. */
+.fotos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.fotos figure { margin: 0; text-align: center; font-size: 13px; color: var(--suave); }
 .fotos img {
   display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover;
   background: #fff; border: 1px solid #b9c9c5; border-radius: 6px;
