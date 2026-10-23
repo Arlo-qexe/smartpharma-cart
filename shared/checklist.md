@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-22 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-21, conexión con la PC en WSL2).
+**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-24 probado, OP-25 prueba de 12 ciclos con el botón).
+Anterior: 2026-10-22 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-21, conexión con la PC en WSL2).
 Anterior: 2026-10-14 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 red de la demo, OP-24 start_Opi.sh, S-10 aceptada).
 Anterior: 2026-10-13 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-20, D-11, S-10).
 
@@ -247,9 +248,20 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   `esperando` de forma estable.
 - [x] **OP-24** Arranque en un comando: `orange-pi/scripts/start_Opi.sh` activa el venv,
   verifica UART, cámara (por nombre) y red/PC (mDNS) y lanza `main.py`. Opciones:
-  `--verificar` (solo comprueba) y `--sin-orden`. Se niega a arrancar si falta UART o
-  cámara. Probado el caso de fallo (cámara desconectada); *falta* la rama de éxito
-  completa, que necesita la cámara conectada.
+  `--verificar` (solo comprueba), `--sin-orden` y `--simular-esp` (ESP32-S3 simulada,
+  `--retraso-esp SEG`; ver **OP-25**). Se niega a arrancar si falta UART o cámara.
+  **Probado con la cámara conectada (2026-10-23):** `--verificar` pasa (UART, cámara
+  `/dev/video1`, PC por mDNS en `192.168.20.47:5000`) y el arranque completo corre.
+- [x] **OP-25** ESP32-S3 simulada para probar sin el hardware (`--simular-esp`,
+  `orange-pi/src/uart/esp_simulada.py`; **fuera del contrato**) y **prueba de punta a
+  punta con el botón real (2026-10-23)**: `start_Opi.sh --simular-esp` con cámara real
+  (1920×1080) y la PC real en WSL2 (`192.168.20.47`, ver **PC-21**, parche de ARP
+  aplicado). El regente presionó "Iniciar recorrido" una vez y el ciclo corrió **12
+  veces seguidas** (cifra de la interfaz de la PC, que coincide con el registro de la
+  Orange Pi): 12 lotes de 5 fotos respondidos `TIPO_A`, sin lotes vacíos, reintentos,
+  alarmas ni errores; no volvió a consultar la orden. Se detuvo con Ctrl+C (cierre
+  limpio) en el 13.º ciclo, a propósito. *Sigue pendiente:* la ESP32-S3 real (**OP-16**)
+  y repetirlo en el router de la demo (**OP-23**, **S-10**).
 - [~] **OP-23** Red WiFi de la demo (**S-10**, **D-11**): la red del router D-Link
   DWR-932W se **agregó** a `wlan0` como un archivo netplan aparte
   (`/etc/netplan/40-...`), sin tocar la configuración DHCP de siempre; ambas redes
@@ -398,6 +410,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 probado con la cámara conectada; OP-25 nuevo: `--simular-esp` y prueba de punta a punta con el botón real (12 ciclos seguidos, todos `TIPO_A`, sin fallos) contra la PC en WSL2. Corrobora PC-21 desde el lado Orange Pi. |
 | 2026-10-22 | Arlo-qexe (lado PC, con Claude Code) | PC-21 nuevo `[~]`: la PC corre en WSL2 en modo espejo; fallo de ARP de WSL sobre Wi-Fi con parche temporal; `start_Opi.sh --verificar` pasó contra la PC (OP-24). Pendiente una solución estable y repetir en el router de la demo (S-10). |
 | 2026-10-14 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 nuevo (`start_Opi.sh`); OP-23 nuevo `[~]` (red del router de la demo agregada a `wlan0`, conexión sin probar); S-10 pasa a `Aceptada`. |
 | 2026-10-13 | Arlo.exe (lado PC, con Claude Code) | PC-20 `[x]` (elección robusta de la IP anunciada por mDNS; `PC_IP`); D-11 (red de la demo: router móvil D-Link DWR-932W) y S-10 (conectar la Orange Pi a esa red). |
