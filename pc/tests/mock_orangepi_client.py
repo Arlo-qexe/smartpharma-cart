@@ -20,6 +20,7 @@ from protocol_constants import (  # noqa: E402
     CLAVE_CONSULTA_JSON,
     CLAVE_RESULTADO_JSON,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
     FRAMING_STRUCT_FORMAT,
     TCP_PUERTO_DECISION_DEFECTO,
@@ -56,6 +57,15 @@ def consultar_orden_ciclo(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
     """Imita UNA consulta de la Orange Pi al arrancar (informe 4.7): devuelve
     {"orden": "esperando"} o {"orden": "iniciar"}."""
     consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_ORDEN_CICLO}).encode("utf-8")
+    with socket.create_connection((ip, puerto), timeout=3) as sock:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
+        return _leer_respuesta(sock)
+
+
+def consultar_estado_ciclo(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
+    """Imita UNA consulta de la Orange Pi ANTES de cada objeto (informe 4.8): devuelve
+    {"ciclo": "continuar"} o {"ciclo": "detener"}."""
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_ESTADO_CICLO}).encode("utf-8")
     with socket.create_connection((ip, puerto), timeout=3) as sock:
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
         return _leer_respuesta(sock)

@@ -9,11 +9,17 @@ entrada/salida esperado. No implementes aquí ningún modelo real — cuando el
 equipo de IA entregue su código, se reemplaza el cuerpo de
 `procesar_lote_ocr()` y nada más en el repo debería necesitar cambios.
 """
+import random
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import RESULTADO_ERROR_REVISION_MANUAL  # noqa: E402
+
+
+# Tipos que devuelve el placeholder, al azar, para poder ver en el panel y en el carrito
+# varios destinos distintos mientras el equipo de IA no entregue el reconocimiento real.
+TIPOS_PLACEHOLDER = ("TIPO_A", "TIPO_B", "TIPO_C")
 
 
 def procesar_lote_ocr(imagenes: list) -> str:
@@ -33,4 +39,4 @@ def procesar_lote_ocr(imagenes: list) -> str:
     print(f"[ocr_interface] PLACEHOLDER: simulando reconocimiento sobre {len(imagenes)} imágenes")
     if not imagenes:
         return RESULTADO_ERROR_REVISION_MANUAL
-    return "TIPO_A"
+    return random.choice(TIPOS_PLACEHOLDER)

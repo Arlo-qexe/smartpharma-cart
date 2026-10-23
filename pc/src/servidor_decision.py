@@ -14,12 +14,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
+    CLAVE_CICLO_JSON,
     CLAVE_CONSULTA_JSON,
     CLAVE_DESTINO_JSON,
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
     CLAVE_ORDEN_CICLO_JSON,
+    CICLO_DETENER,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
     ERROR_CONSULTA_INVALIDA,
     ORDEN_CICLO_INICIAR,
@@ -44,6 +47,8 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
                 return
             tipo = consulta.get(CLAVE_CONSULTA_JSON)
+            if tipo in (CONSULTA_DECISION_REGENTE, CONSULTA_ORDEN_CICLO, CONSULTA_ESTADO_CICLO):
+                self.server.estado.registrar_contacto(self.client_address[0])
             if tipo == CONSULTA_DECISION_REGENTE:
                 respuesta = self.server.estado.consultar_decision()
                 enviar_json(conn, respuesta)
@@ -54,6 +59,10 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 if respuesta[CLAVE_ORDEN_CICLO_JSON] == ORDEN_CICLO_INICIAR:
                     # Solo cuando el envío salió bien: si falló, la orden sigue vigente.
                     self.server.estado.confirmar_entrega_orden()
+                self._registrar_si_cambio(tipo, respuesta)
+            elif tipo == CONSULTA_ESTADO_CICLO:
+                respuesta = self.server.estado.consultar_estado_ciclo()
+                enviar_json(conn, respuesta)
                 self._registrar_si_cambio(tipo, respuesta)
             else:
                 enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
@@ -68,6 +77,14 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
         a ese cliente en cada tipo de consulta, para ver (p. ej.) que recibió `resuelta`
         o la orden `iniciar`."""
         ip = self.client_address[0]
+        if tipo == CONSULTA_ESTADO_CICLO:
+            # Una consulta por objeto: `continuar` no cambia "lo entregado", así que se
+            # registraría solo la primera vez; se anota cada una, y la detención con aviso.
+            if respuesta[CLAVE_CICLO_JSON] == CICLO_DETENER:
+                log.info("%s recibió: detener el ciclo", ip)
+            else:
+                log.info("%s recibió: continuar (caja iniciada)", ip)
+            return
         clave = tuple(respuesta.get(k) for k in (
             CLAVE_ESTADO_DECISION_JSON, CLAVE_DESTINO_JSON, CLAVE_ORDEN_CICLO_JSON))
         with self.server.lock_registro:

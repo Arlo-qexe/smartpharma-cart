@@ -140,7 +140,12 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   (`POST /api/ciclo/iniciar`). La orden es de **un solo uso** (si la Orange Pi vuelve a
   preguntar tras recibirla, reinició: responde `esperando`) y **vence** a los
   `VIGENCIA_ORDEN_CICLO_S`. Estado en `estado_panel.py`; ver sección 4.7 de
-  @../docs/arquitectura_comunicacion.md. Pausar/detener (opción 2) **no existe** todavía.
+  @../docs/arquitectura_comunicacion.md. Detener el ciclo y la cantidad de cajas (S-06 opción 2, sección 4.8): antes de cada
+  objeto la Orange Pi consulta `estado_ciclo` y la PC responde `continuar`/`detener`;
+  la PC cuenta las cajas (casilla "Cajas a procesar" + botón "Detener" del panel,
+  `POST /api/ciclo/detener`). Si una PC reiniciada no sabe de ningún ciclo, responde
+  `detener`. Pausar/reanudar **no existe**. El panel muestra además si la Orange Pi
+  está conectada (último mensaje recibido, `VENTANA_CONEXION_ORANGEPI_S`).
 - **Decisión del regente (opción A, ya implementada):** tras un
   `ERROR_REVISION_MANUAL` la PC deja UNA decisión en espera
   (`estado_panel.py`); el regente la resuelve en la pestaña Alertas (destino
@@ -148,7 +153,9 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   `src/servidor_decision.py` (puerto `TCP_PUERTO_DECISION_DEFECTO`). Ver
   sección 4.5 de @../docs/arquitectura_comunicacion.md. Cliente de referencia
   de una consulta: `consultar_decision()` en `tests/mock_orangepi_client.py`.
-- **Pendiente del equipo:** pausar/detener el ciclo (opción 2 de S-06) y los campos
+- **Pendiente del equipo:** que el lado Orange Pi consulte `estado_ciclo` (S-11) y los campos
   OCR/FEFO que debe entregar el reconocimiento.
+- `src/ocr_interface.py` es un placeholder que clasifica **al azar** entre `TIPOS_PLACEHOLDER`
+  (`TIPO_A/B/C`) hasta que el equipo de IA entregue el módulo real.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

@@ -68,6 +68,7 @@ def _manejar_cliente(conn, addr):
             imagenes = _recibir_lote(conn)
         except FramingInvalido as e:
             log.warning("Framing inválido de %s: %s", addr, e)
+            estado.registrar_contacto(addr[0])
             alarma_id = disparar_alarma_dashboard("framing_invalido")
             # La decisión se abre ANTES de responder: la primera consulta de la
             # Orange Pi ya debe encontrarla "pendiente".
@@ -75,6 +76,7 @@ def _manejar_cliente(conn, addr):
             enviar_json(conn, {CLAVE_RESULTADO_JSON: RESULTADO_ERROR_REVISION_MANUAL})
             return
 
+        estado.registrar_contacto(addr[0])
         motivo_alarma = None
         if len(imagenes) == 0:
             log.warning("Lote vacío de %s — captura fallida o reintento tras perder la conexión", addr)

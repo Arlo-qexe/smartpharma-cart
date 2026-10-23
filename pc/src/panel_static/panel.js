@@ -146,37 +146,100 @@ function renderInicio() {
   }
 }
 
-// Botón "Iniciar recorrido": ordena a la Orange Pi iniciar el ciclo de auditoría
-// (informe 4.7). La orden es de un solo uso y vence si nadie la recoge.
+// Botón "Iniciar recorrido" + casilla de cantidad + botón "Detener": ordenan a la Orange Pi
+// iniciar el ciclo de auditoría (informe 4.7) y detenerlo entre objetos (informe 4.8). La
+// orden de inicio es de un solo uso y vence si nadie la recoge; la cantidad la cuenta la PC.
 function renderRecorrido() {
   const o = estado.orden_ciclo;
-  const boton = $("boton-recorrido");
+  const c = estado.ciclo;
+  const iniciar = $("boton-recorrido");
+  const detener = $("boton-detener");
+  const cantidad = $("cantidad-cajas");
   const texto = $("recorrido-estado");
-  if (o.estado === "iniciada") {
-    boton.disabled = true;
-    $("boton-texto").textContent = "RECORRIDO INICIADO";
-    texto.textContent = "La Orange Pi recogió la orden a las " + fmtHora(o.ts_entregada) + ".";
+  const caja = c.cantidad ? `${c.iniciadas} de ${c.cantidad}` : `${c.iniciadas} (sin límite)`;
+  let editable = false;
+  if (c.estado === "activo") {
+    iniciar.disabled = true;
+    detener.disabled = false;
+    $("boton-texto").textContent = "RECORRIDO EN CURSO";
+    texto.textContent = `Cajas iniciadas: ${caja}. Detener actúa antes de la siguiente caja.`;
+  } else if (c.estado === "deteniendo") {
+    iniciar.disabled = true;
+    detener.disabled = true;
+    $("boton-texto").textContent = "DETENIENDO…";
+    texto.textContent = `La Orange Pi termina la caja en curso y se detiene antes de la siguiente (cajas iniciadas: ${caja}).`;
   } else if (o.estado === "ordenada") {
-    boton.disabled = true;
+    iniciar.disabled = true;
+    detener.disabled = false;               // cancela la orden si aún no se recoge
     $("boton-texto").textContent = "ORDEN ENVIADA";
     texto.textContent = `Esperando que la Orange Pi la recoja (vence en ${o.restante_s} s).`;
   } else {
-    boton.disabled = false;
+    iniciar.disabled = false;
+    detener.disabled = true;
+    editable = true;
     $("boton-texto").textContent = "INICIAR RECORRIDO";
     const hace = o.ts_ultima_consulta ? estado.ts_servidor - o.ts_ultima_consulta : null;
-    texto.textContent = hace !== null && hace < 10
+    const espera = hace !== null && hace < 10
       ? "La Orange Pi está esperando la orden."
       : "La Orange Pi no ha consultado hace poco (puede estar apagada o ya en marcha).";
+    const fin = c.motivo_fin === "cantidad_alcanzada"
+      ? `Recorrido completo: ${c.iniciadas} cajas (${fmtHora(c.ts_fin)}). `
+      : c.motivo_fin === "detenido_por_regente"
+        ? `Recorrido detenido tras ${c.iniciadas} cajas (${fmtHora(c.ts_fin)}). `
+        : "";
+    texto.textContent = fin + espera;
+  }
+  cantidad.disabled = !editable;
+}
+
+// Indicador de conexión con la Orange Pi: se basa en el último mensaje recibido de ella
+// (consulta o lote), no en un ping; la PC no puede iniciar conexiones hacia ella.
+function renderOrangePi() {
+  const op = estado.orangepi;
+  const nodo = $("orangepi");
+  nodo.classList.remove("conectada", "perdida", "sin-dato");
+  if (!op.ts_ultimo_contacto) {
+    nodo.classList.add("sin-dato");
+    $("orangepi-texto").textContent = "Orange Pi: sin contacto aún";
+  } else if (op.conectada) {
+    nodo.classList.add("conectada");
+    $("orangepi-texto").textContent = `Orange Pi conectada (${op.ip})`;
+  } else {
+    nodo.classList.add("perdida");
+    const seg = Math.round(estado.ts_servidor - op.ts_ultimo_contacto);
+    $("orangepi-texto").textContent = `Orange Pi sin contacto hace ${seg} s`;
+  }
+}
+
+async function postCiclo(ruta, cuerpo) {
+  try {
+    const r = await fetch(ruta, {
+      method: "POST",
+      headers: cuerpo ? { "Content-Type": "application/json" } : {},
+      body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+    });
+    return r.ok;
+  } catch (e) {
+    return false;
+  } finally {
+    refrescar();
   }
 }
 
 $("boton-recorrido").addEventListener("click", async () => {
-  $("boton-recorrido").disabled = true;       // evita doble clic mientras responde
-  try {
-    await fetch("/api/ciclo/iniciar", { method: "POST" });
-  } finally {
-    refrescar();
+  const crudo = $("cantidad-cajas").value.trim();
+  const cantidad = crudo === "" ? null : Number(crudo);
+  if (cantidad !== null && (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 9999)) {
+    $("recorrido-estado").textContent = "La cantidad debe ser un entero entre 1 y 9999 (o déjala vacía para no limitar).";
+    return;
   }
+  $("boton-recorrido").disabled = true;       // evita doble clic mientras responde
+  await postCiclo("/api/ciclo/iniciar", cantidad === null ? null : { cantidad });
+});
+
+$("boton-detener").addEventListener("click", async () => {
+  $("boton-detener").disabled = true;
+  await postCiclo("/api/ciclo/detener", null);
 });
 
 function renderInventario() {
@@ -491,6 +554,7 @@ const RENDERS = {
 
 function render() {
   if (!estado) return;
+  renderOrangePi();
   renderBanner();
   RENDERS[vista]();
 }

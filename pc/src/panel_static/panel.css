@@ -8,6 +8,7 @@
   --rojo: #d83a3a;
   --amarillo: #f2b81c;
   --gris: #9aa3a6;
+  --verde: #2e9e5b;
 }
 * { box-sizing: border-box; }
 /* Sin esto, cualquier regla con `display` (p. ej. .banner) anula el atributo
@@ -23,6 +24,12 @@ body {
 h1 { margin: 0; font: 700 clamp(26px, 4vw, 34px) Georgia, "Times New Roman", serif; }
 h2 { margin: 0 0 8px; font-size: 20px; letter-spacing: .02em; }
 .cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cabecera-estado { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.orangepi { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--suave); }
+.orangepi .punto { background: var(--gris); }
+.orangepi.conectada { color: var(--tinta); }
+.orangepi.conectada .punto { background: var(--verde); }
+.orangepi.perdida .punto { background: var(--rojo); }
 .conexion { color: #fff; background: var(--rojo); padding: 3px 10px; border-radius: 12px; font-size: 13px; }
 
 .banner {
@@ -84,7 +91,20 @@ main { margin-top: 14px; }
   padding: 16px 28px; border: 0; border-radius: 8px;
   background: var(--teal); color: #fff; font: 800 18px system-ui, sans-serif;
 }
-.boton-recorrido:disabled { opacity: .55; cursor: not-allowed; }
+.boton-recorrido:disabled, .boton-detener:disabled { opacity: .55; cursor: not-allowed; }
+.boton-detener {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 16px 28px; border: 0; border-radius: 8px;
+  background: var(--rojo); color: #fff; font: 800 18px system-ui, sans-serif;
+}
+.stop { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; color: var(--rojo); font-size: 12px; }
+.recorrido-controles { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 12px; }
+.cantidad { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; letter-spacing: .03em; }
+.cantidad input {
+  width: 120px; padding: 12px 10px; border: 1px solid var(--tinta); border-radius: 8px;
+  font: 700 18px system-ui, sans-serif; background: #fff;
+}
+.cantidad input:disabled { opacity: .55; }
 .play { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; color: var(--teal); font-size: 12px; }
 
 .tabla-envoltura { overflow-x: auto; background: var(--menta); border-radius: 10px; padding: 6px 10px; }

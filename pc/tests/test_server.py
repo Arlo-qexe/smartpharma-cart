@@ -2,6 +2,7 @@
 
 Correr desde pc/:  python3 -m pytest tests/
 """
+import re
 import socket
 import sys
 import threading
@@ -16,6 +17,7 @@ sys.path.insert(0, str(RAIZ / "tests"))
 
 import server  # noqa: E402
 from mock_orangepi_client import enviar_lote_de_prueba, enviar_lote_vacio  # noqa: E402
+from ocr_interface import TIPOS_PLACEHOLDER  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -35,7 +37,7 @@ def puerto():
 
 def test_lote_normal(puerto, capsys):
     enviar_lote_de_prueba(puerto=puerto)
-    assert "TIPO_A" in capsys.readouterr().out
+    assert re.search(r"TIPO_[ABC]", capsys.readouterr().out)
 
 
 def test_lote_vacio_da_error_revision_manual(puerto, capsys):
@@ -45,7 +47,7 @@ def test_lote_vacio_da_error_revision_manual(puerto, capsys):
 
 def test_imagen_grande_fragmentada(puerto, capsys):
     enviar_lote_de_prueba(puerto=puerto, num_imagenes=5, tamano_bytes=2_000_000)
-    assert "TIPO_A" in capsys.readouterr().out
+    assert re.search(r"TIPO_[ABC]", capsys.readouterr().out)
 
 
 
@@ -90,7 +92,7 @@ def test_cliente_colgado_libera_el_hilo(puerto, monkeypatch):
 def test_lote_queda_registrado_en_el_panel(puerto):
     enviar_lote_de_prueba(puerto=puerto, num_imagenes=5, tamano_bytes=100)
     ultimo = server.estado.snapshot()["lotes"][0]
-    assert ultimo["n_imagenes"] == 5 and ultimo["resultado"] == "TIPO_A"
+    assert ultimo["n_imagenes"] == 5 and ultimo["resultado"] in TIPOS_PLACEHOLDER
     assert server.estado.foto(ultimo["id"], 3) == bytes([3]) * 100
 
 
@@ -100,3 +102,12 @@ def test_lote_vacio_genera_alarma_en_el_panel(puerto):
     assert snap["alarmas"][0]["motivo"] == "fallo_captura"
     assert snap["alarmas"][0]["lote_id"] == snap["lotes"][0]["id"]
     assert snap["alarma_activa"] is True
+
+
+def test_el_placeholder_clasifica_al_azar_entre_varios_tipos():
+    """Mientras el equipo de IA no entregue el reconocimiento, el panel y el carrito deben
+    ver destinos distintos (no siempre TIPO_A)."""
+    from ocr_interface import procesar_lote_ocr
+    vistos = {procesar_lote_ocr([b"x"] * 5) for _ in range(200)}
+    assert vistos == set(TIPOS_PLACEHOLDER)
+    assert procesar_lote_ocr([]) == "ERROR_REVISION_MANUAL"      # el vacío no es aleatorio

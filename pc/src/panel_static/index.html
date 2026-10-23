@@ -9,7 +9,12 @@
 <body>
   <header class="cabecera">
     <h1>SmartPharma Cart</h1>
-    <span id="conexion" class="conexion" hidden>Sin conexión con el servidor</span>
+    <div class="cabecera-estado">
+      <span id="orangepi" class="orangepi sin-dato" title="Último mensaje recibido de la Orange Pi">
+        <span class="punto"></span><span id="orangepi-texto">Orange Pi: sin contacto</span>
+      </span>
+      <span id="conexion" class="conexion" hidden>Sin conexión con el servidor</span>
+    </div>
   </header>
 
   <div id="banner" class="banner" hidden></div>
@@ -65,9 +70,18 @@
         <div class="pie">
           <ul id="alertas-recientes" class="lista-alertas"></ul>
           <div class="recorrido">
-            <button id="boton-recorrido" class="boton-recorrido" disabled>
-              <span id="boton-texto">INICIAR RECORRIDO</span> <span class="play">&#9654;</span>
-            </button>
+            <div class="recorrido-controles">
+              <label class="cantidad" for="cantidad-cajas">Cajas a procesar
+                <input id="cantidad-cajas" type="number" min="1" max="9999" step="1"
+                       inputmode="numeric" placeholder="Sin límite">
+              </label>
+              <button id="boton-detener" class="boton-detener" disabled>
+                <span>DETENER</span> <span class="stop">&#9632;</span>
+              </button>
+              <button id="boton-recorrido" class="boton-recorrido" disabled>
+                <span id="boton-texto">INICIAR RECORRIDO</span> <span class="play">&#9654;</span>
+              </button>
+            </div>
             <p id="recorrido-estado" class="aviso"></p>
           </div>
         </div>

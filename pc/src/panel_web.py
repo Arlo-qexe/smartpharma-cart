@@ -15,7 +15,10 @@ Rutas:
                                             resuelve la alarma y la Orange Pi recibe el destino
                                             en su próxima consulta (servidor_decision.py)
     POST /api/ciclo/iniciar                 el regente ordena iniciar el ciclo de auditoría: la Orange
-                                            Pi la recoge en su próxima consulta (informe 4.7)
+                                            Pi la recoge en su próxima consulta (informe 4.7). Cuerpo
+                                            opcional {"cantidad": N}: cajas a procesar (sin él, sin límite)
+    POST /api/ciclo/detener                 el regente ordena detener el ciclo: la Orange Pi lo recoge
+                                            antes del siguiente objeto (informe 4.8)
     GET  /api/asistente/estado              {"disponible", "modo": "modelo|prueba|desactivado"}
     POST /api/asistente/mensaje             {"texto"} -> respuesta o propuesta (ver asistente_api.py)
     POST /api/asistente/confirmar|cancelar  {"id"} de una propuesta pendiente
@@ -39,9 +42,13 @@ from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido 
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
+    DETENCION_ORDENADA,
+    INICIO_CANTIDAD_INVALIDA,
     INICIO_ORDENADO,
     INICIO_YA_INICIADO,
+    ORDEN_CANCELADA,
     RESUELTA_CON_DECISION,
+    SIN_CICLO,
     EstadoPanel,
 )
 
@@ -57,7 +64,7 @@ _ESTATICOS = {
 }
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
 _RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
-_RE_CICLO = re.compile(r"^/api/ciclo/iniciar$")
+_RE_CICLO = re.compile(r"^/api/ciclo/(iniciar|detener)$")
 _RE_ASISTENTE = re.compile(r"^/api/asistente/(estado|mensaje|confirmar|cancelar|reiniciar)$")
 _MAX_CUERPO_POST_BYTES = 1024
 _MAX_CUERPO_ASISTENTE_BYTES = 8192   # 1000 caracteres pueden ser hasta ~4000 bytes en UTF-8
@@ -206,13 +213,28 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._origen_valido():
             self._json(403, {"error": "origen no permitido"})
             return
+        if m_ciclo and m_ciclo.group(1) == "detener":
+            resultado = self.server.estado.ordenar_detencion()
+            if resultado == SIN_CICLO:
+                self._json(409, {"error": "sin_ciclo"})
+            else:
+                if resultado == DETENCION_ORDENADA:
+                    log.info("El regente ordenó detener el ciclo (la Orange Pi lo recoge antes del siguiente objeto)")
+                elif resultado == ORDEN_CANCELADA:
+                    log.info("El regente canceló la orden de inicio antes de que la Orange Pi la recogiera")
+                self._json(200, {"ok": True, "resultado": resultado})
+            return
         if m_ciclo:
-            resultado = self.server.estado.ordenar_inicio()
+            cantidad = self._leer_cuerpo_json().get("cantidad")
+            resultado = self.server.estado.ordenar_inicio(cantidad)
             if resultado == INICIO_YA_INICIADO:
                 self._json(409, {"error": "ya_iniciada"})
+            elif resultado == INICIO_CANTIDAD_INVALIDA:
+                self._json(400, {"error": "cantidad_invalida"})
             else:
                 if resultado == INICIO_ORDENADO:
-                    log.info("El regente ordenó iniciar el ciclo de auditoría")
+                    log.info("El regente ordenó iniciar el ciclo de auditoría (%s)",
+                             f"{cantidad} cajas" if cantidad else "sin límite de cajas")
                 self._json(200, {"ok": True, "resultado": resultado})
             return
         if m_asistente:
