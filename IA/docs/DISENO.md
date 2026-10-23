@@ -1,4 +1,4 @@
-# Diseño del módulo de reconocimiento (`ia/`)
+# Diseño del módulo de reconocimiento (`IA/`)
 
 Basado en el esquema `Estructura_de_procesamiento_de_datos.pdf` (versión inicial,
 parcialmente desactualizada) y en el estado actual del repo (contrato en
@@ -6,16 +6,16 @@ parcialmente desactualizada) y en el estado actual del repo (contrato en
 
 ## 1. Del esquema original a este módulo
 
-| Esquema (PDF) | Estado actual del proyecto | Dónde está en `ia/` |
+| Esquema (PDF) | Estado actual del proyecto | Dónde está en `IA/` |
 |---|---|---|
-| Microcontrolador captura, comprime y envía por WiFi | Ahora la **Orange Pi** captura y envía por TCP | Fuera de `ia/` (ya hecho) |
+| Microcontrolador captura, comprime y envía por WiFi | Ahora la **Orange Pi** captura y envía por TCP | Fuera de `IA/` (ya hecho) |
 | 3 imágenes por cara lateral + giros de 90° + cara superior | Contrato vigente: **5 fotos, una por cara** (`CARAS_POR_OBJETO`) — confirmado por el usuario | Entrada de `Reconocedor.procesar` |
 | Modelo CNN: regiones de interés (nombre, gramaje, lote, fecha) | Sin dataset todavía | `detector.py` (`DetectorCNN` pendiente; hoy `DetectorImagenCompleta`) |
 | OCR en las regiones | — | `ocr.py` (RapidOCR, CPU) |
 | Validación: formato de lote, formato de fecha, confianza, comparación entre fotos | — | `parseo.py` + `validacion.py` |
 | ¿Nombre, lote y fecha detectados? → guardar datos | El almacenamiento/inventario es del panel (`pc/`) | Salida `ResultadoCaja` (campos para el panel) |
 | Clasificación: “determinación de rango y destino” | Rangos FEFO por vencimiento (decidido por el usuario); rangos concretos sin definir | `fefo.py` + `config/reconocimiento.json` |
-| PC envía orden de clasificación al microcontrolador | Ya implementado (Orange Pi ordena `clasificar` por UART) | Fuera de `ia/` |
+| PC envía orden de clasificación al microcontrolador | Ya implementado (Orange Pi ordena `clasificar` por UART) | Fuera de `IA/` |
 
 ## 2. Entrada, salida y errores
 

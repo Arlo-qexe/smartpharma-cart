@@ -7,7 +7,7 @@ pc/src/ocr_interface.py se reduce a:
     from smartpharma_ia.adaptador_pc import procesar_lote_ocr as _ia
     def procesar_lote_ocr(imagenes): return _ia(imagenes)
 
-(y `ia/` se añade al PYTHONPATH de la PC). Hasta entonces, pc/ no se toca.
+(y `IA/` se añade al PYTHONPATH de la PC). Hasta entonces, pc/ no se toca.
 
 Variables de entorno:
   IA_OCR      motor de OCR (defecto: "rapidocr")
@@ -43,7 +43,7 @@ def _obtener() -> Reconocedor:
             _reconocedor = Reconocedor(ocr=crear_ocr(os.environ.get("IA_OCR", "rapidocr")),
                                        detector=detector, config=cfg)
             if cfg.estado_rangos != "CONFIRMADO":
-                log.warning("Rangos FEFO sin confirmar (%s): revisar ia/config/reconocimiento.json",
+                log.warning("Rangos FEFO sin confirmar (%s): revisar IA/config/reconocimiento.json",
                             cfg.estado_rangos)
         return _reconocedor
 

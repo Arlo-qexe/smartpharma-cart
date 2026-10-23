@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Crea/actualiza el entorno virtual de ia/ (módulo de reconocimiento).
-# Correr desde ia/:
+# Crea/actualiza el entorno virtual de IA/ (módulo de reconocimiento).
+# Correr desde IA/:
 #   bash scripts/setup_venv.sh          # núcleo + OCR (CPU)
 #   OCR=0 bash scripts/setup_venv.sh    # solo el núcleo (pruebas sin motor OCR)
 #

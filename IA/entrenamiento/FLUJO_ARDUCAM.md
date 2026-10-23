@@ -1,6 +1,6 @@
 # Flujo con la Arducam: capturar, probar, etiquetar, entrenar
 
-Todos los comandos se corren desde la carpeta `ia\` en Windows. La Arducam va por USB al PC.
+Todos los comandos se corren desde la carpeta `IA\` en Windows. La Arducam va por USB al PC.
 
 ## 0. Montaje (se hace una vez y no se cambia entre sesiones)
 

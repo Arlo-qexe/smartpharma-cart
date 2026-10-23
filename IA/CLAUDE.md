@@ -1,4 +1,4 @@
-# Contexto: módulo de reconocimiento (IA) — carpeta `ia/`
+# Contexto: módulo de reconocimiento (IA) — carpeta `IA/`
 
 Este código lee las 5 fotos de una caja de medicamento y decide su destino
 (rango FEFO) o la manda a revisión manual. **Está separado de `pc/` a propósito**:
@@ -26,7 +26,7 @@ contrato vigente), `config.py` + `config/reconocimiento.json`.
    (lote, vencimiento, confianza: pendiente S-05) es una **propuesta** en
    `docs/DISENO.md`, no un cambio.
 2. **No redefinas constantes del protocolo.** Solo se importa
-   `RESULTADO_ERROR_REVISION_MANUAL` de `../shared/protocol_constants.py`. Los
+   `RESULTADO_ERROR_REVISION_MANUAL` de `../shared/protocol_constants.py` (la raíz del repo, un nivel arriba de `IA/`). Los
    nombres de destino (`TIPO_A`…) salen de `config/reconocimiento.json`.
 3. **Todo en RAM**: nunca escribas las fotos recibidas a disco (ni en logs ni en
    archivos temporales). Las imágenes de entrenamiento del dataset son otra cosa

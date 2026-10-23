@@ -1,10 +1,10 @@
-# ia/ — módulo de reconocimiento (en desarrollo, separado de `pc/`)
+# IA/ — módulo de reconocimiento (en desarrollo, separado de `pc/`)
 
 Lee 5 fotos de una caja, extrae lote y fecha de vencimiento (OCR + reglas) y devuelve
 el destino FEFO o `ERROR_REVISION_MANUAL`.
 
 ```bash
-cd ia
+cd IA
 bash scripts/setup_venv.sh && source .venv/bin/activate
 python -m unittest discover -s tests -t .
 claude          # agente de esta carpeta: lee CLAUDE.md y docs/DISENO.md

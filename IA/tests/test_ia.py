@@ -1,6 +1,6 @@
 """Pruebas del módulo de reconocimiento. No requieren motor OCR ni GPU.
 
-Ejecutar desde ia/:  python -m unittest discover -s tests -t .
+Ejecutar desde IA/:  python -m unittest discover -s tests -t .
 """
 import io
 import unittest

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-# El único valor que se toma del contrato compartido. Ver ia/CLAUDE.md:
+# El único valor que se toma del contrato compartido. Ver IA/CLAUDE.md:
 # este paquete NUNCA redefine constantes del protocolo.
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import RESULTADO_ERROR_REVISION_MANUAL  # noqa: E402

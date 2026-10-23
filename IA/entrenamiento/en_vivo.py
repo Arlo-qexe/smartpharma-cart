@@ -5,7 +5,7 @@
 ESPACIO captura una cara · P procesa con las caras que haya · N caja nueva (descarta lo capturado) · Q sale.
 Cada cara se codifica a JPEG en memoria y se entrega a Reconocedor.procesar(list[bytes]), igual que
 haría la Orange Pi. No guarda nada a disco salvo que uses --guardar (para revisar después qué falló).
-Requiere la carpeta shared/ junto a ia/ (ver ia/CLAUDE.md).
+Requiere la carpeta shared/ en la raíz del repo (ver IA/CLAUDE.md).
 """
 import argparse
 import os

@@ -1,0 +1,7 @@
+# Fotos del dataset y pesos de modelos: fuera del repo (ver CLAUDE.md regla 3 y docs/DISENO.md §5).
+# Viven en el disco local de quien entrena; el repo solo lleva el código y las métricas.
+dataset_ia/
+modelos/
+*.zip
+*.pt
+*.onnx

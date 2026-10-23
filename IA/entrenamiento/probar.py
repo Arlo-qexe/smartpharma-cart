@@ -2,7 +2,7 @@
 Agrupa las 5 caras de cada caja, corre Reconocedor y escribe un CSV para comparar con las cajas reales.
 
     python entrenamiento/probar.py --modelo ruta/best.onnx --fotos dataset_ia/crudo --csv resultados.csv
-Requiere la carpeta shared/ junto a ia/ (ver ia/CLAUDE.md) y: pip install -r requirements.txt -r requirements-ocr.txt ultralytics onnxruntime
+Requiere la carpeta shared/ en la raíz del repo (ver IA/CLAUDE.md) y: pip install -r requirements.txt -r requirements-ocr.txt ultralytics onnxruntime
 """
 import argparse
 import csv
