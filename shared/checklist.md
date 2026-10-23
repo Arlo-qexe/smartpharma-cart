@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
+**Última actualización:** 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
+Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-11 hecha, OP-26 detener el ciclo, OP-27 cámara por lote).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 detener el ciclo, cantidad de cajas e indicador de la Orange Pi; S-11).
@@ -123,9 +124,9 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   interfaz real (sin loopback, enlace-local ni Docker; Wi-Fi/Ethernet primero) → loopback
   con aviso. `start_pc.sh` muestra la IP elegida y su origen. **La IP se fija al arrancar:**
   conectar la PC a la red *antes* de lanzar y reiniciar si se cambia de red. 91 pruebas pasan.
-- [~] **PC-22** Detener el ciclo, cantidad de cajas e indicador de la Orange Pi (2026-10-23, pedido
-  del usuario: hoy el ciclo no se detiene salvo con Ctrl+C en la Orange Pi). **Lado PC hecho,
-  falta el lado Orange Pi (S-11).** Contrato nuevo en `shared/` (informe 4.8): **antes de cada
+- [x] **PC-22** Detener el ciclo, cantidad de cajas e indicador de la Orange Pi (2026-10-23, pedido
+  del usuario: hoy el ciclo no se detiene salvo con Ctrl+C en la Orange Pi). **Hecho en los dos
+  lados** (lado Orange Pi: **S-11** / **OP-26**). Contrato nuevo en `shared/` (informe 4.8): **antes de cada
   objeto** la Orange Pi consulta `{"consulta": "estado_ciclo"}` y la PC responde
   `{"ciclo": "continuar"|"detener"}`. La PC cuenta las cajas y decide (botón "Detener" o cantidad
   alcanzada); detener actúa solo entre objetos; una PC reiniciada responde `detener`. Panel:
@@ -134,8 +135,12 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   con la Orange Pi** (verde si hubo un mensaje suyo en los últimos 45 s; es el último mensaje
   recibido, no un ping). También: el clasificador placeholder ahora responde **al azar**
   `TIPO_A/B/C` (antes siempre `TIPO_A`; sigue siendo del equipo de IA). 119 pruebas pasan y se
-  revisó el panel renderizado en un navegador. *Pendiente:* probarlo de punta a punta con la
-  Orange Pi real cuando implemente **S-11**; sin ella el botón queda en "Deteniendo…".
+  revisó el panel renderizado en un navegador. **Probado de punta a punta con la Orange Pi
+  real (2026-10-23):** el botón detuvo y reanudó el ciclo con una orden nueva, y el usuario
+  confirmó que funciona bien (la Orange Pi lo registra en **OP-26**; también en el router de la
+  demo, **OP-23**). Después se ajustó el panel: Inicio sigue siempre al lote más reciente
+  (antes quedaba fijo en un lote abierto desde Inventario) y las fotos del monitoreo van en
+  3 por fila (3 + 2) y más grandes. *Sigue pendiente (fuera de PC-22):* pausar/reanudar no existe.
 - [~] **PC-21** Conexión Orange Pi ↔ PC con la PC en **WSL2** (2026-10-22). Entorno restaurado
   desde GitHub (venv completo, 91 pruebas pasan). Hallazgos y estado:
   - WSL2 en modo NAT anunciaba `172.22.x.x`, inalcanzable para la Orange Pi, y mDNS no
@@ -445,6 +450,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 `[x]`: detener el ciclo y cantidad de cajas probados de punta a punta con la Orange Pi real (OP-26); el panel muestra siempre el lote más reciente y las fotos van 3 por fila. Sin cambios de contrato. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-23 `[x]` y S-10 `Hecha`: probado en el router de la demo (placa y PC en `192.168.0.x`, mDNS y puertos bien, ciclo completo con `--simular-esp`). |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | D-12: autoenfoque explícito en la cámara del carrito y en la captura del conjunto de datos (Arducam). Se actualizó `IA/entrenamiento/FLUJO_ARDUCAM.md`, que recomendaba enfoque manual y fijo, con permiso del usuario. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-11 `Hecha`: `main.py` consulta `estado_ciclo` antes de cada objeto y detiene el ciclo (OP-26, probado con la PC real). OP-27 nuevo: la cámara se enciende solo durante cada lote, con 500 ms apagada entre lotes. |
