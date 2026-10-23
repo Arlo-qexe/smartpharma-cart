@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
+**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
+Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-11 hecha, OP-26 detener el ciclo, OP-27 cámara por lote).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 detener el ciclo, cantidad de cajas e indicador de la Orange Pi; S-11).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-24 probado, OP-25 prueba de 12 ciclos con el botón).
@@ -295,16 +296,15 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   que exista, sin abrirla. Medido en el hardware real: ~18 s encendida por lote y 3-7 s
   apagada entre lotes. Corrige que quedara abierta durante las esperas, incluso tras
   `detener`.
-- [~] **OP-23** Red WiFi de la demo (**S-10**, **D-11**): la red del router D-Link
-  DWR-932W se **agregó** a `wlan0` como un archivo netplan aparte
-  (`/etc/netplan/40-...`), sin tocar la configuración DHCP de siempre; ambas redes
-  quedan cargadas en `wpa_supplicant`. En un escaneo el router se ve con la señal más
-  fuerte (-31 dBm, 2,4 GHz). **Falta:** conectar de verdad (la clave no se ha
-  probado: hoy la placa se queda en la red conocida que ya tenía), y repetir
-  `start_Opi.sh --verificar` con la PC ya en ese router. Prueba sin tocar archivos:
-  `sudo /usr/sbin/wpa_cli -i wlan0 select_network <id>`. Ese día, comprobar con
-  `ip -4 addr show wlan0` que la placa está en la red del router, no en otra
-  conocida. El SSID y la clave no se registran aquí.
+- [x] **OP-23** Red WiFi de la demo (**S-10**, **D-11**): la placa y la PC trabajan en la red del
+  router D-Link DWR-932W (**probado 2026-10-23**). La red se agregó a `wlan0` con un archivo
+  netplan aparte (`/etc/netplan/40-...`), sin tocar la configuración DHCP de siempre. En el
+  router: placa en `192.168.0.5`, PC en `192.168.0.4`; `start_Opi.sh --verificar` pasa (UART,
+  cámara, PC por mDNS) y los puertos 5000 y 5001 responden. El **ciclo completo** corrió en esa
+  red con `--simular-esp` (cámara real y PC real). Un lote vacío visto durante las pruebas era
+  solo la ESP32-S3 ausente (se había olvidado `--simular-esp`), no la red. Si la placa vuelve a
+  una red conocida, comprobar con `ip -4 addr show wlan0`. El SSID y la clave no se registran
+  aquí. *Sigue pendiente:* la ESP32-S3 real (**OP-16**).
 - [x] **OP-17** `orange-pi/requirements-lock.txt` generado con `pip freeze` (commit `6a3fb71`).
 - [x] **OP-18** Quitados los TODO obsoletos de `camera.py` y `main.py` (commit `f1461ef`).
 
@@ -324,7 +324,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi y un canal; el diseño tenía solo Orange Pi → PC. | Hecha | **Opción 1 decidida por ambos lados (D-10), implementada en los dos y probada de punta a punta.** Contrato en `shared/` (`CONSULTA_ORDEN_CICLO`, `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`/`ORDEN_CICLO_INICIAR`, `VIGENCIA_ORDEN_CICLO_S`; sección 4.7 del informe). Lado PC: **PC-10**; lado Orange Pi: commit `d7dfc06`, **OP-22**. Interpretación del usuario: el botón *inicia el ciclo de auditoría* (no mueve el carrito). Pausar/detener (opción 2) queda fuera. Opciones y respuestas, en "Consulta abierta — S-06". |
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
-| S-10 | PC → Orange Pi | **Red de la demo (D-11):** conectar la Orange Pi al router móvil D-Link DWR-932W (su plantilla netplan de demo; el SSID y la clave **no** se registran aquí) y repetir las pruebas de conexión con la PC en esa red. | Aceptada | La PC anuncia su IP por mDNS (puerto 5000) y la Orange Pi usa la misma IP para el 5001. Con la PC ya conectada al router, `start_pc.sh` muestra la IP que se anuncia. Comprobar antes **que el router no tenga aislamiento de clientes** (ping en ambos sentidos). **Lado Orange Pi (2026-10-14), ver OP-23:** red agregada y router visible, pero la conexión y las pruebas con la PC en ese router siguen pendientes. |
+| S-10 | PC → Orange Pi | **Red de la demo (D-11):** conectar la Orange Pi al router móvil D-Link DWR-932W (su plantilla netplan de demo; el SSID y la clave **no** se registran aquí) y repetir las pruebas de conexión con la PC en esa red. | Hecha | La PC anuncia su IP por mDNS (puerto 5000) y la Orange Pi usa la misma IP para el 5001. Con la PC ya conectada al router, `start_pc.sh` muestra la IP que se anuncia. Comprobar antes **que el router no tenga aislamiento de clientes** (ping en ambos sentidos). **Lado Orange Pi (2026-10-14), ver OP-23:** red agregada y router visible, pero la conexión y las pruebas con la PC en ese router siguen pendientes. **Hecho (2026-10-23), ver OP-23:** la Orange Pi y la PC quedaron en el router (`192.168.0.x`), mDNS y puertos 5000/5001 funcionan y el ciclo completo corrió en esa red. |
 | S-11 | PC → Orange Pi | **Detener el ciclo y cantidad de cajas (PC-22, informe 4.8):** antes de cada `activar_dispensador` (el primer objeto incluido), consultar `{"consulta": "estado_ciclo"}` (puerto 5001, framing de 4.2, una conexión por consulta). `{"ciclo": "continuar"}` → introducir el objeto; `{"ciclo": "detener"}` → no introducir más y **volver a `esperar_orden_inicio`** (como al arrancar; hace falta una orden `iniciar` nueva). Si la PC no contesta, **continuar** (recuperación de 4.6). Constantes: `CONSULTA_ESTADO_CICLO`, `CLAVE_CICLO_JSON`, `CICLO_CONTINUAR`, `CICLO_DETENER`. Cliente de referencia: `consultar_estado_ciclo()` en `pc/tests/mock_orangepi_client.py`. | Hecha | La PC ya responde. No cambia la orden `iniciar` ni la ESP32-S3. La cantidad la cuenta la PC: la Orange Pi solo obedece. Si no estás de acuerdo con la forma (p. ej. preguntar al final del ciclo en vez de al principio), ponla `En discusión` con el motivo. **Lado Orange Pi hecho (2026-10-23), ver OP-26:** `debe_continuar()` hace UNA consulta por objeto (el primero incluido), sin reintentos; con `detener` vuelve a `esperar_orden_inicio`; sin respuesta de la PC continúa. Probado con la PC real: el ciclo se detuvo y se reanudó con una orden nueva. |
 | S-07 | Orange Pi → PC | Antes de la prueba de punta a punta (**PC-12**): abrir en el firewall de la PC los puertos 5000/TCP, 5001/TCP y 5353/UDP, y avisar cuando el servidor y el panel estén corriendo en la PC real. | Hecha | Firewall: `ufw` está `inactive` en la PC, no hay puertos que abrir. Servidor y panel corriendo con estado limpio en `192.168.20.53` (puertos 5000 y 5001). La Orange Pi descubre la PC por mDNS y usa la misma IP para el puerto 5001. **Si tu prueba de conexión falla, reabre esta solicitud.** Prueba sin instalar nada: `timeout 3 bash -c '</dev/tcp/192.168.20.53/5001' && echo OK`. |
 
@@ -445,6 +445,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-23 `[x]` y S-10 `Hecha`: probado en el router de la demo (placa y PC en `192.168.0.x`, mDNS y puertos bien, ciclo completo con `--simular-esp`). |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | D-12: autoenfoque explícito en la cámara del carrito y en la captura del conjunto de datos (Arducam). Se actualizó `IA/entrenamiento/FLUJO_ARDUCAM.md`, que recomendaba enfoque manual y fijo, con permiso del usuario. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-11 `Hecha`: `main.py` consulta `estado_ciclo` antes de cada objeto y detiene el ciclo (OP-26, probado con la PC real). OP-27 nuevo: la cámara se enciende solo durante cada lote, con 500 ms apagada entre lotes. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 nuevo `[~]`: botón "Detener", casilla de cantidad de cajas e indicador de conexión de la Orange Pi; clasificador placeholder al azar. Contrato nuevo `estado_ciclo` (informe 4.8) y S-11 para el lado Orange Pi. |
