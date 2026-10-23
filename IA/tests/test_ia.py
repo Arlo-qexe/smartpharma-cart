@@ -153,7 +153,7 @@ class TestPipeline(unittest.TestCase):
 
     def test_ocr_que_lanza_excepcion(self):
         class Roto:
-            def leer(self, _):
+            def leer(self, _, exhaustivo=True):
                 raise RuntimeError("boom")
         r = Reconocedor(Roto(), config=cargar_config(), hoy=HOY).procesar(cinco())
         self.assertEqual(r.clasificacion, ERR)
@@ -177,6 +177,113 @@ class TestPipeline(unittest.TestCase):
         rec = Reconocedor(OcrGuionado([("Lote AB1234 VENC 08/2027", 0.9)] + [("", 0.0)] * 4),
                           config=cfg, hoy=HOY)
         self.assertEqual(rec.procesar(cinco()).clasificacion, ERR)  # 1 de 5 no es mayoría
+
+
+class TestTiempo(unittest.TestCase):
+    """Presupuesto de tiempo por caja: la Orange Pi espera 10 s y luego reenvía el lote."""
+
+    @staticmethod
+    def _cfg(**cambios):
+        import dataclasses
+        return dataclasses.replace(cargar_config(), **cambios)
+
+    def test_foto_completa_usa_una_sola_pasada_y_el_recorte_del_detector_no(self):
+        from smartpharma_ia.tipos import Region
+
+        class Espia:
+            def __init__(self):
+                self.exhaustivo = []
+
+            def leer(self, imagen, exhaustivo=True):
+                self.exhaustivo.append(exhaustivo)
+                return "", 0.0
+
+        espia = Espia()
+        Reconocedor(espia, config=cargar_config(), hoy=HOY).procesar(cinco())
+        self.assertEqual(espia.exhaustivo, [False] * 5)          # foto completa: 1 pasada por cara
+
+        class Det:
+            def detectar(self, img):
+                return [Region("lote", (0, 0, 10, 10))]
+        espia = Espia()
+        Reconocedor(espia, detector=Det(), config=cargar_config(), hoy=HOY).procesar([jpeg()])
+        self.assertEqual(espia.exhaustivo, [True])               # recorte ajustado: se prueba más
+
+    def test_ocr_rapid_hace_una_llamada_en_modo_simple_y_varias_en_exhaustivo(self):
+        try:
+            import numpy  # noqa: F401
+        except ImportError:
+            self.skipTest("numpy no instalado (viene con el motor OCR)")
+        from smartpharma_ia.ocr import OcrRapid
+
+        class Motor:
+            llamadas = 0
+
+            def __call__(self, _imagen):
+                Motor.llamadas += 1
+                return None, None
+        ocr = OcrRapid.__new__(OcrRapid)          # sin cargar el modelo real
+        ocr._motor = Motor()
+        ancha, alta = Image.new("RGB", (1920, 1080)), Image.new("RGB", (100, 400))
+        for imagen, simple, completo in ((ancha, 1, 4), (alta, 1, 6)):
+            Motor.llamadas = 0
+            ocr.leer(imagen, exhaustivo=False)
+            self.assertEqual(Motor.llamadas, simple)
+            Motor.llamadas = 0
+            ocr.leer(imagen)
+            self.assertEqual(Motor.llamadas, completo)
+
+    def _con_reloj(self, config, segundos_por_llamada):
+        """Pipeline con un OCR lento y un reloj falso: cada llamada al OCR avanza el reloj."""
+        from unittest import mock
+        reloj = [0.0]
+        llamadas = []
+
+        class Lento:
+            def leer(self, imagen, exhaustivo=True):
+                llamadas.append(1)
+                reloj[0] += segundos_por_llamada
+                return "", 0.0
+        with mock.patch("smartpharma_ia.pipeline.time.monotonic", side_effect=lambda: reloj[0]):
+            r = Reconocedor(Lento(), config=config, hoy=HOY).procesar(cinco())
+        return r, len(llamadas)
+
+    def test_tope_de_tiempo_responde_con_lo_leido_y_lo_marca(self):
+        r, llamadas = self._con_reloj(self._cfg(tiempo_maximo_s=7.0), 3.0)
+        self.assertEqual(llamadas, 3)                           # t=0, 3, 6 leen; t=9 ya no
+        self.assertEqual(r.clasificacion, ERR)
+        self.assertIn("tiempo_agotado", r.motivo)
+        self.assertIn("lote:ausente", r.motivo)
+        self.assertEqual([("tiempo_agotado" in l.observaciones) for l in r.lecturas],
+                         [False, False, False, True, True])
+
+    def test_sin_tope_se_leen_todas_las_caras(self):
+        r, llamadas = self._con_reloj(self._cfg(tiempo_maximo_s=None), 100.0)
+        self.assertEqual(llamadas, 5)
+        self.assertNotIn("tiempo_agotado", r.motivo)
+
+    def test_si_alcanza_el_tiempo_no_se_marca_agotado(self):
+        r, llamadas = self._con_reloj(self._cfg(tiempo_maximo_s=7.0), 0.5)
+        self.assertEqual(llamadas, 5)
+        self.assertNotIn("tiempo_agotado", r.motivo)
+
+    def test_el_tope_viene_de_la_config(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from smartpharma_ia.config import RUTA_CONFIG_DEFECTO
+        self.assertEqual(cargar_config().tiempo_maximo_s, 7.0)
+        base = json.loads(RUTA_CONFIG_DEFECTO.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as carpeta:
+            def con_tope(valor):
+                ruta = Path(carpeta) / "cfg.json"
+                ruta.write_text(json.dumps({**base, "tiempo_maximo_s": valor}), encoding="utf-8")
+                return cargar_config(ruta)
+            for valor, esperado in ((0, None), (None, None), (4.5, 4.5)):
+                self.assertEqual(con_tope(valor).tiempo_maximo_s, esperado)
+            for malo in (-1, "rápido", True):
+                with self.assertRaises(ValueError):
+                    con_tope(malo)
 
 
 class TestAdaptador(unittest.TestCase):

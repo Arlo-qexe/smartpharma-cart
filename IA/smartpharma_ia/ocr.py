@@ -1,6 +1,8 @@
 """Etapa 2 del esquema: OCR sobre cada región.
 
-Interfaz `Ocr.leer(imagen) -> (texto, confianza)`. Motores:
+Interfaz `Ocr.leer(imagen, exhaustivo=True) -> (texto, confianza)`. `exhaustivo=False` pide UNA
+sola pasada (para fotos completas, donde probar giros y márgenes cuesta segundos y no aporta).
+Motores:
   - OcrRapid: RapidOCR (ONNX, corre en CPU, opcional: requirements-ocr.txt).
   - OcrGuionado: devuelve textos predefinidos; para pruebas sin motor real.
 """
@@ -16,7 +18,7 @@ class OcrNoDisponible(RuntimeError):
 
 
 class Ocr(Protocol):
-    def leer(self, imagen: Image.Image) -> tuple[str, float]: ...
+    def leer(self, imagen: Image.Image, exhaustivo: bool = True) -> tuple[str, float]: ...
 
 
 class OcrRapid:
@@ -32,20 +34,29 @@ class OcrRapid:
             ) from e
         self._motor = RapidOCR()
 
-    def leer(self, imagen: Image.Image) -> tuple[str, float]:
+    def leer(self, imagen: Image.Image, exhaustivo: bool = True) -> tuple[str, float]:
         """Recortes ajustados al texto: RapidOCR no lee si no hay margen (se añade borde blanco)
         ni texto girado 90° (se prueban orientaciones según la forma del recorte y se
-        elige la de mayor confianza x texto leído). Medido sobre recortes reales del detector."""
+        elige la de mayor confianza x texto leído). Medido sobre recortes reales del detector.
+
+        exhaustivo=False (foto completa, sin detector): UNA sola pasada a 0° y sin margen. Los
+        giros y márgenes multiplicaban por 4 las llamadas (≈1 s c/u en CPU, 20 por caja) y no
+        aportan en una foto entera: el borde no hace falta y RapidOCR ya endereza por sí mismo
+        las líneas puestas al revés (clasificador de ángulo)."""
         import numpy as np
 
         rgb = imagen.convert("RGB")
         ancho, alto = rgb.size
-        giros = (90, 270, 0) if alto > 1.5 * ancho else (0, 180) if ancho > 1.5 * alto else (0,)
+        if exhaustivo:
+            giros = (90, 270, 0) if alto > 1.5 * ancho else (0, 180) if ancho > 1.5 * alto else (0,)
+            margenes = (0, 40)  # con y sin borde: según el recorte, uno u otro lee mejor
+        else:
+            giros, margenes = (0,), (0,)
         mejor: tuple[str, float] = ("", 0.0)
         mejor_puntaje = 0.0
         for giro in giros:
             img = rgb.rotate(giro, expand=True) if giro else rgb
-            for margen in (0, 40):  # con y sin borde: según el recorte, uno u otro lee mejor
+            for margen in margenes:
                 lienzo = img
                 if margen:
                     lienzo = Image.new("RGB", (img.width + 2 * margen, img.height + 2 * margen), (255, 255, 255))
@@ -70,7 +81,7 @@ class OcrGuionado:
         self._respuestas = list(respuestas)
         self._i = 0
 
-    def leer(self, imagen: Image.Image) -> tuple[str, float]:
+    def leer(self, imagen: Image.Image, exhaustivo: bool = True) -> tuple[str, float]:
         if self._i >= len(self._respuestas):
             return "", 0.0
         r = self._respuestas[self._i]

@@ -34,6 +34,9 @@ class Config:
     anios_atras_plausible: int
     anios_adelante_plausible: int
     estado_rangos: str         # "PLACEHOLDER_SIN_CONFIRMAR" hasta que el equipo los defina
+    # Tope de tiempo por caja (s): pasado ese tiempo se dejan de leer caras y se decide con lo
+    # leído (normalmente -> revisión manual con motivo `tiempo_agotado`). None = sin tope.
+    tiempo_maximo_s: float | None = None
 
 
 def cargar_config(ruta: str | Path | None = None) -> Config:
@@ -55,6 +58,12 @@ def cargar_config(ruta: str | Path | None = None) -> Config:
         if c not in CAMPOS_VALIDOS:
             raise ValueError(f"campo obligatorio desconocido: {c!r} (use {CAMPOS_VALIDOS})")
 
+    tiempo_maximo_s = datos.get("tiempo_maximo_s", 7.0)
+    if tiempo_maximo_s is not None and (isinstance(tiempo_maximo_s, bool)
+                                        or not isinstance(tiempo_maximo_s, (int, float))
+                                        or tiempo_maximo_s < 0):
+        raise ValueError(f"tiempo_maximo_s inválido: {tiempo_maximo_s!r} (número >= 0, o null)")
+
     return Config(
         rangos=rangos,
         estrategia=estrategia,
@@ -65,6 +74,7 @@ def cargar_config(ruta: str | Path | None = None) -> Config:
         anios_atras_plausible=int(datos.get("anios_atras_plausible", 10)),
         anios_adelante_plausible=int(datos.get("anios_adelante_plausible", 15)),
         estado_rangos=datos.get("_estado_rangos", "DESCONOCIDO"),
+        tiempo_maximo_s=float(tiempo_maximo_s) if tiempo_maximo_s else None,   # 0 / null = sin tope
     )
 
 

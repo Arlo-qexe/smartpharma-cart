@@ -46,7 +46,32 @@ parcialmente desactualizada) y en el estado actual del repo (contrato en
 4. **S-05 (salida del reconocimiento hacia el panel):** propuesta de campos que ya produce `ResultadoCaja`: `lote`, `vencimiento` (ISO `AAAA-MM-DD`), `confianza` (0-1), `nombre`, `gramaje`, `dias_para_vencer`, `motivo`. Falta decidir cómo viajan (hoy la respuesta TCP solo lleva `clasificacion`) — sería un cambio de contrato.
 5. **Política de imágenes ilegibles/borrosas:** hoy cuentan como cara sin datos. ¿Se pide recaptura a la Orange Pi? (cambio de protocolo; no se asumió).
 
-## 5. Dataset y detector CNN (cuando se pueda)
+## 5. Presupuesto de tiempo por caja
+
+La Orange Pi espera `TIMEOUT_RESPUESTA_RECONOCIMIENTO_S` (10 s) la respuesta de la PC; si no llega,
+**reenvía el lote completo** y a los 30 s (`TIMEOUT_TOTAL_TRANSACCION_S`) da el fallo por de red y
+enciende la alarma local. Un reconocimiento lento no es solo lento: provoca reenvíos (la PC procesaría el
+mismo lote varias veces a la vez) y alarmas falsas. Por eso el módulo debe responder **bien por debajo de 10 s**.
+
+- **Medido (2026-10-23)**, RapidOCR en CPU de 16 núcleos, 5 caras sintéticas de 1920×1080, sin detector CNN:
+  - antes: 20 llamadas al OCR por caja (5 caras × 2 giros × 2 márgenes) = **21-30 s**;
+  - ahora: 5 llamadas (una pasada por cara completa) = **4,8-6,3 s**, con la misma lectura.
+- **Qué se cambió:** `Ocr.leer(imagen, exhaustivo=...)`. Con foto completa (`ETIQUETA_COMPLETA`) se hace UNA
+  pasada: el borde no hace falta y RapidOCR ya endereza líneas al revés. Los recortes del detector CNN siguen
+  siendo exhaustivos (giros y márgenes) porque ahí sí ayudan.
+- **Tope de tiempo** (`tiempo_maximo_s`, 7 s por defecto en `config/reconocimiento.json`): pasado ese tiempo se
+  dejan de leer caras y se decide con lo leído (si no alcanza, revisión manual con motivo `tiempo_agotado`). Se
+  comprueba entre llamadas al OCR, así que puede pasarse lo que dure UNA llamada. Contra: al saltarse caras se
+  pierde la comparación entre fotos de esas caras.
+- **Probado y descartado:** reducir la imagen a 960 px (1,2 → 0,8 s por llamada, con riesgo para el texto
+  pequeño) y leer las 5 caras en hilos (6,2 → 4,5 s; poco para el riesgo de concurrencia con un motor compartido).
+- **Límites de esta medición:** texto sintético con pocas líneas; una caja real tiene más texto por cara (más
+  trabajo de reconocimiento) y la PC de la demo puede ser más lenta. **Hay que repetirla con cajas reales en la
+  máquina final** (`entrenamiento/probar.py` imprime el tiempo por caja) y calibrar `tiempo_maximo_s`.
+- **Pendiente con el detector CNN:** cada región por cara puede costar hasta 6 llamadas (con recortes pequeños son
+  más baratas, pero no está medido).
+
+## 6. Dataset y detector CNN (cuando se pueda)
 
 No hay fotos aún. Para pasar de “imagen completa + regex” al detector del esquema:
 
@@ -56,7 +81,7 @@ No hay fotos aún. Para pasar de “imagen completa + regex” al detector del e
 - Las fotos de entrenamiento **no se suben al repo** (peso y posible contenido comercial); van a almacenamiento del equipo.
 - Implementar `DetectorCNN` respetando la interfaz de `detector.py`; el resto del pipeline no cambia.
 
-## 6. Verificación hecha
+## 7. Verificación hecha
 
-- 21 pruebas unitarias (parseo de fechas y lotes, rangos FEFO, consolidación, pipeline, adaptador), sin OCR ni GPU.
+- 27 pruebas unitarias (parseo de fechas y lotes, rangos FEFO, consolidación, pipeline, presupuesto de tiempo, adaptador), sin OCR ni GPU.
 - Una corrida con RapidOCR real sobre 5 caras **sintéticas** (texto limpio renderizado): lote `AB1234`, vencimiento 31/08/2027, confianza 0.98 → `TIPO_C` con los rangos placeholder. **No** demuestra el desempeño con cajas reales (brillo, curvatura, tinta troquelada): eso solo se mide con fotos reales.
