@@ -16,6 +16,7 @@ sys.path.insert(0, str(RAIZ.parent / "shared"))
 
 import main  # noqa: E402
 from network import decision_client as dc  # noqa: E402
+from capture.camera import CamaraPorLote  # noqa: E402
 from network import recuperacion  # noqa: E402
 from protocol_constants import (  # noqa: E402
     ACCION_ACTIVAR_ALARMA_LOCAL,
@@ -482,12 +483,13 @@ class EnlaceConEventos:
 class CapturaRobusta(unittest.TestCase):
     """Informe 6.2: cualquier fallo durante la captura aborta el lote (lote vacío)."""
 
-    def correr(self, enlace, captura):
+    def correr(self, enlace, captura, camaras=None):
         originales = (main.capturar_con_autoenfoque, main.comprimir_jpeg, main.time.sleep)
         main.capturar_con_autoenfoque, main.comprimir_jpeg = captura, lambda f: b"jpeg"
         main.time.sleep = lambda s: None
+        self.camaras = camaras or CamaraPorLote(abrir=lambda: mock.Mock(), pausa_s=0)
         try:
-            return main.capturar_lote_completo(enlace, camara=None)
+            return main.capturar_lote_completo(enlace, self.camaras)
         finally:
             main.capturar_con_autoenfoque, main.comprimir_jpeg, main.time.sleep = originales
 
@@ -528,7 +530,8 @@ class CapturaRobusta(unittest.TestCase):
         try:
             with mock.patch.object(main.time, "sleep"):
                 enlace = EnlaceConEventos()
-                ok = main.ciclo_de_un_objeto(enlace, None, None)
+                ok = main.ciclo_de_un_objeto(
+                    enlace, CamaraPorLote(abrir=lambda: mock.Mock(), pausa_s=0), None)
         finally:
             (main.introducir_objeto, main.enviar_lote, main.esperar_decision,
              main.capturar_con_autoenfoque) = originales
@@ -539,6 +542,85 @@ class CapturaRobusta(unittest.TestCase):
     def test_introducir_objeto_con_uart_caido_agota_reintentos_sin_excepcion(self):
         enlace = EnlaceConEventos(error_en_enviar=OSError("x"))
         self.assertFalse(main.introducir_objeto(enlace))
+
+    def test_la_camara_se_enciende_al_empezar_el_lote_y_se_apaga_al_terminar(self):
+        abiertas = []
+        camaras = CamaraPorLote(abrir=lambda: abiertas.append(mock.Mock()) or abiertas[-1], pausa_s=0)
+        self.assertEqual(len(self.correr(EnlaceConEventos(), lambda c: "frame", camaras)), 5)
+        self.assertEqual(len(abiertas), 1)                 # una sola apertura para las 5 fotos
+        abiertas[0].release.assert_called_once()
+
+    def test_la_camara_se_apaga_aunque_el_lote_falle(self):
+        abiertas = []
+        camaras = CamaraPorLote(abrir=lambda: abiertas.append(mock.Mock()) or abiertas[-1], pausa_s=0)
+
+        def camara_rota(c):
+            raise RuntimeError("x")
+        self.assertEqual(self.correr(EnlaceConEventos(), camara_rota, camaras), [])
+        abiertas[0].release.assert_called_once()
+        # y también si el giro no se confirma
+        abiertas.clear()
+        self.assertEqual(self.correr(EnlaceConEventos(cara_respondida=4), lambda c: "frame", camaras), [])
+        abiertas[0].release.assert_called_once()
+
+    def test_si_la_camara_no_abre_el_lote_se_aborta_sin_levantar_excepcion(self):
+        def no_abre():
+            raise RuntimeError("No se pudo abrir la cámara")
+        camaras = CamaraPorLote(abrir=no_abre, pausa_s=0)
+        self.assertEqual(self.correr(EnlaceConEventos(), lambda c: "frame", camaras), [])
+
+
+class CamaraPorLoteTests(unittest.TestCase):
+    def hacer(self, pausa_s=0.5):
+        self.t, self.esperas, self.abiertas = [100.0], [], []
+
+        def abrir():
+            c = mock.Mock()
+            self.abiertas.append(c)
+            return c
+
+        def dormir(s):
+            self.esperas.append(round(s, 3))
+            self.t[0] += s
+        return CamaraPorLote(abrir=abrir, pausa_s=pausa_s, reloj=lambda: self.t[0], dormir=dormir)
+
+    def test_abre_al_entrar_y_libera_al_salir(self):
+        camaras = self.hacer()
+        with camaras as camara:
+            self.assertIs(camara, self.abiertas[0])
+            camara.release.assert_not_called()
+        camara.release.assert_called_once()
+
+    def test_libera_aunque_haya_una_excepcion_y_no_la_traga(self):
+        camaras = self.hacer()
+        with self.assertRaises(ValueError):
+            with camaras:
+                raise ValueError("x")
+        self.abiertas[0].release.assert_called_once()
+
+    def test_el_primer_lote_no_espera(self):
+        camaras = self.hacer()
+        with camaras:
+            pass
+        self.assertEqual(self.esperas, [])
+
+    def test_entre_lotes_garantiza_500_ms_apagada_y_solo_espera_lo_que_falta(self):
+        camaras = self.hacer(pausa_s=0.5)
+        with camaras:
+            pass
+        self.t[0] += 0.1                      # pasaron 100 ms desde el cierre
+        with camaras:
+            pass
+        self.assertEqual(self.esperas, [0.4])  # falta 400 ms para completar los 500
+        self.assertEqual(len(self.abiertas), 2)
+        self.t[0] += 3.0                      # esta vez ya pasó de sobra
+        with camaras:
+            pass
+        self.assertEqual(self.esperas, [0.4])  # no espera nada más
+
+    def test_la_pausa_por_defecto_es_500_ms(self):
+        from capture.camera import PAUSA_ENTRE_LOTES_S
+        self.assertEqual(PAUSA_ENTRE_LOTES_S, 0.5)
 
 
 class EnlaceUARTBuffer(unittest.TestCase):
@@ -560,33 +642,39 @@ class EnlaceUARTBuffer(unittest.TestCase):
 
 class MainCompleto(unittest.TestCase):
     def correr_main(self, argv, ciclos_hasta_ctrl_c=3, espera=None, continuar=None):
-        enlace, camara, eventos = mock.Mock(), mock.Mock(), []
+        enlace, eventos = mock.Mock(), []
 
-        def ciclo(e, c, d):
+        def ciclo(e, camaras, d):
             eventos.append("ciclo")
             if eventos.count("ciclo") == ciclos_hasta_ctrl_c:
                 raise KeyboardInterrupt
             return True
         with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
-                mock.patch.object(main, "abrir_camara", return_value=camara), \
+                mock.patch.object(main, "buscar_camara_por_nombre") as buscar, \
                 mock.patch.object(main, "DescubridorPC"), \
                 mock.patch.object(main, "esperar_orden_inicio",
                                   side_effect=espera or (lambda d: eventos.append("orden"))), \
                 mock.patch.object(main, "debe_continuar",
                                   side_effect=continuar or (lambda d: eventos.append("pregunta") or True)), \
-                mock.patch.object(main, "ciclo_de_un_objeto", side_effect=ciclo):
+                mock.patch.object(main, "ciclo_de_un_objeto", side_effect=ciclo) as ciclo_mock:
             main.main(argv)
-        return enlace, camara, eventos
+        self.buscar, self.ciclo_mock = buscar, ciclo_mock
+        return enlace, eventos
 
-    def test_main_espera_la_orden_antes_del_primer_objeto_y_libera_con_ctrl_c(self):
-        enlace, camara, eventos = self.correr_main([])
+    def test_main_espera_la_orden_antes_del_primer_objeto_y_libera_el_puerto_con_ctrl_c(self):
+        enlace, eventos = self.correr_main([])
         # Antes de CADA objeto (el primero incluido) se consulta continuar/detener.
         self.assertEqual(eventos, ["orden", "pregunta", "ciclo", "pregunta", "ciclo", "pregunta", "ciclo"])
-        camara.release.assert_called_once()
         enlace.close.assert_called_once()
 
-    def test_sin_orden_se_salta_la_espera(self):
-        _, _, eventos = self.correr_main(["--sin-orden"])
+    def test_la_camara_solo_se_comprueba_al_arrancar_no_se_abre(self):
+        self.correr_main([])
+        self.buscar.assert_called_once()                # falla pronto si no está conectada
+        camaras = self.ciclo_mock.call_args[0][1]
+        self.assertEqual(type(camaras).__name__, "CamaraPorLote")   # se abre dentro de cada lote
+
+    def test_sin_orden_se_salta_la_espera_y_las_consultas(self):
+        _, eventos = self.correr_main(["--sin-orden"])
         self.assertEqual(eventos, ["ciclo", "ciclo", "ciclo"])   # sin control de la PC: ni orden ni consultas
 
     def test_detener_vuelve_a_esperar_la_orden_y_reanuda(self):
@@ -596,25 +684,23 @@ class MainCompleto(unittest.TestCase):
             r = next(respuestas)
             eventos.append("continuar" if r else "detener")
             return r
-        _, camara, ciclos = self.correr_main([], ciclos_hasta_ctrl_c=3, continuar=continuar,
-                                             espera=lambda d: eventos.append("orden"))
-        # orden inicial -> 2 objetos -> la PC ordena detener -> orden de inicio nueva -> reanuda
+        _, ciclos = self.correr_main([], ciclos_hasta_ctrl_c=3, continuar=continuar,
+                                     espera=lambda d: eventos.append("orden"))
+        # orden inicial -> 2 objetos -> la PC ordena detener -> orden nueva -> reanuda
         self.assertEqual(eventos, ["orden", "continuar", "continuar", "detener", "orden", "continuar"])
-        self.assertEqual(ciclos.count("ciclo"), 3)   # el objeto tras `detener` no se introduce
-        camara.release.assert_called_once()
+        self.assertEqual(ciclos.count("ciclo"), 3)    # el objeto tras `detener` no se introduce
 
-    def test_ctrl_c_mientras_espera_la_orden_libera_recursos_sin_iniciar_ciclo(self):
+    def test_ctrl_c_mientras_espera_la_orden_libera_el_puerto_sin_iniciar_ciclo(self):
         def ctrl_c(d):
             raise KeyboardInterrupt
-        enlace, camara, eventos = self.correr_main([], espera=ctrl_c)
+        enlace, eventos = self.correr_main([], espera=ctrl_c)
         self.assertEqual(eventos, [])
-        camara.release.assert_called_once()
         enlace.close.assert_called_once()
 
-    def test_si_la_camara_no_abre_se_cierra_el_puerto_y_se_propaga_el_error(self):
+    def test_si_la_camara_no_esta_se_cierra_el_puerto_y_se_propaga_el_error(self):
         enlace = mock.Mock()
         with mock.patch.object(main, "EnlaceUART", return_value=enlace), \
-                mock.patch.object(main, "abrir_camara", side_effect=RuntimeError("sin cámara")):
+                mock.patch.object(main, "buscar_camara_por_nombre", side_effect=RuntimeError("sin cámara")):
             with self.assertRaises(RuntimeError):
                 main.main([])
         enlace.close.assert_called_once()
@@ -654,18 +740,17 @@ class EspSimulada(unittest.TestCase):
         self.assertIsNone(e.recibir(timeout=5.0))
 
     def test_main_con_simular_esp_no_abre_el_uart(self):
-        camara = mock.Mock()
         with mock.patch.object(main, "EnlaceUART") as uart, \
-                mock.patch.object(main, "abrir_camara", return_value=camara), \
+                mock.patch.object(main, "buscar_camara_por_nombre"), \
                 mock.patch.object(main, "DescubridorPC"), \
                 mock.patch.object(main, "esperar_orden_inicio"), \
+                mock.patch.object(main, "debe_continuar", return_value=True), \
                 mock.patch.object(main, "ciclo_de_un_objeto", side_effect=KeyboardInterrupt) as ciclo:
             main.main(["--simular-esp", "--retraso-esp", "1.5"])
         uart.assert_not_called()
         enlace_usado = ciclo.call_args[0][0]
         self.assertEqual(type(enlace_usado).__name__, "EnlaceSimulado")
         self.assertEqual(enlace_usado._retraso_s, 1.5)
-        camara.release.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -26,7 +26,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 sys.path.insert(0, str(RAIZ.parent / "shared"))
 
 import main  # noqa: E402
-from capture.camera import abrir_camara  # noqa: E402
+from capture.camera import CamaraPorLote  # noqa: E402
 from network.mdns_discovery import DescubridorPC  # noqa: E402
 from uart.esp_simulada import EnlaceSimulado  # noqa: E402
 
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     ap.add_argument("--retraso", type=float, default=2.5,
                     help="segundos que tarda cada movimiento en confirmarse (def. 2.5)")
     args = ap.parse_args()
-    camara = abrir_camara()
+    camaras = CamaraPorLote()   # la cámara se enciende solo durante el lote
     # Envuelve la captura para informar el tamaño de cada foto real.
     capturar = main.capturar_con_autoenfoque
     comprimir = main.comprimir_jpeg
@@ -48,8 +48,5 @@ if __name__ == "__main__":
     main.comprimir_jpeg = comprimir_informando
 
     t0 = time.time()
-    try:
-        continuar = main.ciclo_de_un_objeto(EnlaceSimulado(args.retraso), camara, DescubridorPC())
-    finally:
-        camara.release()
+    continuar = main.ciclo_de_un_objeto(EnlaceSimulado(args.retraso), camaras, DescubridorPC())
     print(f"[prueba] ciclo terminado en {time.time() - t0:.1f}s, continuar={continuar}")

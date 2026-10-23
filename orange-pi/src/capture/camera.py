@@ -30,6 +30,9 @@ V4L_BY_ID = Path("/dev/v4l/by-id")
 NOMBRES_CAMARA = ("arducam", "hp_430_435_fhd_webcam")
 ANCHO_CAPTURA = 1920
 ALTO_CAPTURA = 1080
+# La cámara se enciende SOLO durante cada lote (su luz indica cuándo empieza y termina) y
+# queda apagada al menos este tiempo entre un lote y el siguiente, para que se note.
+PAUSA_ENTRE_LOTES_S = 0.5
 
 
 def buscar_camara_por_nombre(nombres=None) -> str:
@@ -65,6 +68,37 @@ def abrir_camara(nombres=None, ancho: int = ANCHO_CAPTURA, alto: int = ALTO_CAPT
     if real != (ancho, alto):
         print(f"[camera] Aviso: se pidió {ancho}x{alto} y la cámara entrega {real[0]}x{real[1]}")
     return camara
+
+
+class CamaraPorLote:
+    """Abre la cámara al empezar cada lote de fotos y la libera al terminar, aunque falle.
+
+    Uso:  `with camaras as camara: ...captura del lote...`. Garantiza que la cámara pase
+    al menos `pausa_s` apagada entre el cierre de un lote y la apertura del siguiente
+    (solo espera lo que falte: si ya pasó más tiempo, no espera nada).
+    """
+
+    def __init__(self, abrir=None, pausa_s: float = PAUSA_ENTRE_LOTES_S,
+                 reloj=time.monotonic, dormir=time.sleep):
+        self._abrir = abrir or abrir_camara   # se resuelve al usarlo: permite sustituirla en pruebas
+        self._pausa_s, self._reloj, self._dormir = pausa_s, reloj, dormir
+        self._cierre = None      # instante en que se cerró el lote anterior
+        self._camara = None
+
+    def __enter__(self):
+        if self._cierre is not None:
+            falta = self._pausa_s - (self._reloj() - self._cierre)
+            if falta > 0:
+                self._dormir(falta)
+        self._camara = self._abrir()
+        return self._camara
+
+    def __exit__(self, *_):
+        camara, self._camara = self._camara, None
+        if camara is not None:
+            camara.release()
+        self._cierre = self._reloj()
+        return False   # no traga excepciones
 
 
 def capturar_con_autoenfoque(camara, tiempo_espera_af: float = TIEMPO_CONVERGENCIA_AUTOENFOQUE_S):

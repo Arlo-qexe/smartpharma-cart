@@ -46,7 +46,12 @@ from network.recuperacion import recuperar_comunicacion
 from network.tcp_client import enviar_lote
 from uart.esp_simulada import RETRASO_POR_DEFECTO_S, EnlaceSimulado
 from uart.uart_link import EnlaceUART
-from capture.camera import abrir_camara, capturar_con_autoenfoque, comprimir_jpeg
+from capture.camera import (
+    CamaraPorLote,
+    buscar_camara_por_nombre,
+    capturar_con_autoenfoque,
+    comprimir_jpeg,
+)
 
 import argparse
 import time
@@ -72,24 +77,28 @@ def introducir_objeto(enlace: EnlaceUART) -> bool:
     return False
 
 
-def capturar_lote_completo(enlace: EnlaceUART, camara) -> list:
+def capturar_lote_completo(enlace: EnlaceUART, camaras) -> list:
     """Ejecuta la ráfaga de 5 caras. Devuelve la lista de bytes JPEG, o una
     lista vacía si el lote debe abortarse (ver sección 6.2): cualquier fallo
     durante la captura (giro sin confirmar, cámara o puerto serie) aborta el
     lote completo, para que se envíe un lote vacío a la PC y no se caiga el
-    programa con la caja en posición."""
+    programa con la caja en posición.
+
+    `camaras` (CamaraPorLote) enciende la cámara al empezar el lote y la apaga al
+    terminar, también si falla; su luz marca el principio y el fin de cada lote."""
     imagenes = []
     try:
-        for cara in range(1, CARAS_POR_OBJETO + 1):
-            enlace.enviar({"accion": ACCION_GIRAR_POSICION, "cara": cara})
-            respuesta = enlace.recibir(timeout=5.0)
-            if (not respuesta or respuesta.get("evento") != EVENTO_EN_POSICION
-                    or respuesta.get("cara") != cara):
-                print(f"[main] Fallo confirmando la cara {cara}, se aborta el lote")
-                return []
-            time.sleep(PAUSA_ESTABILIZACION_MECANICA_S)
-            frame = capturar_con_autoenfoque(camara)
-            imagenes.append(comprimir_jpeg(frame))
+        with camaras as camara:
+            for cara in range(1, CARAS_POR_OBJETO + 1):
+                enlace.enviar({"accion": ACCION_GIRAR_POSICION, "cara": cara})
+                respuesta = enlace.recibir(timeout=5.0)
+                if (not respuesta or respuesta.get("evento") != EVENTO_EN_POSICION
+                        or respuesta.get("cara") != cara):
+                    print(f"[main] Fallo confirmando la cara {cara}, se aborta el lote")
+                    return []
+                time.sleep(PAUSA_ESTABILIZACION_MECANICA_S)
+                frame = capturar_con_autoenfoque(camara)
+                imagenes.append(comprimir_jpeg(frame))
     except Exception as e:  # noqa: BLE001 - cualquier fallo de captura aborta el lote (6.2)
         print(f"[main] Fallo durante la captura ({type(e).__name__}: {e}), se aborta el lote")
         return []
@@ -109,12 +118,12 @@ def esperar_regente(enlace: EnlaceUART, descubridor: DescubridorPC) -> str:
             recuperar_comunicacion(descubridor, activar, desactivar)
 
 
-def ciclo_de_un_objeto(enlace: EnlaceUART, camara, descubridor: DescubridorPC) -> bool:
+def ciclo_de_un_objeto(enlace: EnlaceUART, camaras, descubridor: DescubridorPC) -> bool:
     """Ejecuta el ciclo de un objeto. Devuelve True cuando el objeto quedó
     clasificado y se puede autorizar el siguiente."""
     # Si activar_dispensador agota los reintentos igual se envía un lote vacío a
     # la PC (informe 5.4): así abre la alarma y la decisión del regente.
-    imagenes = capturar_lote_completo(enlace, camara) if introducir_objeto(enlace) else []
+    imagenes = capturar_lote_completo(enlace, camaras) if introducir_objeto(enlace) else []
     resultado, fallo_de_red = enviar_lote(descubridor, imagenes)  # lote vacío si imagenes == []
     destino = resultado.get("clasificacion", RESULTADO_ERROR_REVISION_MANUAL)
 
@@ -161,17 +170,20 @@ def main(argv=None):
     else:
         enlace = EnlaceUART(puerto=PUERTO_UART)
     try:
-        camara = abrir_camara()
+        # Falla pronto si la cámara no está conectada. NO se abre aquí: la cámara solo se
+        # enciende durante cada lote (CamaraPorLote) y su luz marca el inicio y el fin.
+        buscar_camara_por_nombre()
     except Exception:
         enlace.close()
         raise
+    camaras = CamaraPorLote()
     descubridor = DescubridorPC()
 
     try:
         if args.sin_orden:
             print("[main] --sin-orden: no se espera la orden de inicio de la PC")
         else:
-            # Sección 4.7: con UART y cámara listas, el ciclo espera el botón
+            # Sección 4.7: con el UART y la cámara listos, el ciclo espera el botón
             # "Iniciar recorrido" del panel. Ningún reinicio arranca solo.
             esperar_orden_inicio(descubridor)
         print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
@@ -184,12 +196,11 @@ def main(argv=None):
                 esperar_orden_inicio(descubridor)
                 print("[main] Orden de inicio recibida: se reanuda el ciclo")
                 continue
-            ciclo_de_un_objeto(enlace, camara, descubridor)
+            ciclo_de_un_objeto(enlace, camaras, descubridor)
     except KeyboardInterrupt:
         print("[main] Detenido por el usuario.")
     finally:
-        camara.release()
-        enlace.close()
+        enlace.close()   # la cámara ya la libera CamaraPorLote al salir de cada lote
 
 
 if __name__ == "__main__":

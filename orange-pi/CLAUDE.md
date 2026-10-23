@@ -45,10 +45,13 @@ bash scripts/start_Opi.sh --sin-orden  # sin orden de inicio ni control de conti
 bash scripts/start_Opi.sh --simular-esp  # sin la ESP32-S3: la simula (cámara y PC reales); --retraso-esp SEG (def. 2.5; >5 simula un fallo)
 ```
 
-Orden de `main.py`: UART → cámara (por nombre) → espera de la orden de inicio de la PC
+Orden de `main.py`: UART → cámara (se comprueba por nombre, **no se abre**) → espera de la orden de inicio de la PC
 (sección 4.7) → ciclo continuo, consultando a la PC **antes de cada objeto** si continuar o
 detener (sección 4.8; con `detener` vuelve a esperar `iniciar`; sin respuesta de la PC
-continúa). Si falta la cámara o el UART, el script no arranca y lo
+continúa).
+**La cámara solo se enciende durante cada lote** de 5 fotos (`CamaraPorLote`): su luz marca
+el inicio y el fin de cada lote, y queda apagada al menos 500 ms (`PAUSA_ENTRE_LOTES_S`)
+entre un lote y el siguiente. Si falta la cámara o el UART, el script no arranca y lo
 indica. La PC debe estar corriendo antes (`pc/scripts/start_pc.sh`), aunque `main.py` la
 espera sin límite si aún no aparece.
 
