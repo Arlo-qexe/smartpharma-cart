@@ -204,6 +204,9 @@ no se toca para nada de lo siguiente).
 ## Recordatorios de diseño clave
 
 - Nunca escribas imágenes a disco — todo en memoria (bytes de JPEG en RAM).
+- La cámara usa **AUTOENFOQUE** (decisión D-12, también para capturar el conjunto de datos de
+  entrenamiento): no fijes el enfoque a mano. Tras cada giro se espera
+  `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` descartando frames antes de capturar.
 - Un socket TCP nuevo por lote, no uno persistente (ver arquitectura, sección 4.1).
 - Si la captura falla antes de completarse, igual se envía el framing con
   cantidad de imágenes = 0 — no inventes un mensaje nuevo para reportar el fallo.

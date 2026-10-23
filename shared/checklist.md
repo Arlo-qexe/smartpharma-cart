@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-11 hecha, OP-26 detener el ciclo, OP-27 cámara por lote).
+**Última actualización:** 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
+Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-11 hecha, OP-26 detener el ciclo, OP-27 cámara por lote).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 detener el ciclo, cantidad de cajas e indicador de la Orange Pi; S-11).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-24 probado, OP-25 prueba de 12 ciclos con el botón).
 Anterior: 2026-10-22 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-21, conexión con la PC en WSL2).
@@ -436,6 +437,7 @@ estados a la misma consulta, sin otro canal.
 | D-06 | 2026-10-06 | **Cerrada** (del lado Orange Pi y contrato): tras un fallo de comunicación, sondeo con lote vacío cada 10 s sin tope, alarma local hasta `desactivar_alarma_local` y confirmación del regente en el panel (sección 4.6). La ESP32-S3 se adapta después (**S-09**), según el usuario. | Usuario + lados PC y Orange Pi |
 | D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
 | D-08 | 2026-10-06 | El servo del dispensador lo controla la **ESP32-S3**; `activar_dispensador` reemplaza a `introducir_objeto` (ver `docs/CHANGELOG_protocolo.md`, **S-08**). | Lado Orange Pi |
+| D-12 | 2026-10-23 | **Autoenfoque en la cámara del carrito y en la captura del conjunto de datos de entrenamiento** (Arducam): no se fija el enfoque a mano; lo que queda fijo es la distancia. La Orange Pi ya lo usa (OP-04, OP-27) y espera `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` (0,5 s) tras cada giro. La guía `IA/entrenamiento/FLUJO_ARDUCAM.md` se actualizó para decir lo mismo. | Usuario |
 
 ---
 
@@ -443,6 +445,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | D-12: autoenfoque explícito en la cámara del carrito y en la captura del conjunto de datos (Arducam). Se actualizó `IA/entrenamiento/FLUJO_ARDUCAM.md`, que recomendaba enfoque manual y fijo, con permiso del usuario. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-11 `Hecha`: `main.py` consulta `estado_ciclo` antes de cada objeto y detiene el ciclo (OP-26, probado con la PC real). OP-27 nuevo: la cámara se enciende solo durante cada lote, con 500 ms apagada entre lotes. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 nuevo `[~]`: botón "Detener", casilla de cantidad de cajas e indicador de conexión de la Orange Pi; clasificador placeholder al azar. Contrato nuevo `estado_ciclo` (informe 4.8) y S-11 para el lado Orange Pi. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 probado con la cámara conectada; OP-25 nuevo: `--simular-esp` y prueba de punta a punta con el botón real (12 ciclos seguidos, todos `TIPO_A`, sin fallos) contra la PC en WSL2. Corrobora PC-21 desde el lado Orange Pi. |

@@ -8,7 +8,9 @@ Todos los comandos se corren desde la carpeta `IA\` en Windows. La Arducam va po
 - **Fondo negro mate**, igual que las fotos de celular (el detector ya aprendió con ese fondo).
 - **Luz fija y difusa** (sin reflejos sobre el cartón brillante). Si cambia la luz, el modelo se entrena con otra cosa que la de uso.
 - **Luz rasante** (solo para la cara del lote troquelado): linterna o lámpara casi paralela a la superficie, desde un lado, a 10–20° del plano. Es una segunda luz aparte de la fija.
-- Enfoque **manual y fijo** a esa distancia.
+- **Autoenfoque activo**, igual que la cámara del carrito (decisión **D-12** de `shared/checklist.md`):
+  no se fija el enfoque a mano. Así las fotos de entrenamiento se toman con el mismo modo con que se
+  usará el sistema. Lo que sí queda fijo es la **distancia**, para que el autoenfoque converja siempre igual.
 
 ## 1. Carpetas
 
@@ -16,7 +18,7 @@ Todos los comandos se corren desde la carpeta `IA\` en Windows. La Arducam va po
 dataset_ia/
   celular/  crudo/                  ya existen (cajas 001-027)
   arducam/
-    camara.json                     enfoque/exposición (lo crea --ajustar)
+    camara.json                     exposición y autofoco=true (lo crea --ajustar)
     sesion01/                       cajas 101, 102, ... (cajaNNN_caraK.jpg)
       rasante/                      misma cara con luz rasante (cajaNNN_caraK.jpg)
       captura_log.csv               nitidez, brillo, enfoque de cada foto
@@ -34,10 +36,12 @@ Las cajas de la Arducam se numeran desde **101** para no chocar con las de celul
 
 1. **Encontrar la cámara:** `python entrenamiento\capturar.py --listar` (si hay webcam del portátil, la Arducam suele ser el índice 1).
 2. **Ajustar una vez:** `python entrenamiento\capturar.py --ajustar --camara 1 --config ..\dataset_ia\arducam\camara.json`
-   - Teclas: `A` autofoco, `+`/`-` enfoque, `E`/`D` exposición, `R` exposición automática, `S` guarda, `Q` sale.
-   - Busca el enfoque que **maximiza la nitidez** del texto del lote y apúntalo. La pantalla muestra lo que la cámara reporta: si no cambia al apretar la tecla, el driver ignora ese ajuste.
+   - Teclas: `A` autofoco, `E`/`D` exposición, `R` exposición automática, `S` guarda, `Q` sale.
+   - **Deja el autoenfoque activo:** la pantalla debe mostrar `autofoco=True` antes de guardar con `S`. **No uses `+`/`-`**: fijan el enfoque a mano y apagan el autoenfoque (`A` lo alterna; si lo apagaste, vuelve a pulsarla). Sin `camara.json` el valor por defecto ya es autoenfoque.
+   - Lo que sí se ajusta aquí es la **exposición**. Comprueba con la nitidez que muestra la pantalla que el autoenfoque enfoca el texto del lote a esa distancia. La pantalla muestra lo que la cámara reporta: si no cambia al apretar la tecla, el driver ignora ese ajuste.
 3. **Capturar:** `python entrenamiento\capturar.py --camara 1 --config ..\dataset_ia\arducam\camara.json --salida ..\dataset_ia\arducam\sesion01`
    - 5 caras por caja, siempre en el mismo orden. `ESPACIO` guarda.
+   - **Espera ~0,5 s tras girar la caja** antes de guardar, para que el autoenfoque converja: el carrito hace lo mismo (`TIEMPO_CONVERGENCIA_AUTOENFOQUE_S = 0,5 s`, descarta frames mientras tanto). Las fotos borrosas por esa causa se detectan con `--nitidez-min`.
    - En la cara del lote: `ESPACIO` (luz fija), enciende la luz rasante y `R` (misma cara, queda en `rasante/`).
    - `U` deshace la última foto, `N` salta a la caja siguiente, `Q` sale.
    - Opcional: `--nitidez-min 40` para que no guarde fotos borrosas (el valor lo calibras con `--ajustar`).
@@ -67,7 +71,7 @@ Las cajas de la Arducam se numeran desde **101** para no chocar con las de celul
 
 - **Una caja física no puede estar en entrenamiento y en validación.** Si repites cajas que ya fotografiaste con el celular, anota el par en `mapa_cajas.csv`; `entrenar.py` saca esa caja de celular del entrenamiento.
 - **La prueba final se hace con cajas que nunca se usaron para entrenar** (idealmente cajas nuevas), y siempre contra `referencia.csv`: medir "hubo lectura" no es medir "la lectura es correcta".
-- **No cambies enfoque, distancia ni luz a mitad de sesión.** Si cambian, abre otra sesión (`sesion02`) y anótalo.
+- **No cambies distancia, luz ni el modo de enfoque (autoenfoque) a mitad de sesión.** Si cambian, abre otra sesión (`sesion02`) y anótalo.
 - Las fotos **no van al repositorio** (están en `dataset_ia/`, fuera de él).
 
 ## 4. Cuánto capturar
