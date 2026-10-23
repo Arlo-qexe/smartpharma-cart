@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-14 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 red de la demo, OP-24 start_Opi.sh, S-10 aceptada).
+**Última actualización:** 2026-10-22 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-21, conexión con la PC en WSL2).
+Anterior: 2026-10-14 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 red de la demo, OP-24 start_Opi.sh, S-10 aceptada).
 Anterior: 2026-10-13 (reloj de la PC) — Arlo.exe (con Claude Code, lado PC: PC-20, D-11, S-10).
 
 ## Cómo usarlo
@@ -117,6 +118,24 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   interfaz real (sin loopback, enlace-local ni Docker; Wi-Fi/Ethernet primero) → loopback
   con aviso. `start_pc.sh` muestra la IP elegida y su origen. **La IP se fija al arrancar:**
   conectar la PC a la red *antes* de lanzar y reiniciar si se cambia de red. 91 pruebas pasan.
+- [~] **PC-21** Conexión Orange Pi ↔ PC con la PC en **WSL2** (2026-10-22). Entorno restaurado
+  desde GitHub (venv completo, 91 pruebas pasan). Hallazgos y estado:
+  - WSL2 en modo NAT anunciaba `172.22.x.x`, inalcanzable para la Orange Pi, y mDNS no
+    atraviesa ese NAT. Se activó `networkingMode=mirrored` en `.wslconfig` (Windows 11): la
+    PC anuncia ahora la IP real de la red (`192.168.20.47`). Hacen falta además una regla de
+    entrada de Windows para TCP 5000 y 5001 (perfil Privado) y el firewall de Hyper-V de WSL
+    en `Allow` entrante.
+  - **Fallo encontrado:** en modo espejo sobre **Wi-Fi**, WSL no resuelve por ARP a la Orange
+    Pi (`ip neigh` → `FAILED`, `No route to host`) aunque Windows sí la alcanza. El servidor
+    recibía el SYN (`SYN-RECV`) pero el SYN-ACK no volvía: la Orange Pi veía `timed out`. No
+    era firewall ni aislamiento de clientes del router.
+  - **Parche temporal:** `ip neigh replace <IP Orange Pi> lladdr <MAC> dev eth2` (como root,
+    p. ej. `wsl -u root ...` desde Windows). Se pierde al reiniciar WSL o cambiar de red.
+    Con él, la Orange Pi conectó y `start_Opi.sh --verificar` pasó: UART `/dev/ttyS0`,
+    cámara `/dev/video1`, PC descubierta por mDNS en `192.168.20.47:5000` (ver **OP-24**).
+  - **Pendiente:** una solución estable para la demo (PC por cable Ethernet, o correr el
+    servidor directamente en Windows) y repetirlo con el router de la demo (**S-10**).
+    El ciclo completo con el botón "Iniciar recorrido" no se probó en esta sesión.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -379,6 +398,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-22 | Arlo-qexe (lado PC, con Claude Code) | PC-21 nuevo `[~]`: la PC corre en WSL2 en modo espejo; fallo de ARP de WSL sobre Wi-Fi con parche temporal; `start_Opi.sh --verificar` pasó contra la PC (OP-24). Pendiente una solución estable y repetir en el router de la demo (S-10). |
 | 2026-10-14 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-24 nuevo (`start_Opi.sh`); OP-23 nuevo `[~]` (red del router de la demo agregada a `wlan0`, conexión sin probar); S-10 pasa a `Aceptada`. |
 | 2026-10-13 | Arlo.exe (lado PC, con Claude Code) | PC-20 `[x]` (elección robusta de la IP anunciada por mDNS; `PC_IP`); D-11 (red de la demo: router móvil D-Link DWR-932W) y S-10 (conectar la Orange Pi a esa red). |
 | 2026-10-06 | Arlo.exe (lado PC, con Claude Code) | PC-10 cerrado tras revisar OP-22 contra el registro de la PC (el botón entregó `iniciar` una sola vez y el ciclo corrió); fila de S-06 limpiada (conservaba texto de cuando estaba pendiente). |
