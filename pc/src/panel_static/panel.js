@@ -11,6 +11,7 @@ const MOTIVOS = {
 let estado = null;
 let vista = "inicio";
 let loteSeleccionado = null;
+let ultimoLoteId = null;      // el lote más reciente que ya vio la página
 let claveFotos = null;
 
 const $ = (id) => document.getElementById(id);
@@ -577,6 +578,13 @@ async function refrescar() {
     const resp = await fetch("/api/estado", { cache: "no-store" });
     if (!resp.ok) throw new Error(resp.status);
     estado = await resp.json();
+    // Al llegar un lote nuevo, Inicio pasa a mostrarlo aunque el regente hubiera abierto
+    // uno viejo desde Inventario (si no, quedaría fijo en ese lote para siempre).
+    const masReciente = estado.lotes.length ? estado.lotes[0].id : null;
+    if (masReciente !== ultimoLoteId) {
+      ultimoLoteId = masReciente;
+      loteSeleccionado = null;
+    }
     $("conexion").hidden = true;
     render();
   } catch (e) {
