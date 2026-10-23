@@ -3,7 +3,8 @@ Orquestador del ciclo completo en la Orange Pi (ver docs/arquitectura_comunicaci
 para la descripción detallada de cada paso, y CLAUDE.md raíz para el resumen rápido).
 
 Fallo de comunicación con la PC: ver network/recuperacion.py (sección 4.6).
-Al arrancar espera la orden de inicio de la PC (sección 4.7; `--sin-orden` la omite).
+Al arrancar espera la orden de inicio de la PC (sección 4.7) y antes de cada objeto
+consulta si continuar o detener (sección 4.8); `--sin-orden` omite ambas.
 Pendiente (ver shared/checklist.md): la prueba con la ESP32-S3 real (OP-16).
 
 Flujo por objeto:
@@ -35,7 +36,12 @@ from protocol_constants import (  # noqa: E402
 )
 
 from network.mdns_discovery import DescubridorPC
-from network.decision_client import DecisionPerdida, esperar_decision, esperar_orden_inicio
+from network.decision_client import (
+    DecisionPerdida,
+    debe_continuar,
+    esperar_decision,
+    esperar_orden_inicio,
+)
 from network.recuperacion import recuperar_comunicacion
 from network.tcp_client import enviar_lote
 from uart.esp_simulada import RETRASO_POR_DEFECTO_S, EnlaceSimulado
@@ -136,8 +142,8 @@ def ciclo_de_un_objeto(enlace: EnlaceUART, camara, descubridor: DescubridorPC) -
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Gateway de captura y red (Orange Pi)")
     ap.add_argument("--sin-orden", action="store_true",
-                    help="no esperar la orden de inicio de la PC (solo para pruebas sueltas; "
-                         "no es parte del contrato)")
+                    help="no esperar la orden de inicio ni consultar el estado del ciclo (continuar/"
+                         "detener) a la PC: solo para pruebas sueltas; no es parte del contrato")
     ap.add_argument("--simular-esp", action="store_true",
                     help="simula la ESP32-S3 (no abre el UART): para probar el ciclo completo con "
                          "la cámara y la PC reales sin el hardware (no es parte del contrato)")
@@ -170,6 +176,14 @@ def main(argv=None):
             esperar_orden_inicio(descubridor)
         print("[main] Iniciando ciclo continuo. Ctrl+C para detener.")
         while True:
+            # Sección 4.8: ANTES de cada objeto (el primero incluido) la PC decide si
+            # continuar o detener. Con `detener` no se introduce más y se vuelve a esperar
+            # la orden de inicio, como al arrancar. Con --sin-orden no hay control de la PC.
+            if not args.sin_orden and not debe_continuar(descubridor):
+                print("[main] La PC ordenó detener el ciclo: se espera una nueva orden de inicio")
+                esperar_orden_inicio(descubridor)
+                print("[main] Orden de inicio recibida: se reanuda el ciclo")
+                continue
             ciclo_de_un_objeto(enlace, camara, descubridor)
     except KeyboardInterrupt:
         print("[main] Detenido por el usuario.")

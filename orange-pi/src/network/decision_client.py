@@ -4,8 +4,9 @@ sección 4.5 de docs/arquitectura_comunicacion.md): tras un ERROR_REVISION_MANUA
 de la PC, consulta cada INTERVALO_CONSULTA_DECISION_S, con una conexión TCP
 nueva por consulta, hasta que el regente resuelva.
 
-También contiene la espera de la orden de inicio del ciclo (sección 4.7): misma
-conexión corta, mismo puerto y mismo framing.
+También contiene la espera de la orden de inicio del ciclo (sección 4.7) y la consulta
+de continuar/detener entre objetos (sección 4.8): misma conexión corta, mismo puerto y
+mismo framing.
 
 La espera del regente es indefinida (decisión del equipo). Lo único que sí
 tiene límite es la caída de la PC: si las consultas fallan de forma continua
@@ -21,11 +22,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "shared"))
 from protocol_constants import (  # noqa: E402
     CLAVE_CONSULTA_JSON,
+    CICLO_CONTINUAR,
+    CICLO_DETENER,
+    CLAVE_CICLO_JSON,
     CLAVE_DESTINO_JSON,
     CLAVE_ORDEN_CICLO_JSON,
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
     CONSULTA_DECISION_REGENTE,
+    CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
@@ -79,6 +84,38 @@ def consultar_decision(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> di
 def consultar_orden_ciclo(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
     """UNA consulta de la orden de inicio del ciclo (sección 4.7)."""
     return _consultar(ip, CONSULTA_ORDEN_CICLO, puerto)
+
+
+def consultar_estado_ciclo(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
+    """UNA consulta de continuar/detener el ciclo, antes de cada objeto (sección 4.8)."""
+    return _consultar(ip, CONSULTA_ESTADO_CICLO, puerto)
+
+
+def debe_continuar(descubridor, consultar=consultar_estado_ciclo) -> bool:
+    """Consulta UNA vez, antes de introducir el objeto (el primero incluido), si el ciclo
+    debe continuar (sección 4.8). Devuelve False si la PC ordena `detener`.
+
+    Sin PC no se detiene: si la PC no contesta (o no se encuentra por mDNS) devuelve True,
+    porque el envío del lote ya dispara la recuperación de 4.6. Se hace UNA sola consulta
+    por objeto, sin reintentos: la PC cuenta cada `continuar`, y repetirlo contaría dos cajas.
+    """
+    try:
+        ip, _ = descubridor.obtener_destino_sin_bloquear()
+        if ip is None:
+            raise ConnectionError("PC no encontrada por mDNS")
+        respuesta = consultar(ip)
+    except (OSError, ValueError) as e:
+        print(f"[ciclo] La PC no contesta el estado del ciclo ({e}); se continúa")
+        descubridor.invalidar()
+        return True
+
+    ciclo = respuesta.get(CLAVE_CICLO_JSON)
+    if ciclo == CICLO_CONTINUAR:
+        return True
+    if ciclo == CICLO_DETENER:
+        return False
+    raise RespuestaInesperada(
+        f"respuesta fuera de contrato: {respuesta.get(CLAVE_ERROR_JSON) or respuesta!r}")
 
 
 def esperar_orden_inicio(descubridor, intervalo: float = INTERVALO_CONSULTA_DECISION_S,

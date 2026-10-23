@@ -41,12 +41,14 @@ source .venv/bin/activate      # en cada terminal nueva
 ```bash
 bash scripts/start_Opi.sh              # verifica UART, cámara y red; espera "Iniciar recorrido" de la PC
 bash scripts/start_Opi.sh --verificar  # solo comprueba y sale (no lanza main.py)
-bash scripts/start_Opi.sh --sin-orden  # no espera la orden de la PC (pruebas sueltas, fuera del contrato)
+bash scripts/start_Opi.sh --sin-orden  # sin orden de inicio ni control de continuar/detener de la PC (pruebas sueltas, fuera del contrato)
 bash scripts/start_Opi.sh --simular-esp  # sin la ESP32-S3: la simula (cámara y PC reales); --retraso-esp SEG (def. 2.5; >5 simula un fallo)
 ```
 
 Orden de `main.py`: UART → cámara (por nombre) → espera de la orden de inicio de la PC
-(sección 4.7) → ciclo continuo. Si falta la cámara o el UART, el script no arranca y lo
+(sección 4.7) → ciclo continuo, consultando a la PC **antes de cada objeto** si continuar o
+detener (sección 4.8; con `detener` vuelve a esperar `iniciar`; sin respuesta de la PC
+continúa). Si falta la cámara o el UART, el script no arranca y lo
 indica. La PC debe estar corriendo antes (`pc/scripts/start_pc.sh`), aunque `main.py` la
 espera sin límite si aún no aparece.
 

@@ -205,6 +205,47 @@ class EsperarOrdenInicio(unittest.TestCase):
                 self.esperar(r)
 
 
+class DebeContinuar(unittest.TestCase):
+    def consultar(self, respuesta, desc=None):
+        desc = desc or DescubridorFalso()
+        llamadas = []
+
+        def fake(ip):
+            llamadas.append(ip)
+            if isinstance(respuesta, Exception):
+                raise respuesta
+            return respuesta
+        return dc.debe_continuar(desc, consultar=fake), llamadas, desc
+
+    def test_continuar_y_detener(self):
+        self.assertTrue(self.consultar({"ciclo": "continuar"})[0])
+        self.assertFalse(self.consultar({"ciclo": "detener"})[0])
+
+    def test_hace_una_sola_consulta_por_objeto(self):
+        _, llamadas, _ = self.consultar({"ciclo": "continuar"})
+        self.assertEqual(len(llamadas), 1)   # repetirla contaría dos cajas en la PC
+
+    def test_sin_respuesta_de_la_pc_continua_y_invalida_la_cache(self):
+        for error in (ConnectionRefusedError("x"), TimeoutError("x"), ConnectionResetError("x")):
+            continuar, llamadas, desc = self.consultar(error)
+            self.assertTrue(continuar)
+            self.assertEqual(len(llamadas), 1)    # sin reintentos
+            self.assertEqual(desc.invalidaciones, 1)
+
+    def test_pc_no_encontrada_por_mdns_continua(self):
+        class SinPC(DescubridorFalso):
+            def obtener_destino_sin_bloquear(self):
+                return None, None
+        continuar, llamadas, _ = self.consultar({"ciclo": "detener"}, desc=SinPC())
+        self.assertTrue(continuar)
+        self.assertEqual(llamadas, [])
+
+    def test_respuestas_fuera_de_contrato(self):
+        for r in ({"error": "consulta_invalida"}, {"ciclo": "otra"}, {}):
+            with self.assertRaises(dc.RespuestaInesperada):
+                self.consultar(r)
+
+
 class Recuperacion(unittest.TestCase):
     def correr(self, *resultados, alarma_encendida=False):
         eventos, sondeos, reloj = [], [], Reloj()
@@ -291,6 +332,20 @@ class ConMockPC(unittest.TestCase):
                                 consultar=lambda ip: dc.consultar_orden_ciclo(ip, self.p_dec))
         # Un solo uso: si se vuelve a preguntar, la PC cree que la Orange Pi reinició.
         self.assertEqual(dc.consultar_orden_ciclo("127.0.0.1", self.p_dec), {"orden": "esperando"})
+
+    def test_la_pc_cuenta_cajas_y_exige_una_orden_nueva_tras_detener(self):
+        desc = self.levantar(cajas=2)
+        consultar = lambda ip: dc.consultar_estado_ciclo(ip, self.p_dec)
+        orden = lambda ip: dc.consultar_orden_ciclo(ip, self.p_dec)
+        # Sin ciclo en marcha (la orden aún no se entregó) la PC responde `detener`.
+        self.assertFalse(dc.debe_continuar(desc, consultar=consultar))
+        dc.esperar_orden_inicio(desc, intervalo=0.05, consultar=orden)
+        self.assertTrue(dc.debe_continuar(desc, consultar=consultar))
+        self.assertTrue(dc.debe_continuar(desc, consultar=consultar))
+        self.assertFalse(dc.debe_continuar(desc, consultar=consultar))   # tope de 2 cajas
+        self.assertFalse(dc.debe_continuar(desc, consultar=consultar))   # sigue detenido
+        dc.esperar_orden_inicio(desc, intervalo=0.05, consultar=orden)   # orden de inicio nueva
+        self.assertTrue(dc.debe_continuar(desc, consultar=consultar))
 
     def test_sin_orden_el_mock_siempre_responde_esperando(self):
         self.levantar(con_orden=False)
@@ -504,7 +559,7 @@ class EnlaceUARTBuffer(unittest.TestCase):
 
 
 class MainCompleto(unittest.TestCase):
-    def correr_main(self, argv, ciclos_hasta_ctrl_c=3, espera=None):
+    def correr_main(self, argv, ciclos_hasta_ctrl_c=3, espera=None, continuar=None):
         enlace, camara, eventos = mock.Mock(), mock.Mock(), []
 
         def ciclo(e, c, d):
@@ -517,19 +572,36 @@ class MainCompleto(unittest.TestCase):
                 mock.patch.object(main, "DescubridorPC"), \
                 mock.patch.object(main, "esperar_orden_inicio",
                                   side_effect=espera or (lambda d: eventos.append("orden"))), \
+                mock.patch.object(main, "debe_continuar",
+                                  side_effect=continuar or (lambda d: eventos.append("pregunta") or True)), \
                 mock.patch.object(main, "ciclo_de_un_objeto", side_effect=ciclo):
             main.main(argv)
         return enlace, camara, eventos
 
     def test_main_espera_la_orden_antes_del_primer_objeto_y_libera_con_ctrl_c(self):
         enlace, camara, eventos = self.correr_main([])
-        self.assertEqual(eventos, ["orden", "ciclo", "ciclo", "ciclo"])
+        # Antes de CADA objeto (el primero incluido) se consulta continuar/detener.
+        self.assertEqual(eventos, ["orden", "pregunta", "ciclo", "pregunta", "ciclo", "pregunta", "ciclo"])
         camara.release.assert_called_once()
         enlace.close.assert_called_once()
 
     def test_sin_orden_se_salta_la_espera(self):
         _, _, eventos = self.correr_main(["--sin-orden"])
-        self.assertEqual(eventos, ["ciclo", "ciclo", "ciclo"])
+        self.assertEqual(eventos, ["ciclo", "ciclo", "ciclo"])   # sin control de la PC: ni orden ni consultas
+
+    def test_detener_vuelve_a_esperar_la_orden_y_reanuda(self):
+        eventos, respuestas = [], iter([True, True, False, True])
+
+        def continuar(d):
+            r = next(respuestas)
+            eventos.append("continuar" if r else "detener")
+            return r
+        _, camara, ciclos = self.correr_main([], ciclos_hasta_ctrl_c=3, continuar=continuar,
+                                             espera=lambda d: eventos.append("orden"))
+        # orden inicial -> 2 objetos -> la PC ordena detener -> orden de inicio nueva -> reanuda
+        self.assertEqual(eventos, ["orden", "continuar", "continuar", "detener", "orden", "continuar"])
+        self.assertEqual(ciclos.count("ciclo"), 3)   # el objeto tras `detener` no se introduce
+        camara.release.assert_called_once()
 
     def test_ctrl_c_mientras_espera_la_orden_libera_recursos_sin_iniciar_ciclo(self):
         def ctrl_c(d):
