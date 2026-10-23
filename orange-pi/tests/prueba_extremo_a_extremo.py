@@ -28,41 +28,7 @@ sys.path.insert(0, str(RAIZ.parent / "shared"))
 import main  # noqa: E402
 from capture.camera import abrir_camara  # noqa: E402
 from network.mdns_discovery import DescubridorPC  # noqa: E402
-from protocol_constants import (  # noqa: E402
-    ACCION_GIRAR_POSICION,
-    ACCION_ACTIVAR_DISPENSADOR,
-    EVENTO_EN_POSICION,
-    EVENTO_OBJETO_EN_POSICION,
-)
-
-
-class EnlaceSimulado:
-    """ESP32-S3 falsa: confirma `activar_dispensador` y cada `girar_posicion`
-    tras `retraso_s` segundos de "movimiento mecánico"."""
-
-    def __init__(self, retraso_s: float = 2.5):
-        self._pendiente = None
-        self._retraso_s = retraso_s
-
-    def enviar(self, mensaje):
-        print(f"[esp32-sim] <- {mensaje}")
-        accion = mensaje.get("accion")
-        if accion == ACCION_ACTIVAR_DISPENSADOR:
-            self._pendiente = {"evento": EVENTO_OBJETO_EN_POSICION}
-        elif accion == ACCION_GIRAR_POSICION:
-            self._pendiente = {"evento": EVENTO_EN_POSICION, "cara": mensaje["cara"]}
-
-    def recibir(self, timeout=None):
-        evento, self._pendiente = self._pendiente, None
-        if evento is None:
-            return None
-        if timeout is not None and self._retraso_s > timeout:
-            time.sleep(timeout)
-            print(f"[esp32-sim] {evento['evento']} tardaría {self._retraso_s:g}s > timeout {timeout:g}s: sin confirmación")
-            return None
-        time.sleep(self._retraso_s)
-        print(f"[esp32-sim] -> {evento}")
-        return evento
+from uart.esp_simulada import EnlaceSimulado  # noqa: E402
 
 
 if __name__ == "__main__":

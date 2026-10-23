@@ -38,6 +38,7 @@ from network.mdns_discovery import DescubridorPC
 from network.decision_client import DecisionPerdida, esperar_decision, esperar_orden_inicio
 from network.recuperacion import recuperar_comunicacion
 from network.tcp_client import enviar_lote
+from uart.esp_simulada import RETRASO_POR_DEFECTO_S, EnlaceSimulado
 from uart.uart_link import EnlaceUART
 from capture.camera import abrir_camara, capturar_con_autoenfoque, comprimir_jpeg
 
@@ -137,12 +138,22 @@ def main(argv=None):
     ap.add_argument("--sin-orden", action="store_true",
                     help="no esperar la orden de inicio de la PC (solo para pruebas sueltas; "
                          "no es parte del contrato)")
+    ap.add_argument("--simular-esp", action="store_true",
+                    help="simula la ESP32-S3 (no abre el UART): para probar el ciclo completo con "
+                         "la cámara y la PC reales sin el hardware (no es parte del contrato)")
+    ap.add_argument("--retraso-esp", type=float, default=RETRASO_POR_DEFECTO_S,
+                    help="con --simular-esp: segundos que tarda cada movimiento en confirmarse "
+                         "(def. %(default)s; mayor que 5 simula un fallo mecánico)")
     args = ap.parse_args(argv)
 
     # Puerto confirmado en hardware real (Orange Pi Zero 2W, Armbian Trixie):
     # UART0 en los pines 8/10 del header, liberado de la consola serial.
     # Ver orange-pi/CLAUDE.md para el procedimiento completo de verificación.
-    enlace = EnlaceUART(puerto=PUERTO_UART)
+    if args.simular_esp:
+        print(f"[main] ESP32-S3 SIMULADA (cada movimiento tarda {args.retraso_esp:g}s); el UART no se abre")
+        enlace = EnlaceSimulado(args.retraso_esp)
+    else:
+        enlace = EnlaceUART(puerto=PUERTO_UART)
     try:
         camara = abrir_camara()
     except Exception:

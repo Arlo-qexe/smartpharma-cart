@@ -42,6 +42,7 @@ source .venv/bin/activate      # en cada terminal nueva
 bash scripts/start_Opi.sh              # verifica UART, cámara y red; espera "Iniciar recorrido" de la PC
 bash scripts/start_Opi.sh --verificar  # solo comprueba y sale (no lanza main.py)
 bash scripts/start_Opi.sh --sin-orden  # no espera la orden de la PC (pruebas sueltas, fuera del contrato)
+bash scripts/start_Opi.sh --simular-esp  # sin la ESP32-S3: la simula (cámara y PC reales); --retraso-esp SEG (def. 2.5; >5 simula un fallo)
 ```
 
 Orden de `main.py`: UART → cámara (por nombre) → espera de la orden de inicio de la PC
@@ -69,6 +70,7 @@ espera sin límite si aún no aparece.
 - `src/network/decision_client.py` — consulta de la decisión del regente (puerto 5001, cada 2 s, espera sin tope).
 - `src/network/recuperacion.py` — tras un fallo de comunicación con la PC: sondeo con lote vacío cada 10 s hasta que responda (sección 4.6).
 - `src/uart/uart_link.py` — enlace serie con la ESP32-S3 (framing, checksum).
+- `src/uart/esp_simulada.py` — ESP32-S3 simulada para probar el ciclo sin el hardware (`--simular-esp`; no es contrato).
 - `src/capture/camera.py` — control de cámara, ráfaga de 5 fotos, compresión JPEG en memoria.
 - `scripts/start_Opi.sh` — arranque en un comando (venv, verificación de UART/cámara/PC y `main.py`).
 - `src/main.py` — orquestador del ciclo completo (máquina de estados de alto nivel).

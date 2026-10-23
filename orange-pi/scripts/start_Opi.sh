@@ -7,6 +7,8 @@
 #   bash orange-pi/scripts/start_Opi.sh --verificar     # solo comprueba UART, cámara y PC y sale
 #   bash orange-pi/scripts/start_Opi.sh --sin-orden     # no espera la orden de la PC (pruebas
 #                                                       # sueltas; no es parte del contrato)
+#   bash orange-pi/scripts/start_Opi.sh --simular-esp   # simula la ESP32-S3 (cámara y PC reales);
+#                                                       # opcional --retraso-esp SEGUNDOS (def. 2.5)
 # Cualquier otro argumento se pasa tal cual a src/main.py.
 #
 # Qué hace, en orden:
@@ -27,9 +29,14 @@ VENV_DIR="${OPI_VENV:-$OPI_DIR/.venv}"
 cd "$OPI_DIR"
 
 SOLO_VERIFICAR=0
+SIMULAR_ESP=0
 ARGS=()
 for a in "$@"; do
-  if [ "$a" = "--verificar" ]; then SOLO_VERIFICAR=1; else ARGS+=("$a"); fi
+  case "$a" in
+    --verificar)   SOLO_VERIFICAR=1 ;;
+    --simular-esp) SIMULAR_ESP=1; ARGS+=("$a") ;;
+    *)             ARGS+=("$a") ;;
+  esac
 done
 
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
@@ -55,7 +62,9 @@ print(main.PUERTO_UART)
 echo "=== SmartPharma Cart — lado Orange Pi ==="
 
 # --- 1. UART ---------------------------------------------------------------------------
-if [ ! -e "$PUERTO_UART" ]; then
+if [ "$SIMULAR_ESP" -eq 1 ]; then
+  echo " ESP32-S3 / UART   : SIMULADA (--simular-esp; no se usa $PUERTO_UART)"
+elif [ ! -e "$PUERTO_UART" ]; then
   echo " UART              : FALLO — no existe $PUERTO_UART" >&2
   echo "                     Revisa que UART0 esté liberado de la consola serial (orange-pi/CLAUDE.md)." >&2
   FALLO=1

@@ -548,5 +548,53 @@ class MainCompleto(unittest.TestCase):
         enlace.close.assert_called_once()
 
 
+class EspSimulada(unittest.TestCase):
+    def setUp(self):
+        from uart.esp_simulada import EnlaceSimulado
+        self.Enlace = EnlaceSimulado
+        self.esperas = []
+        parche = mock.patch("uart.esp_simulada.time.sleep", side_effect=self.esperas.append)
+        parche.start()
+        self.addCleanup(parche.stop)
+
+    def test_confirma_dispensador_y_cada_giro_tras_el_retraso(self):
+        e = self.Enlace(retraso_s=2.5)
+        e.enviar({"accion": "activar_dispensador"})
+        self.assertEqual(e.recibir(timeout=5.0), {"evento": "objeto_en_posicion"})
+        for cara in range(1, 6):
+            e.enviar({"accion": "girar_posicion", "cara": cara})
+            self.assertEqual(e.recibir(timeout=5.0), {"evento": "en_posicion", "cara": cara})
+        self.assertEqual(self.esperas, [2.5] * 6)
+
+    def test_retraso_mayor_al_timeout_no_confirma(self):
+        e = self.Enlace(retraso_s=6.0)
+        e.enviar({"accion": "activar_dispensador"})
+        self.assertIsNone(e.recibir(timeout=5.0))
+        self.assertEqual(self.esperas, [5.0])
+
+    def test_sin_orden_pendiente_no_responde_y_las_demas_acciones_no_generan_eventos(self):
+        e = self.Enlace()
+        self.assertIsNone(e.recibir(timeout=5.0))
+        for accion in ("activar_alarma_local", "desactivar_alarma_local"):
+            e.enviar({"accion": accion})
+            self.assertIsNone(e.recibir(timeout=5.0))
+        e.enviar({"accion": "clasificar", "destino": "TIPO_A"})
+        self.assertIsNone(e.recibir(timeout=5.0))
+
+    def test_main_con_simular_esp_no_abre_el_uart(self):
+        camara = mock.Mock()
+        with mock.patch.object(main, "EnlaceUART") as uart, \
+                mock.patch.object(main, "abrir_camara", return_value=camara), \
+                mock.patch.object(main, "DescubridorPC"), \
+                mock.patch.object(main, "esperar_orden_inicio"), \
+                mock.patch.object(main, "ciclo_de_un_objeto", side_effect=KeyboardInterrupt) as ciclo:
+            main.main(["--simular-esp", "--retraso-esp", "1.5"])
+        uart.assert_not_called()
+        enlace_usado = ciclo.call_args[0][0]
+        self.assertEqual(type(enlace_usado).__name__, "EnlaceSimulado")
+        self.assertEqual(enlace_usado._retraso_s, 1.5)
+        camara.release.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
