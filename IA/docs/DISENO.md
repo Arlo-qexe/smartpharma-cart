@@ -83,5 +83,5 @@ No hay fotos aún. Para pasar de “imagen completa + regex” al detector del e
 
 ## 7. Verificación hecha
 
-- 27 pruebas unitarias (parseo de fechas y lotes, rangos FEFO, consolidación, pipeline, presupuesto de tiempo, adaptador), sin OCR ni GPU.
+- 32 pruebas unitarias (parseo de fechas y lotes, rangos FEFO, consolidación, pipeline, presupuesto de tiempo, adaptador), sin OCR ni GPU.
 - Una corrida con RapidOCR real sobre 5 caras **sintéticas** (texto limpio renderizado): lote `AB1234`, vencimiento 31/08/2027, confianza 0.98 → `TIPO_C` con los rangos placeholder. **No** demuestra el desempeño con cajas reales (brillo, curvatura, tinta troquelada): eso solo se mide con fotos reales.

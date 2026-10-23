@@ -45,7 +45,7 @@ contrato vigente), `config.py` + `config/reconocimiento.json`.
 bash scripts/setup_venv.sh        # .venv/ con núcleo + OCR (CPU)
 OCR=0 bash scripts/setup_venv.sh  # solo núcleo
 source .venv/bin/activate
-python -m unittest discover -s tests -t .   # 27 pruebas, sin OCR ni GPU
+python -m unittest discover -s tests -t .   # 32 pruebas, sin OCR ni GPU
 ```
 
 `.venv/` no se commitea. Todo corre en CPU; la GPU es opcional y se activaría por

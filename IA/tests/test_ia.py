@@ -47,6 +47,19 @@ class TestParseo(unittest.TestCase):
             parseo.buscar_vencimiento("FAB 01/2025\nVENC 01/2028"), date(2028, 1, 31))
         self.assertIsNone(parseo.buscar_vencimiento("FAB 01/2025 MFG 01/2025"))
 
+    def test_vencimiento_en_ingles(self):
+        self.assertEqual(parseo.buscar_vencimiento("USE BEFORE 09/2026"), date(2026, 9, 30))
+        self.assertEqual(parseo.buscar_vencimiento("Use by: 03/2028"), date(2028, 3, 31))
+        self.assertEqual(parseo.buscar_vencimiento("BEST BEFORE 12/2027"), date(2027, 12, 31))
+
+    def test_cada_no_es_caducidad(self):
+        """"CAD" es el inicio de "CADA": una posología con una fecha cerca no es un vencimiento."""
+        self.assertIsNone(parseo.buscar_vencimiento("TOMAR CADA 8 HORAS. 15/06/2025"))
+        self.assertIsNone(parseo.buscar_vencimiento("Una tableta cada 12 horas 08/2027"))
+        self.assertEqual(parseo.buscar_vencimiento("CAD. 08/2027"), date(2027, 8, 31))
+        self.assertEqual(parseo.buscar_vencimiento("CAD: 08/2027"), date(2027, 8, 31))
+        self.assertEqual(parseo.buscar_vencimiento("CADUCIDAD 08/2027"), date(2027, 8, 31))
+
     def test_fecha_invalida(self):
         self.assertIsNone(parseo.buscar_vencimiento("VENC 13/2027"))
         self.assertIsNone(parseo.parsear_fecha("31/02/2027"))
@@ -57,6 +70,28 @@ class TestParseo(unittest.TestCase):
         self.assertEqual(parseo.buscar_lote("B.N. X-99/7"), "X-99/7")
         self.assertIsNone(parseo.buscar_lote("sin datos"))
         self.assertEqual(parseo.limpiar_lote("lote no. ab 12 34"), "AB1234")
+
+    def test_lote_con_numero_abreviado(self):
+        """"Lote No./Nº/N°" es muy común en empaques colombianos; antes buscar_lote devolvía None."""
+        casos = {
+            "Lote No. 12345": "12345", "LOTE NO: 12345": "12345", "LOTE NO 12345": "12345",
+            "Lote Nº 12345": "12345", "LOTE N° 12345": "12345", "LOTE N°12345": "12345",
+            "Lote № 12345": "12345", "LOTE: NO 12345": "12345", "Lote N. 12345": "12345",
+            "LOTE # 12345": "12345", "LOTE: AB1234": "AB1234",
+        }
+        for texto, esperado in casos.items():
+            with self.subTest(texto=texto):
+                self.assertEqual(parseo.buscar_lote(texto), esperado)
+
+    def test_lote_que_empieza_por_no_o_n_no_pierde_sus_letras(self):
+        self.assertEqual(parseo.buscar_lote("LOTE NO123"), "NO123")
+        self.assertEqual(parseo.buscar_lote("LOTE NO-123"), "NO-123")
+        self.assertEqual(parseo.buscar_lote("LOTE N-12345"), "N-12345")
+
+    def test_lote_demasiado_largo_no_se_corta_en_silencio(self):
+        self.assertEqual(parseo.buscar_lote("LOTE ABCDEFGHIJKLMN1"), "ABCDEFGHIJKLMN1")   # 15: el máximo
+        self.assertIsNone(parseo.buscar_lote("LOTE ABCDEFGHIJKLMNO1"))                   # 16: no es un lote
+        self.assertIsNone(parseo.buscar_lote("LOTE 123456789012345678"))
 
 
 class TestConfigFefo(unittest.TestCase):

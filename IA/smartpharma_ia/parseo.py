@@ -31,11 +31,19 @@ _MESES = {
 _SEP = r"[/\-. ]"
 _CLAVE_VENC = (
     r"(?:\bF\.?\s?V\.?|\bVENC(?:E|IMIENTO)?\.?|\bVTO\.?|\bEXP(?:IRA|IRY)?\.?(?:\s?DATE)?"
-    r"|\bCAD(?:UCIDAD)?\.?|\bUSE\s+ANTES\s+DE|\bUSAR\s+ANTES\s+DE|\bBEST\s+BEFORE)"
+    r"|\bCAD(?:UCIDAD)?(?![A-Z])\.?|\bUSE\s+ANTES\s+DE|\bUSAR\s+ANTES\s+DE|\bBEST\s+BEFORE"
+    r"|\bUSE\s+BEFORE|\bUSE\s+BY)"
 )
 _CLAVE_LOTE = r"(?:\bLOTE|\bLOT|\bBATCH|\bB\.?\s?N\.?)"
 
-_RE_LOTE = re.compile(_CLAVE_LOTE + r"\s*(?:No\.?|N°|#)?\s*[:.\-]?\s*([A-Z0-9][A-Z0-9\-/]{2,14})")
+# Prefijo opcional tras LOTE: "NO." / "NO:" / "NO " / "N°" / "N." / "#". Como _normalizar pasa a
+# mayúsculas y NFKC convierte "º" y "№" en "O", "Nº 123" llega como "NO 123". "NO" solo cuenta como
+# prefijo si lo sigue un espacio o ":" (así un lote "NO123" no pierde sus letras).
+# El (?!...) final evita que un lote más largo de lo que admite el patrón se corte y pase por otro.
+_RE_LOTE = re.compile(
+    _CLAVE_LOTE + r"\s*[:.\-]?\s*(?:N°|NO\.|NO(?=[\s:])|N\.|#)?\s*[:.\-]?\s*"
+    r"([A-Z0-9][A-Z0-9\-/]{2,14})(?![A-Z0-9\-/])"
+)
 
 # Patrones de fecha, de más específico a menos (el orden importa).
 _RE_DMA = re.compile(r"(\d{1,2})" + _SEP + r"(\d{1,2})" + _SEP + r"(\d{4}|\d{2})\b")
