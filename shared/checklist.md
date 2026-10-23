@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
+**Última actualización:** 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 y PC-21 hechos).
+Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: S-11 hecha, OP-26 detener el ciclo, OP-27 cámara por lote).
@@ -141,7 +142,7 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   demo, **OP-23**). Después se ajustó el panel: Inicio sigue siempre al lote más reciente
   (antes quedaba fijo en un lote abierto desde Inventario) y las fotos del monitoreo van en
   3 por fila (3 + 2) y más grandes. *Sigue pendiente (fuera de PC-22):* pausar/reanudar no existe.
-- [~] **PC-21** Conexión Orange Pi ↔ PC con la PC en **WSL2** (2026-10-22). Entorno restaurado
+- [x] **PC-21** Conexión Orange Pi ↔ PC con la PC en **WSL2** (2026-10-22; cerrado 2026-10-23). Entorno restaurado
   desde GitHub (venv completo, 91 pruebas pasan). Hallazgos y estado:
   - WSL2 en modo NAT anunciaba `172.22.x.x`, inalcanzable para la Orange Pi, y mDNS no
     atraviesa ese NAT. Se activó `networkingMode=mirrored` en `.wslconfig` (Windows 11): la
@@ -156,9 +157,17 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
     p. ej. `wsl -u root ...` desde Windows). Se pierde al reiniciar WSL o cambiar de red.
     Con él, la Orange Pi conectó y `start_Opi.sh --verificar` pasó: UART `/dev/ttyS0`,
     cámara `/dev/video1`, PC descubierta por mDNS en `192.168.20.47:5000` (ver **OP-24**).
-  - **Pendiente:** una solución estable para la demo (PC por cable Ethernet, o correr el
-    servidor directamente en Windows) y repetirlo con el router de la demo (**S-10**).
-    El ciclo completo con el botón "Iniciar recorrido" no se probó en esta sesión.
+  - **Cierre (2026-10-23), en el router de la demo (D-11, S-10 hecha):** la PC (`192.168.0.4`) y la
+    Orange Pi (`192.168.0.5`) se alcanzan **sin el parche**: WSL resolvió la MAC de la Orange Pi
+    por sí solo (`ip neigh` → `REACHABLE`), hubo ping y puerto abierto, y el ciclo completo con
+    el botón "Iniciar recorrido" corrió (ver **OP-23**, **OP-25**). Para la demo no hace falta
+    nada más. Requisito de esa red: marcarla como **Privada** en Windows (la regla de entrada
+    de TCP 5000/5001 es solo del perfil Privado; en una red Pública el firewall bloquea a la
+    Orange Pi). *Sin resolver, a propósito:* no se entendió del todo por qué falló el ARP en la
+    red anterior (Wi-Fi `192.168.20.x`, otra banda); no se implementó una solución estable. Es
+    una sola observación en la red de la demo. Si el problema reaparece en otra red, el parche
+    de arriba sigue sirviendo, y las salidas estables serían la PC por cable Ethernet o el
+    servidor directamente en Windows.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -450,6 +459,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-21 `[x]`: en el router de la demo la PC y la Orange Pi se alcanzan sin el parche de ARP; se anota el requisito de red Privada en Windows y que la causa del fallo en la red anterior quedó sin explicar ni resolver. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 `[x]`: detener el ciclo y cantidad de cajas probados de punta a punta con la Orange Pi real (OP-26); el panel muestra siempre el lote más reciente y las fotos van 3 por fila. Sin cambios de contrato. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-23 `[x]` y S-10 `Hecha`: probado en el router de la demo (placa y PC en `192.168.0.x`, mDNS y puertos bien, ciclo completo con `--simular-esp`). |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | D-12: autoenfoque explícito en la cámara del carrito y en la captura del conjunto de datos (Arducam). Se actualizó `IA/entrenamiento/FLUJO_ARDUCAM.md`, que recomendaba enfoque manual y fijo, con permiso del usuario. |
