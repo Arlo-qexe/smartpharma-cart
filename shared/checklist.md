@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte D, OCR de la IA conectado al inventario).
+**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte E, exportación a CSV).
+Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte D, OCR de la IA conectado al inventario).
 Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 partes A a C; D-13 y D-14).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 y PC-21 hechos).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
@@ -173,7 +174,7 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
     una sola observación en la red de la demo. Si el problema reaparece en otra red, el parche
     de arriba sigue sirviendo, y las salidas estables serían la PC por cable Ethernet o el
     servidor directamente en Windows.
-- [~] **PC-23** Registro de eventos, usuarios y inventario (2026-10-26). Origen: realimentación del profesor
+- [~] **PC-23** Registro de eventos, usuarios e inventario (2026-10-26). Origen: realimentación del profesor
   sobre la demo (la pestaña de inventario era solo un log; faltaba control de quién opera y un registro
   que nadie pueda editar), estructurada en partes con el usuario. **Todo del lado PC: no cambia el
   protocolo con la Orange Pi ni con la ESP32-S3, ni `shared/protocol_constants.py`.** Decisiones en
@@ -210,8 +211,11 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
     Nuevo `bash pc/scripts/simular_orangepi.sh`: Orange Pi simulada con fotos ya tomadas. **Pendiente del equipo de IA:**
     rangos FEFO reales (hoy placeholder: en modo `ia` el carrito clasifica con ellos), medir con fotos de la Arducam
     (lo medido es con fotos de celular), texto en relieve/al revés y **S-05**. Sin cambios de `shared/protocol_constants.py`.
-  - [ ] **E. Cierre:** respaldo y exportación del registro y del inventario, política de retención y
-    documentación para el regente.
+  - [x] **E. Cierre** (2026-10-26): **exportación a CSV** del inventario y del registro de eventos (botón «Exportar CSV» en
+    cada pestaña, con los filtros visibles y sin paginar; exige turno y cada descarga queda en el registro como
+    `exportacion`; UTF-8 con BOM y `;` para Excel; celdas protegidas contra fórmulas). **Decidido no hacer** (proyecto de
+    clase, decisión del usuario) el respaldo de la base ni la política de retención del registro. Queda sin hacer la
+    documentación para el regente (guía de uso).
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -505,6 +509,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte E `[x]`: exportación a CSV del inventario y del registro; respaldo y retención descartados por el usuario. Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte D `[x]`: la IA corre en la PC (`PC_RECONOCIMIENTO=ia`) y llena el inventario sin confirmación; simulador de la Orange Pi con fotos. Pendiente del equipo de IA: FEFO real y medir con la Arducam. Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 nuevo `[~]`: registro de eventos de solo escritura, usuarios, turnos y permisos, e inventario como base de datos (partes A a C hechas; D, conectar el OCR, y E, cierre, pendientes). D-13 (se persiste el registro, los usuarios y el inventario; revierte D-05 solo para eso) y D-14 (control de acceso). PC-14, D-05 y PC-11 anotados; aclaración del lado PC en S-05. Sin cambios de contrato ni de la Orange Pi. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-21 `[x]`: en el router de la demo la PC y la Orange Pi se alcanzan sin el parche de ARP; se anota el requisito de red Privada en Windows y que la causa del fallo en la red anterior quedó sin explicar ni resolver. |

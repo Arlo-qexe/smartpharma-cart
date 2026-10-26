@@ -788,6 +788,43 @@ $("reg-limpiar").addEventListener("click", () => {
 $("reg-mas").addEventListener("click", () => cargarRegistro("mas"));
 $("reg-verificar").addEventListener("click", verificarRegistro);
 
+// Exportación a CSV (exige turno): descarga TODO lo que cumple los filtros que se ven, no solo la página.
+async function descargarCsv(ruta, params, nodoError, boton) {
+  nodoError.textContent = "";
+  boton.disabled = true;
+  try {
+    const r = await fetch(`${ruta}?${params}`, { cache: "no-store" });
+    if (!r.ok) {
+      let d = {};
+      try { d = await r.json(); } catch (e) { /* respuesta sin JSON */ }
+      nodoError.textContent = r.status === 401 || r.status === 403
+        ? "Inicia tu turno para exportar." : textoErrorInventario(d);
+      return;
+    }
+    const nombre = (/filename="([^"]+)"/.exec(r.headers.get("Content-Disposition") || "") || [])[1] || "exportacion.csv";
+    const url = URL.createObjectURL(await r.blob());
+    const a = crear("a");
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) {
+    nodoError.textContent = "No se pudo exportar: sin conexión con la PC.";
+  } finally {
+    boton.disabled = false;
+  }
+}
+$("reg-exportar").addEventListener("click", () =>
+  descargarCsv("/api/log/exportar.csv", new URLSearchParams(filtrosRegistro()), $("reg-error"), $("reg-exportar")));
+$("inv-exportar").addEventListener("click", () => {
+  const q = consultaInventario();
+  q.delete("limite");
+  q.delete("desplazamiento");
+  descargarCsv("/api/inventario/exportar.csv", q, $("inv-error"), $("inv-exportar"));
+});
+
 // ---------------------------------------------------------------------------
 // Inventario: una fila por caja auditada (inventario.py). Los filtros, el orden y la paginación
 // los resuelve el servidor; aquí solo se piden y se dibujan.

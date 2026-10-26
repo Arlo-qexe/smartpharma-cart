@@ -33,6 +33,7 @@ RUTA_DB_DEFECTO = Path(__file__).resolve().parents[1] / "data" / "smartpharma.db
 HASH_INICIAL = "0" * 64          # "hash anterior" del primer evento
 LIMITE_DEFECTO = 200
 LIMITE_MAXIMO = 500
+LIMITE_EXPORTACION = 100_000
 
 _ESQUEMA = """
 CREATE TABLE IF NOT EXISTS eventos (
@@ -208,6 +209,39 @@ class Auditoria:
         despues_id = solo los posteriores (para ir añadiendo los nuevos en el panel).
         """
         limite = max(1, min(int(limite), LIMITE_MAXIMO))
+        donde, args = self._filtros(antes_id, despues_id, tipo, texto, desde_ms, hasta_ms)
+        sql = "SELECT id, ts_ms, tipo, responsable, detalle, hash FROM eventos"
+        if donde:
+            sql += " WHERE " + " AND ".join(donde)
+        sql += " ORDER BY id DESC LIMIT ?"
+        with self._lock:
+            try:
+                filas = self._con.execute(sql, (*args, limite + 1)).fetchall()
+            except sqlite3.Error as e:
+                raise ErrorRegistro(f"no se pudo leer el registro: {e}") from e
+        eventos = [{"id": f[0], "ts_ms": f[1], "tipo": f[2], "responsable": f[3],
+                    "detalle": json.loads(f[4]), "hash": f[5]} for f in filas[:limite]]
+        return {"eventos": eventos, "hay_mas": len(filas) > limite}
+
+    def exportar(self, tipo: str | None = None, texto: str | None = None, desde_ms: int | None = None,
+                 hasta_ms: int | None = None) -> list:
+        """TODOS los eventos que cumplen los filtros, del más antiguo al más reciente (orden de la
+        cadena), para exportarlos. Tope de seguridad: LIMITE_EXPORTACION eventos."""
+        donde, args = self._filtros(None, None, tipo, texto, desde_ms, hasta_ms)
+        sql = "SELECT id, ts_ms, tipo, responsable, detalle, hash FROM eventos"
+        if donde:
+            sql += " WHERE " + " AND ".join(donde)
+        sql += " ORDER BY id ASC LIMIT ?"
+        with self._lock:
+            try:
+                filas = self._con.execute(sql, (*args, LIMITE_EXPORTACION)).fetchall()
+            except sqlite3.Error as e:
+                raise ErrorRegistro(f"no se pudo leer el registro: {e}") from e
+        return [{"id": f[0], "ts_ms": f[1], "tipo": f[2], "responsable": f[3],
+                 "detalle": json.loads(f[4]), "hash": f[5]} for f in filas]
+
+    @staticmethod
+    def _filtros(antes_id, despues_id, tipo, texto, desde_ms, hasta_ms):
         donde, args = [], []
         if antes_id is not None:
             donde.append("id < ?")
@@ -227,18 +261,7 @@ class Auditoria:
         if texto:
             donde.append("(tipo || ' ' || responsable || ' ' || detalle) LIKE ? ESCAPE '\\'")
             args.append("%" + _escapar_like(texto) + "%")
-        sql = "SELECT id, ts_ms, tipo, responsable, detalle, hash FROM eventos"
-        if donde:
-            sql += " WHERE " + " AND ".join(donde)
-        sql += " ORDER BY id DESC LIMIT ?"
-        with self._lock:
-            try:
-                filas = self._con.execute(sql, (*args, limite + 1)).fetchall()
-            except sqlite3.Error as e:
-                raise ErrorRegistro(f"no se pudo leer el registro: {e}") from e
-        eventos = [{"id": f[0], "ts_ms": f[1], "tipo": f[2], "responsable": f[3],
-                    "detalle": json.loads(f[4]), "hash": f[5]} for f in filas[:limite]]
-        return {"eventos": eventos, "hay_mas": len(filas) > limite}
+        return donde, args
 
     def tipos(self) -> list:
         with self._lock:

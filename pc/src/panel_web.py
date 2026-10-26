@@ -26,6 +26,7 @@ Rutas:
     GET  /api/log                           registro de eventos (solo lectura), del más reciente al más
                                             antiguo. Parámetros: limite, antes, despues (ids), tipo, q
                                             (texto), desde, hasta (epoch ms). Ver auditoria.py
+    GET  /api/inventario/exportar.csv y /api/log/exportar.csv   CSV con los mismos filtros, SIN paginar (exige turno)
     GET  /api/log/verificar                 comprueba la cadena de hashes del registro
     POST /api/sesion/iniciar                abre el turno: {"codigo"} (auxiliar) o {"nombre","clave"}
                                             (administrador); responde con la cookie de sesión (usuarios.py)
@@ -62,7 +63,10 @@ import protocol_constants as pc  # noqa: E402
 from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido  # noqa: E402
 from auditoria import LIMITE_DEFECTO, ErrorRegistro  # noqa: E402
 from inventario import ErrorInventario  # noqa: E402
-from usuarios import PERMISO_ADMINISTRAR, PERMISO_EDITAR_INVENTARIO, PERMISO_OPERAR, ErrorUsuarios  # noqa: E402
+from usuarios import (  # noqa: E402
+    PERMISO_ADMINISTRAR, PERMISO_EDITAR_INVENTARIO, PERMISO_EXPORTAR, PERMISO_OPERAR, ErrorUsuarios,
+)
+import exportar  # noqa: E402
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
@@ -185,6 +189,10 @@ class _Handler(BaseHTTPRequestHandler):
             usuarios = self.server.usuarios
             datos["acceso"] = usuarios.estado_publico(self._token()) if usuarios else None
             self._json(200, datos)
+        elif ruta == "/api/inventario/exportar.csv":
+            self._exportar_inventario(urlsplit(self.path).query)
+        elif ruta == "/api/log/exportar.csv":
+            self._exportar_log(urlsplit(self.path).query)
         elif ruta in ("/api/inventario", "/api/inventario/agrupado"):
             self._get_inventario(ruta.endswith("/agrupado"), urlsplit(self.path).query)
         elif ruta == "/api/usuarios":
@@ -226,15 +234,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         p = {k: v[0] for k, v in parse_qs(query).items()}
         try:
-            filtros = dict(
-                q=(p.get("q") or "").strip()[:100] or None,
-                destino=p.get("destino") or None,
-                revision=p.get("revision") == "1",
-                venc=p.get("venc") or None,
-                mostrar=p.get("mostrar", "activas"),
-                desde_ms=int(p["desde"]) if "desde" in p else None,
-                hasta_ms=int(p["hasta"]) if "hasta" in p else None,
-            )
+            filtros = self._filtros_inventario(p)
             paginacion = dict(limite=p.get("limite", 50), desplazamiento=p.get("desplazamiento", 0))
             if agrupado:
                 datos = inventario.agrupar(**paginacion, **filtros)
@@ -253,6 +253,77 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": "error_interno"})
             return
         self._json(200, datos)
+
+    @staticmethod
+    def _filtros_inventario(p: dict) -> dict:
+        return dict(
+            q=(p.get("q") or "").strip()[:100] or None,
+            destino=p.get("destino") or None,
+            revision=p.get("revision") == "1",
+            venc=p.get("venc") or None,
+            mostrar=p.get("mostrar", "activas"),
+            desde_ms=int(p["desde"]) if "desde" in p else None,
+            hasta_ms=int(p["hasta"]) if "hasta" in p else None,
+        )
+
+    def _entregar_csv(self, nombre: str, cuerpo: bytes, tipo_evento: str, responsable: str, filas: int, filtros: dict):
+        """Envía el CSV y deja en el registro quién exportó, qué y cuántas filas."""
+        self.server.estado.registrar_evento(
+            "exportacion", responsable, que=tipo_evento, filas=filas,
+            filtros={k: v for k, v in filtros.items() if v not in (None, False, "")})
+        marca = time.strftime("%Y%m%d_%H%M%S")
+        self._responder(200, "text/csv; charset=utf-8", cuerpo, {
+            "Content-Disposition": f'attachment; filename="smartpharma_{nombre}_{marca}.csv"'})
+
+    def _exportar_inventario(self, query: str):
+        inventario = self.server.inventario
+        if inventario is None:
+            self._json(503, {"error": "inventario_no_disponible"})
+            return
+        ok, actor = self._autorizar(PERMISO_EXPORTAR, "exportar_inventario")
+        if not ok:
+            return
+        p = {k: v[0] for k, v in parse_qs(query).items()}
+        try:
+            filtros = self._filtros_inventario(p)
+            cajas = inventario.exportar(orden=p.get("orden", "auditada"), direccion=p.get("dir", "desc"), **filtros)
+        except ValueError:
+            self._json(400, {"error": "parametro_invalido"})
+            return
+        except ErrorInventario as e:
+            self._json(*_http_inventario(e))
+            return
+        except ErrorRegistro:
+            log.exception("No se pudo leer el inventario para exportarlo")
+            self._json(500, {"error": "error_interno"})
+            return
+        self._entregar_csv("inventario", exportar.inventario_a_csv(cajas), "inventario", actor, len(cajas), filtros)
+
+    def _exportar_log(self, query: str):
+        auditoria = self.server.auditoria
+        if auditoria is None:
+            self._json(503, {"error": "registro_no_disponible"})
+            return
+        ok, actor = self._autorizar(PERMISO_EXPORTAR, "exportar_registro")
+        if not ok:
+            return
+        p = {k: v[0] for k, v in parse_qs(query).items()}
+        try:
+            filtros = dict(
+                tipo=p.get("tipo") or None,
+                texto=(p.get("q") or "").strip()[:100] or None,
+                desde_ms=int(p["desde"]) if "desde" in p else None,
+                hasta_ms=int(p["hasta"]) if "hasta" in p else None,
+            )
+            eventos = auditoria.exportar(**filtros)
+        except ValueError:
+            self._json(400, {"error": "parametro_invalido"})
+            return
+        except ErrorRegistro:
+            log.exception("No se pudo leer el registro para exportarlo")
+            self._json(500, {"error": "error_interno"})
+            return
+        self._entregar_csv("registro", exportar.registro_a_csv(eventos), "registro", actor, len(eventos), filtros)
 
     def _post_inventario(self, caja_id: int, accion: str):
         inventario = self.server.inventario

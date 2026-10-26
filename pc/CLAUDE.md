@@ -124,9 +124,10 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
 - `src/inventario.py` — inventario de cajas (Parte C): una fila por caja auditada. Ver abajo.
+- `src/exportar.py` — exportación a CSV del inventario y del registro (Parte E).
 - `src/usuarios.py` — usuarios, turnos y permisos (Parte B); `src/usuarios_cli.py` + `scripts/usuarios.sh` — consola para crear el primer administrador. Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py`, `tests/test_inventario.py`, `tests/test_inventario_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py`, `tests/test_inventario.py`, `tests/test_inventario_panel.py`, `tests/test_exportar.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -226,5 +227,12 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   turno). Si el inventario falla, el flujo físico sigue y el evento queda sin caja. Una caja por lote: el
   lote vacío del sondeo de reconexión (informe 4.6, caso F2) puede duplicar una caja ya registrada; se
   elimina a mano.
+- **Exportación a CSV (Parte E):** botón «Exportar CSV» en INVENTARIO y en REGISTRO (`src/exportar.py`;
+  `GET /api/inventario/exportar.csv` y `GET /api/log/exportar.csv`). Descarga **todo** lo que cumple los filtros
+  visibles, sin paginar (tope 100 000 filas); el registro sale en el orden de la cadena y con el sello de cada
+  evento. Exige turno (permiso `exportar`, que tienen auxiliares y administradores) y cada descarga queda en el
+  registro como `exportacion` (quién, cuál, cuántas filas, con qué filtros). UTF-8 con BOM y `;` como separador
+  (Excel en español); las celdas que empiezan por `= + - @` se prefijan con `'` para que un dato leído por el OCR
+  no se ejecute como fórmula. Decidido NO hacer respaldo de la base ni política de retención (proyecto de clase).
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

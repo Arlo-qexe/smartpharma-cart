@@ -43,6 +43,7 @@ CAMPOS_EDITABLES = ("medicamento", "gramaje", "numero_lote", "vencimiento", "not
 LARGO_MAXIMO = {"medicamento": 120, "gramaje": 40, "numero_lote": 40, "notas": 500}
 LARGO_MAXIMO_MOTIVO = 200
 LIMITE_DEFECTO, LIMITE_MAXIMO = 50, 200
+LIMITE_EXPORTACION = 100_000
 PATRON_DESTINO = re.compile(r"^[A-Z0-9_]{1,32}$")
 _RE_CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")      # se permite \n y \t en las notas
 DESTINO_PENDIENTE = "pendiente"                            # valor del filtro: aún sin decisión del regente
@@ -370,6 +371,20 @@ class Inventario:
         total = self._aud.leer(f"SELECT COUNT(*) FROM cajas{donde}", tuple(args))[0][0]
         return {"cajas": [self._a_dict(f) for f in filas], "total": total, "limite": limite,
                 "desplazamiento": desplazamiento}
+
+    def exportar(self, *, orden: str = "auditada", direccion: str = "desc", **filtros) -> list:
+        """TODAS las cajas que cumplen los filtros (sin paginar), para exportarlas. Tope de seguridad:
+        LIMITE_EXPORTACION filas."""
+        if orden not in ORDENES:
+            raise ErrorInventario("parametro_invalido", parametro="orden")
+        if direccion not in ("asc", "desc"):
+            raise ErrorInventario("parametro_invalido", parametro="dir")
+        donde, args = self._donde(**filtros)
+        nulos = f"({ORDENES[orden].split()[0]} IS NULL), " if orden in NULOS_AL_FINAL else ""
+        filas = self._aud.leer(
+            f"SELECT {_COLUMNAS} FROM cajas{donde} ORDER BY {nulos}{ORDENES[orden]} {direccion.upper()}, id DESC "
+            "LIMIT ?", (*args, LIMITE_EXPORTACION))
+        return [self._a_dict(f) for f in filas]
 
     def agrupar(self, *, limite: int = LIMITE_DEFECTO, desplazamiento: int = 0, **filtros) -> dict:
         """Cajas agrupadas por medicamento, gramaje, lote del medicamento y vencimiento: lo más

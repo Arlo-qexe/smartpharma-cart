@@ -456,7 +456,7 @@ def test_estado_publico(g, admin):
     _, c = codigo_de(g)
     t, _ = g.iniciar_turno_con_codigo(c)
     propio = g.estado_publico(t)
-    assert propio["sesion"]["nombre"] == "Ana Pérez" and propio["sesion"]["permisos"] == ["editar_inventario", "operar"]
+    assert propio["sesion"]["nombre"] == "Ana Pérez" and propio["sesion"]["permisos"] == ["editar_inventario", "exportar", "operar"]
     ajeno = g.estado_publico("otro-token")
     assert ajeno["sesion"] is None and ajeno["turno"]["nombre"] == "Ana Pérez"      # se ve quién está en turno
 
