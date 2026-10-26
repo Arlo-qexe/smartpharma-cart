@@ -116,13 +116,41 @@
     </section>
 
     <section id="vista-inventario" class="vista" hidden>
-      <h2>Lotes recibidos</h2>
-      <p class="aviso">Se conservan los últimos <span id="inv-max"></span> lotes con fotos; el resto solo queda en el historial. Haz clic en una fila para verla en Inicio.</p>
+      <h2>Inventario</h2>
+      <p class="aviso">Una fila por cada caja auditada. El medicamento, el gramaje, el lote y el vencimiento los llenará el reconocimiento cuando se conecte; mientras tanto, y para corregirlos, se completan a mano con «Editar» (exige turno abierto). Eliminar oculta la caja pero la conserva y puede restaurarse. Todo cambio queda en el REGISTRO con quién lo hizo. La clasificación y el destino no se editan: el destino lo fija el sistema o la decisión del regente.</p>
+      <div class="inv-vistas">
+        <button id="inv-vista-cajas" class="btn-chico activa">Cajas</button>
+        <button id="inv-vista-grupos" class="btn-chico">Agrupado por medicamento y lote</button>
+      </div>
+      <div class="filtros-registro">
+        <label>Buscar <input id="inv-q" type="search" placeholder="medicamento, lote, destino, auxiliar…" maxlength="100"></label>
+        <label>Clasificación <select id="inv-destino"><option value="">Todas</option></select></label>
+        <label>Vencimiento
+          <select id="inv-venc">
+            <option value="">Todos</option><option value="vencidas">Vencidos</option>
+            <option value="30">Vencen en 30 días o menos</option><option value="90">En 90 días o menos</option>
+            <option value="180">En 180 días o menos</option><option value="sin">Sin fecha</option>
+          </select>
+        </label>
+        <label>Mostrar
+          <select id="inv-mostrar"><option value="activas">Activas</option><option value="eliminadas">Eliminadas</option><option value="todas">Todas</option></select>
+        </label>
+        <label>Auditadas desde <input id="inv-desde" type="date"></label>
+        <label>hasta <input id="inv-hasta" type="date"></label>
+        <button id="inv-aplicar" class="btn-chico">Filtrar</button>
+        <button id="inv-limpiar" class="btn-chico">Limpiar</button>
+      </div>
+      <p id="inv-error" class="error-chico"></p>
       <div class="tabla-envoltura">
-        <table id="tabla-lotes">
-          <thead><tr><th>Lote</th><th>Hora</th><th>Origen</th><th>Imágenes</th><th>Resultado</th></tr></thead>
+        <table id="tabla-inventario">
+          <thead></thead>
           <tbody></tbody>
         </table>
+      </div>
+      <div class="paginacion">
+        <button id="inv-ant" class="btn-chico">‹ Anterior</button>
+        <span id="inv-pagina" class="aviso"></span>
+        <button id="inv-sig" class="btn-chico">Siguiente ›</button>
       </div>
     </section>
 
@@ -204,6 +232,22 @@
       </div>
     </section>
   </main>
+
+  <dialog id="caja-dialogo" class="login">
+    <form id="caja-form" autocomplete="off">
+      <h2 id="caja-titulo">Editar caja</h2>
+      <label>Medicamento <input id="caja-medicamento" maxlength="120"></label>
+      <label>Gramaje <input id="caja-gramaje" maxlength="40" placeholder="p. ej. 500 mg"></label>
+      <label>Lote del medicamento <input id="caja-lote" maxlength="40"></label>
+      <label>Vencimiento <input id="caja-vencimiento" type="date"></label>
+      <label>Notas <textarea id="caja-notas" maxlength="500" rows="3"></textarea></label>
+      <p id="caja-error" class="error-chico"></p>
+      <div class="login-botones">
+        <button type="submit" class="btn-chico">Guardar</button>
+        <button type="button" id="caja-cancelar" class="btn-chico">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="login" class="login" aria-label="Iniciar turno">
     <form id="login-form" autocomplete="off">

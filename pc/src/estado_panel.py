@@ -119,12 +119,24 @@ class EstadoPanel:
                        "iniciado_por": None, "detencion_ordenada_por": None}
         self._contacto = {"ip": None, "ts": None}   # último mensaje válido de la Orange Pi
         self._auditoria = None                      # registro de eventos (auditoria.py), opcional
+        self._inventario = None                     # inventario de cajas (inventario.py), opcional
         self._arranque = None                       # id del evento "sistema_iniciado" de esta ejecución
 
     # -- registro de eventos (log) -------------------------------------------------
     def conectar_auditoria(self, auditoria) -> None:
         """Conecta el registro de eventos persistente. Sin él, el estado funciona igual."""
         self._auditoria = auditoria
+
+    def conectar_inventario(self, inventario) -> None:
+        """Conecta el inventario: cada lote recibido crea su caja y cada decisión del regente le
+        fija el destino, en la misma transacción que su evento. Requiere el registro conectado."""
+        self._inventario = inventario
+
+    def _con_arranque(self, detalle: dict) -> dict:
+        """El detalle con el id de arranque (ver _evento): para eventos que escribe el inventario."""
+        if self._arranque is not None:
+            detalle = {**detalle, "arranque": self._arranque} if "arranque" not in detalle else detalle
+        return detalle
 
     def _evento(self, tipo: str, responsable: str, **detalle):
         """Anota un evento. Se llama DENTRO del candado, así el orden del registro es el de
@@ -173,8 +185,21 @@ class EstadoPanel:
             })
             for viejo in list(self._lotes)[:-MAX_LOTES_CON_FOTOS]:
                 viejo["imagenes"] = None
-            self._evento("lote_recibido", RESPONSABLE_SISTEMA, lote_id=lote_id, origen=origen,
-                         n_imagenes=len(imagenes), resultado=resultado)
+            detalle = dict(lote_id=lote_id, origen=origen, n_imagenes=len(imagenes), resultado=resultado)
+            registrada = False
+            if self._inventario is not None and self._auditoria is not None:
+                try:
+                    # La caja se anota a nombre de quien tiene el recorrido en marcha, si lo hay.
+                    turno_de = self._ciclo.get("iniciado_por") if self._ciclo["estado"] != CICLO_INACTIVO else None
+                    self._inventario.registrar_caja(
+                        arranque=self._arranque, captura_id=lote_id, origen=origen,
+                        n_imagenes=len(imagenes), resultado=resultado, turno_de=turno_de,
+                        evento=("lote_recibido", RESPONSABLE_SISTEMA, self._con_arranque(detalle)))
+                    registrada = True
+                except Exception:
+                    log_auditoria.exception("no se pudo registrar la caja del lote %s", lote_id)
+            if not registrada:        # sin inventario, o falló: el evento se deja igual, sin caja
+                self._evento("lote_recibido", RESPONSABLE_SISTEMA, **detalle)
             return lote_id
 
     def registrar_alarma(self, motivo: str, lote_id: int | None = None) -> int:
@@ -251,9 +276,20 @@ class EstadoPanel:
                 alarma["ts_resuelta"] = time.time()
                 alarma["resuelta_por"] = responsable
                 # Qué alarma era, qué se decidió (TIPO_X o DESCARTE) y quién lo decidió.
-                self._evento("alarma_resuelta" if espera else "alarma_cerrada", responsable,
-                             alarma_id=alarma_id, motivo=alarma["motivo"], lote_id=alarma["lote_id"],
-                             destino=destino if espera else None, decision_aplicada=espera)
+                detalle = dict(alarma_id=alarma_id, motivo=alarma["motivo"], lote_id=alarma["lote_id"],
+                               destino=destino if espera else None, decision_aplicada=espera)
+                anotada = False
+                if espera and self._inventario is not None and self._auditoria is not None:
+                    try:             # ese destino pasa a ser el de la caja, junto con el evento
+                        self._inventario.definir_destino(
+                            arranque=self._arranque, captura_id=alarma["lote_id"], destino=destino,
+                            responsable=responsable,
+                            evento=("alarma_resuelta", responsable, self._con_arranque(detalle)))
+                        anotada = True
+                    except Exception:
+                        log_auditoria.exception("no se pudo fijar el destino de la caja de la alarma %s", alarma_id)
+                if not anotada:
+                    self._evento("alarma_resuelta" if espera else "alarma_cerrada", responsable, **detalle)
             return RESUELTA_CON_DECISION if espera else CERRADA_SIN_DECISION
 
     # -- orden de inicio del ciclo (consulta S-06, opción 1; informe 4.7) ----------
@@ -424,6 +460,7 @@ class EstadoPanel:
                     "ts_ultima_consulta": self._ts_ultima_consulta_orden,
                 },
                 "ts_servidor": time.time(),
+                "arranque": self._arranque,      # para saber si una caja del inventario aún tiene sus fotos en RAM
                 "alarma_activa": any(a["activa"] for a in alarmas),
                 "max_lotes_con_fotos": MAX_LOTES_CON_FOTOS,
                 "lotes": lotes,

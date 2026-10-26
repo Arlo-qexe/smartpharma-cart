@@ -524,7 +524,8 @@ const MOTIVOS_TURNO = {
 const ACCIONES = {
   iniciar_ciclo: "iniciar el recorrido", detener_ciclo: "detener el recorrido", resolver_alarma: "resolver una alarma",
   asistente_confirmar: "confirmar una acción del asistente", listar_usuarios: "ver los usuarios",
-  administrar_usuarios: "administrar usuarios",
+  administrar_usuarios: "administrar usuarios", editar_caja: "editar una caja",
+  eliminar_caja: "eliminar una caja", restaurar_caja: "restaurar una caja",
 };
 const MOTIVOS_FIN = {
   detenido_por_regente: "lo detuvo el regente",
@@ -540,7 +541,7 @@ const EVENTOS = {
   sistema_detenido: ["Sistema detenido", () => "Servidor de la PC detenido de forma ordenada."],
   servicio_anunciado: ["Servicio anunciado", (d) => `Anunciado por mDNS como ${v(d.nombre)} en ${v(d.ip)}:${v(d.puerto)}.`],
   lote_recibido: ["Lote recibido", (d) =>
-    `Lote #${v(d.lote_id)} de ${v(d.origen)}: ${v(d.n_imagenes)} imágenes → ${resultadoHumano(d.resultado)}.`],
+    `Lote #${v(d.lote_id)} de ${v(d.origen)}: ${v(d.n_imagenes)} imágenes → ${resultadoHumano(d.resultado)}${d.caja_id ? ` (caja #${d.caja_id} del inventario)` : ""}.`],
   alarma_abierta: ["Alarma abierta", (d) =>
     `Alarma #${v(d.alarma_id)}: ${motivoHumano(d.motivo)}${d.lote_id ? ` (lote #${d.lote_id})` : ""}.`],
   alarma_resuelta: ["Alarma resuelta", (d) =>
@@ -557,6 +558,12 @@ const EVENTOS = {
     `Recorrido detenido: ${MOTIVOS_FIN[d.motivo] || v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
   ciclo_orden_cancelada: ["Orden cancelada", () => "Se canceló la orden de inicio antes de que la Orange Pi la recogiera."],
   ciclo_orden_vencida: ["Orden vencida", (d) => `La orden de inicio de ${v(d.ordenada_por)} venció sin que la Orange Pi la recogiera.`],
+  caja_editada: ["Caja editada", (d) =>
+    `Caja #${v(d.caja_id)}: ` + Object.entries(d.cambios || {}).map(([c, [antes, ahora]]) =>
+      `${CAMPOS_CAJA[c] || c}: ${v(antes)} → ${v(ahora)}`).join("; ") + "."],
+  caja_eliminada: ["Caja eliminada", (d) =>
+    `Caja #${v(d.caja_id)} (${d.medicamento || "sin datos"}, lote ${v(d.numero_lote)}) eliminada${d.motivo ? `: ${d.motivo}` : ""}. Se conserva y puede restaurarse.`],
+  caja_restaurada: ["Caja restaurada", (d) => `Caja #${v(d.caja_id)} (${d.medicamento || "sin datos"}) restaurada.`],
   usuario_creado: ["Usuario creado", (d) => `Se creó al ${v(d.rol)} ${v(d.nombre)}.`],
   usuario_codigo_regenerado: ["Código regenerado", (d) => `Nuevo código para ${v(d.nombre)}; el anterior dejó de servir.`],
   usuario_activado: ["Usuario activado", (d) => `${v(d.nombre)} vuelve a poder entrar.`],
@@ -740,25 +747,305 @@ $("reg-limpiar").addEventListener("click", () => {
 $("reg-mas").addEventListener("click", () => cargarRegistro("mas"));
 $("reg-verificar").addEventListener("click", verificarRegistro);
 
-function renderInventario() {
-  $("inv-max").textContent = estado.max_lotes_con_fotos;
-  const cuerpo = $("tabla-lotes").tBodies[0];
-  vaciar(cuerpo);
-  if (!estado.lotes.length) filaVacia(cuerpo, 5, "Aún no se ha recibido ningún lote.");
-  for (const l of estado.lotes) {
-    const tr = crear("tr", "clic");
-    tr.appendChild(crear("td", "", "#" + l.id));
-    tr.appendChild(crear("td", "", fmtHora(l.ts)));
-    tr.appendChild(crear("td", "", l.origen));
-    tr.appendChild(crear("td", "", String(l.n_imagenes)));
-    tr.appendChild(crear("td", "", resultadoHumano(l.resultado)));
-    tr.addEventListener("click", () => {
-      loteSeleccionado = l.id;
-      cambiarVista("inicio");
-    });
-    cuerpo.appendChild(tr);
+// ---------------------------------------------------------------------------
+// Inventario: una fila por caja auditada (inventario.py). Los filtros, el orden y la paginación
+// los resuelve el servidor; aquí solo se piden y se dibujan.
+const TAM_PAGINA_INVENTARIO = 50;
+// `vista/orden/dir/pagina` es lo que el usuario quiere ver; `mostrado` es lo que se pidió para obtener `datos`.
+// La tabla, las flechas y la página se dibujan según `mostrado`, para no mezclar filas de una consulta con
+// la etiqueta de otra mientras llega la respuesta.
+const inv = { vista: "cajas", orden: "auditada", dir: "desc", pagina: 0, datos: null, mostrado: null,
+              cargando: false, repetir: false, error: false, firma: null, firmaCabecera: null, firmaDestinos: null };
+const COLUMNAS_CAJAS = [
+  ["id", "#"], ["auditada", "Auditada"], ["medicamento", "Medicamento"], ["gramaje", "Gramaje"],
+  ["numero_lote", "Lote"], ["vencimiento", "Vence"], ["destino", "Clasificación"], ["turno_de", "Auxiliar"],
+  [null, "Acciones"],
+];
+const COLUMNAS_GRUPOS = [[null, "Medicamento"], [null, "Gramaje"], [null, "Lote"], [null, "Vence"],
+                         [null, "Cajas"], [null, "Última auditoría"]];
+const CAMPOS_CAJA = { medicamento: "medicamento", gramaje: "gramaje", numero_lote: "lote del medicamento",
+                      vencimiento: "vencimiento", notas: "notas" };
+const ERRORES_INVENTARIO = {
+  caja_inexistente: "Esa caja ya no existe.",
+  caja_eliminada: "Esa caja está eliminada: restáurala para poder editarla.",
+  ya_eliminada: "Esa caja ya estaba eliminada.",
+  no_eliminada: "Esa caja no estaba eliminada.",
+  parametro_invalido: "Alguno de los filtros no es válido.",
+  sin_cambios: "No hay nada que guardar.",
+  inventario_no_disponible: "El inventario no está disponible en este servidor.",
+};
+const puedeEditar = () => {
+  const a = acceso();
+  return !a || !!(a.sesion && a.sesion.permisos.includes("editar_inventario"));
+};
+const fmtFecha = (iso) => {
+  if (!iso) return "—";
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a}`;
+};
+function textoErrorInventario(d) {
+  if (d.error === "valor_invalido") return `El campo «${CAMPOS_CAJA[d.campo] || d.campo}» no es válido.`;
+  if (d.error === "campo_no_editable") return "Ese dato no se puede editar.";
+  return ERRORES_INVENTARIO[d.error] || textoErrorAcceso(d);
+}
+
+function consultaInventario() {
+  const q = new URLSearchParams();
+  const texto = $("inv-q").value.trim();
+  if (texto) q.set("q", texto);
+  const destino = $("inv-destino").value;
+  if (destino === "__revision__") q.set("revision", "1");
+  else if (destino) q.set("destino", destino);
+  if ($("inv-venc").value) q.set("venc", $("inv-venc").value);
+  q.set("mostrar", $("inv-mostrar").value);
+  if ($("inv-desde").value) q.set("desde", String(new Date($("inv-desde").value + "T00:00:00").getTime()));
+  if ($("inv-hasta").value) q.set("hasta", String(new Date($("inv-hasta").value + "T23:59:59.999").getTime()));
+  if (inv.vista === "cajas") { q.set("orden", inv.orden); q.set("dir", inv.dir); }
+  q.set("limite", String(TAM_PAGINA_INVENTARIO));
+  q.set("desplazamiento", String(inv.pagina * TAM_PAGINA_INVENTARIO));
+  return q;
+}
+
+async function cargarInventario() {
+  if (inv.cargando) { inv.repetir = true; return; }   // ya hay una petición en vuelo: al terminar se repite con lo último pedido
+  inv.cargando = true;
+  let reintentar = false;
+  const pedido = { vista: inv.vista, orden: inv.orden, dir: inv.dir, pagina: inv.pagina };
+  try {
+    const ruta = pedido.vista === "cajas" ? "/api/inventario" : "/api/inventario/agrupado";
+    const r = await fetch(`${ruta}?${consultaInventario()}`, { cache: "no-store" });
+    if (r.status === 503) { inv.error = "El inventario no está disponible en este servidor."; inv.datos = null; return; }
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    const ultima = Math.max(0, Math.ceil(d.total / TAM_PAGINA_INVENTARIO) - 1);
+    if (inv.pagina > ultima) { inv.pagina = ultima; reintentar = true; return; }   // p. ej. tras eliminar la última fila
+    inv.datos = d;
+    inv.mostrado = pedido;
+    inv.error = false;
+  } catch (e) {
+    inv.error = "No se pudo leer el inventario.";
+  } finally {
+    inv.cargando = false;
+    if (reintentar || inv.repetir) { inv.repetir = false; cargarInventario(); }
+    else renderInventario();
   }
 }
+
+// Se llama en cada sondeo mientras se mira la pestaña: entran cajas nuevas a lo largo del recorrido.
+function tickInventario() {
+  if (!inv.cargando) cargarInventario();
+}
+
+function aplicarFiltrosInventario() {
+  inv.pagina = 0;
+  inv.firma = null;
+  cargarInventario();
+}
+function cambiarOrden(col) {
+  if (inv.orden === col) inv.dir = inv.dir === "asc" ? "desc" : "asc";
+  else { inv.orden = col; inv.dir = col === "auditada" || col === "id" ? "desc" : "asc"; }
+  aplicarFiltrosInventario();
+}
+
+function renderCabeceraInventario(m) {
+  const firma = `${m.vista}:${m.orden}:${m.dir}`;
+  if (firma === inv.firmaCabecera) return;
+  inv.firmaCabecera = firma;
+  const fila = crear("tr");
+  for (const [col, titulo] of (m.vista === "cajas" ? COLUMNAS_CAJAS : COLUMNAS_GRUPOS)) {
+    const th = crear("th", col ? "ordenable" : "", titulo + (col && m.orden === col ? (m.dir === "asc" ? " ▲" : " ▼") : ""));
+    if (col) th.addEventListener("click", () => cambiarOrden(col));
+    fila.appendChild(th);
+  }
+  const cabecera = $("tabla-inventario").tHead;
+  vaciar(cabecera);
+  cabecera.appendChild(fila);
+}
+
+function celdaVencimiento(fecha, dias) {
+  const td = crear("td");
+  if (!fecha) { td.appendChild(crear("span", "sin-dato", "—")); return td; }
+  td.appendChild(document.createTextNode(fmtFecha(fecha)));
+  const clase = dias < 0 ? "venc-vencida" : dias <= 30 ? "venc-pronto" : "";
+  td.appendChild(crear("span", "pequeno " + clase,
+    dias < 0 ? `vencida hace ${-dias} d` : dias === 0 ? "vence hoy" : `faltan ${dias} d`));
+  return td;
+}
+const celdaDato = (valor) => (valor ? crear("td", "", valor) : crear("td", "sin-dato", "—"));
+
+function filaCaja(c) {
+  const tr = crear("tr", c.eliminada ? "baja" : "");
+  tr.appendChild(crear("td", "", String(c.id)));
+  tr.appendChild(crear("td", "", fmtHora(c.creada_ms / 1000)));
+  const tdMed = celdaDato(c.medicamento);
+  if (c.editada) {
+    const marca = crear("span", "marca", "✎");
+    marca.title = "Datos completados o corregidos a mano";
+    tdMed.appendChild(marca);
+  }
+  tr.appendChild(tdMed);
+  tr.appendChild(celdaDato(c.gramaje));
+  tr.appendChild(celdaDato(c.numero_lote));
+  tr.appendChild(celdaVencimiento(c.vencimiento, c.dias_para_vencer));
+  const tdClas = crear("td");
+  if (c.destino) {
+    tdClas.appendChild(document.createTextNode(c.destino));
+    if (c.resultado === ERROR_REVISION) tdClas.appendChild(crear("span", "pequeno", `revisión manual · decidió ${c.destino_por}`));
+  } else {
+    tdClas.appendChild(crear("span", "venc-pronto", "Pendiente de decisión"));
+    tdClas.appendChild(crear("span", "pequeno", "revisión manual"));
+  }
+  tr.appendChild(tdClas);
+  tr.appendChild(celdaDato(c.turno_de));
+
+  const td = crear("td");
+  const caja = crear("div", "acciones");
+  const lote = estado.lotes.find((l) => l.id === c.captura_id);
+  if (c.arranque === estado.arranque && lote && lote.fotos_disponibles) {
+    const fotos = crear("button", "btn-chico", "Fotos");
+    fotos.title = "Ver las fotos de esta caja en Inicio";
+    fotos.addEventListener("click", () => { loteSeleccionado = c.captura_id; cambiarVista("inicio"); });
+    caja.appendChild(fotos);
+  }
+  const bloqueado = !puedeEditar();
+  const boton = (texto, accion) => {
+    const b = crear("button", "btn-chico", texto);
+    b.disabled = bloqueado;
+    if (bloqueado) b.title = "Inicia tu turno para editar el inventario";
+    b.addEventListener("click", accion);
+    caja.appendChild(b);
+  };
+  if (c.eliminada) boton("Restaurar", () => restaurarCaja(c));
+  else { boton("Editar", () => abrirEdicion(c)); boton("Eliminar", () => eliminarCaja(c)); }
+  td.appendChild(caja);
+  tr.appendChild(td);
+  return tr;
+}
+
+function filaGrupo(g) {
+  const tr = crear("tr");
+  tr.appendChild(celdaDato(g.medicamento));
+  tr.appendChild(celdaDato(g.gramaje));
+  tr.appendChild(celdaDato(g.numero_lote));
+  tr.appendChild(celdaVencimiento(g.vencimiento, g.dias_para_vencer));
+  tr.appendChild(crear("td", "responsable", String(g.cajas)));
+  tr.appendChild(crear("td", "", fmtHora(g.ultima_auditoria_ms / 1000)));
+  return tr;
+}
+
+function renderInventario() {
+  if (vista !== "inventario" || !estado) return;
+  $("inv-error").textContent = inv.error || "";
+  const d = inv.datos;
+  const m = inv.mostrado || { vista: inv.vista, orden: inv.orden, dir: inv.dir, pagina: inv.pagina };
+  const firma = JSON.stringify([d, m, puedeEditar(), estado.arranque, inv.vista,
+                                estado.lotes.map((l) => [l.id, l.fotos_disponibles])]);
+  if (firma === inv.firma) return;
+  inv.firma = firma;
+  $("inv-vista-cajas").classList.toggle("activa", inv.vista === "cajas");
+  $("inv-vista-grupos").classList.toggle("activa", inv.vista === "grupos");
+  renderCabeceraInventario(m);
+
+  if (d && d.destinos) {          // el filtro de clasificación ofrece los destinos que existen
+    const firmaD = d.destinos.join("|");
+    if (firmaD !== inv.firmaDestinos) {
+      inv.firmaDestinos = firmaD;
+      const sel = $("inv-destino");
+      const actual = sel.value;
+      vaciar(sel);
+      for (const [valor, texto] of [["", "Todas"], ...d.destinos.map((x) => [x, x]),
+                                    ["pendiente", "Pendiente de decisión"], ["__revision__", "Pasó por revisión manual"]]) {
+        const o = crear("option", "", texto);
+        o.value = valor;
+        sel.appendChild(o);
+      }
+      sel.value = actual;
+    }
+  }
+
+  const cuerpo = $("tabla-inventario").tBodies[0];
+  vaciar(cuerpo);
+  const columnas = m.vista === "cajas" ? COLUMNAS_CAJAS.length : COLUMNAS_GRUPOS.length;
+  const filas = d ? (m.vista === "cajas" ? d.cajas : d.grupos) : [];
+  if (!filas.length) filaVacia(cuerpo, columnas, d ? "No hay cajas que coincidan." : (inv.error ? "—" : "Cargando…"));
+  for (const f of filas) cuerpo.appendChild(m.vista === "cajas" ? filaCaja(f) : filaGrupo(f));
+
+  const total = d ? d.total : 0;
+  const paginas = Math.max(1, Math.ceil(total / TAM_PAGINA_INVENTARIO));
+  $("inv-pagina").textContent = `Página ${m.pagina + 1} de ${paginas} · ${total} ${m.vista === "cajas" ? "cajas" : "grupos"}`;
+  $("inv-ant").disabled = m.pagina <= 0;
+  $("inv-sig").disabled = m.pagina + 1 >= paginas;
+}
+
+async function accionCaja(id, accion, cuerpo) {
+  $("inv-error").textContent = "";
+  try {
+    const r = await fetch(`/api/inventario/${id}/${accion}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo || {}),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { return { error: textoErrorInventario(d) }; }
+    return { ok: true };
+  } catch (e) {
+    return { error: "No se pudo contactar al servidor." };
+  } finally {
+    inv.firma = null;
+    cargarInventario();
+  }
+}
+
+async function eliminarCaja(c) {
+  const motivo = prompt(`Eliminar la caja #${c.id}. Se oculta, pero se conserva y puede restaurarse.\nMotivo (opcional):`, "");
+  if (motivo === null) return;
+  const r = await accionCaja(c.id, "eliminar", { motivo: motivo.trim() });
+  if (r.error) $("inv-error").textContent = r.error;
+}
+async function restaurarCaja(c) {
+  if (!confirm(`¿Restaurar la caja #${c.id}?`)) return;
+  const r = await accionCaja(c.id, "restaurar");
+  if (r.error) $("inv-error").textContent = r.error;
+}
+
+let cajaEnEdicion = null;
+function abrirEdicion(c) {
+  cajaEnEdicion = c;
+  $("caja-titulo").textContent = `Editar la caja #${c.id}`;
+  $("caja-medicamento").value = c.medicamento || "";
+  $("caja-gramaje").value = c.gramaje || "";
+  $("caja-lote").value = c.numero_lote || "";
+  $("caja-vencimiento").value = c.vencimiento || "";
+  $("caja-notas").value = c.notas || "";
+  $("caja-error").textContent = "";
+  $("caja-dialogo").showModal();
+  $("caja-medicamento").focus();
+}
+$("caja-cancelar").addEventListener("click", () => $("caja-dialogo").close());
+$("caja-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const c = cajaEnEdicion;
+  const nuevos = { medicamento: $("caja-medicamento").value.trim(), gramaje: $("caja-gramaje").value.trim(),
+                   numero_lote: $("caja-lote").value.trim(), vencimiento: $("caja-vencimiento").value,
+                   notas: $("caja-notas").value.trim() };
+  const cambios = {};
+  for (const k of Object.keys(nuevos)) if ((c[k] || "") !== nuevos[k]) cambios[k] = nuevos[k];
+  if (!Object.keys(cambios).length) { $("caja-dialogo").close(); return; }   // nada que guardar
+  const r = await accionCaja(c.id, "editar", { cambios });
+  if (r.error) { $("caja-error").textContent = r.error; return; }
+  $("caja-dialogo").close();
+});
+
+$("inv-vista-cajas").addEventListener("click", () => { inv.vista = "cajas"; aplicarFiltrosInventario(); });
+$("inv-vista-grupos").addEventListener("click", () => { inv.vista = "grupos"; aplicarFiltrosInventario(); });
+$("inv-aplicar").addEventListener("click", aplicarFiltrosInventario);
+$("inv-q").addEventListener("keydown", (ev) => { if (ev.key === "Enter") aplicarFiltrosInventario(); });
+for (const id of ["inv-destino", "inv-venc", "inv-mostrar"]) $(id).addEventListener("change", aplicarFiltrosInventario);
+$("inv-limpiar").addEventListener("click", () => {
+  for (const id of ["inv-q", "inv-destino", "inv-venc", "inv-desde", "inv-hasta"]) $(id).value = "";
+  $("inv-mostrar").value = "activas";
+  aplicarFiltrosInventario();
+});
+$("inv-ant").addEventListener("click", () => { inv.pagina = Math.max(0, inv.pagina - 1); inv.firma = null; cargarInventario(); });
+$("inv-sig").addEventListener("click", () => { inv.pagina += 1; inv.firma = null; cargarInventario(); });
 
 const borradores = new Map(); // alarma id -> destino a medio escribir
 let firmaAlertas = null;
@@ -1056,7 +1343,7 @@ $("chat-nuevo").addEventListener("click", async () => {
 
 const RENDERS = {
   inicio: () => { renderInicio(); renderAsistente(); },
-  inventario: renderInventario,
+  inventario: () => { tickInventario(); renderInventario(); },
   alertas: renderAlertas,
   registro: () => { tickRegistro(); renderRegistro(); },
   usuarios: () => { if (!usuariosCargados) cargarUsuarios(); renderUsuarios(); },
@@ -1116,6 +1403,8 @@ for (const b of document.querySelectorAll("#pestanas button")) {
   });
 }
 // http://127.0.0.1:8080/#registro abre directamente esa pestaña.
-if (Object.prototype.hasOwnProperty.call(RENDERS, location.hash.slice(1))) cambiarVista(location.hash.slice(1));
+const vistaDeLaUrl = () => (Object.prototype.hasOwnProperty.call(RENDERS, location.hash.slice(1)) ? location.hash.slice(1) : null);
+if (vistaDeLaUrl()) cambiarVista(vistaDeLaUrl());
+window.addEventListener("hashchange", () => { if (vistaDeLaUrl() && vistaDeLaUrl() !== vista) cambiarVista(vistaDeLaUrl()); });
 refrescar();
 setInterval(refrescar, INTERVALO_MS);

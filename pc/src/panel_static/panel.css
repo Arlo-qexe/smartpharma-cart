@@ -223,3 +223,19 @@ dialog.login input { padding: 10px; border: 1px solid var(--tinta); border-radiu
 #tabla-usuarios td { white-space: normal; vertical-align: middle; }
 #tabla-usuarios tr.baja td { color: var(--gris); }
 #tabla-usuarios .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Inventario */
+.inv-vistas { display: flex; gap: 8px; margin: 8px 0 4px; }
+.inv-vistas .btn-chico.activa { background: var(--teal); color: #fff; }
+#tabla-inventario td { white-space: normal; vertical-align: middle; }
+#tabla-inventario th.ordenable { cursor: pointer; user-select: none; white-space: nowrap; }
+#tabla-inventario th.ordenable:hover { text-decoration: underline; }
+#tabla-inventario tr.baja td { color: var(--gris); }
+#tabla-inventario .acciones { display: flex; gap: 6px; flex-wrap: wrap; }
+#tabla-inventario .sin-dato { color: var(--gris); }
+.venc-vencida { color: var(--rojo); font-weight: 700; }
+.venc-pronto { color: #9a6b00; font-weight: 700; }
+.pequeno { display: block; font-size: 12px; color: var(--suave); font-weight: 400; }
+.marca { font-size: 12px; color: var(--suave); margin-left: 4px; }
+.paginacion { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+dialog.login textarea { padding: 10px; border: 1px solid var(--tinta); border-radius: 6px; font: 16px system-ui, sans-serif; background: #fff; resize: vertical; }

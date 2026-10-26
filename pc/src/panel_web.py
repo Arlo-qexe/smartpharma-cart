@@ -19,6 +19,10 @@ Rutas:
                                             opcional {"cantidad": N}: cajas a procesar (sin él, sin límite)
     POST /api/ciclo/detener                 el regente ordena detener el ciclo: la Orange Pi lo recoge
                                             antes del siguiente objeto (informe 4.8)
+    GET  /api/inventario[/agrupado]         inventario de cajas (solo lectura): q, destino, revision, venc, mostrar,
+                                            desde, hasta, orden, dir, limite, desplazamiento (ver inventario.py)
+    POST /api/inventario/<id>/editar|eliminar|restaurar
+                                            exigen turno (permiso editar_inventario); eliminar es lógico
     GET  /api/log                           registro de eventos (solo lectura), del más reciente al más
                                             antiguo. Parámetros: limite, antes, despues (ids), tipo, q
                                             (texto), desde, hasta (epoch ms). Ver auditoria.py
@@ -57,7 +61,8 @@ import protocol_constants as pc  # noqa: E402
 
 from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido  # noqa: E402
 from auditoria import LIMITE_DEFECTO, ErrorRegistro  # noqa: E402
-from usuarios import PERMISO_ADMINISTRAR, PERMISO_OPERAR, ErrorUsuarios  # noqa: E402
+from inventario import ErrorInventario  # noqa: E402
+from usuarios import PERMISO_ADMINISTRAR, PERMISO_EDITAR_INVENTARIO, PERMISO_OPERAR, ErrorUsuarios  # noqa: E402
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
@@ -85,6 +90,9 @@ _ESTATICOS = {
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
 _RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
 _RE_CICLO = re.compile(r"^/api/ciclo/(iniciar|detener)$")
+_RE_INVENTARIO = re.compile(r"^/api/inventario/(\d+)/(editar|eliminar|restaurar)$")
+_MAX_CUERPO_INVENTARIO_BYTES = 8192     # las notas admiten 500 caracteres (hasta ~2 KB en UTF-8)
+_HTTP_ERRORES_INVENTARIO = {"caja_inexistente": 404, "caja_eliminada": 409, "ya_eliminada": 409, "no_eliminada": 409}
 _RE_SESION = re.compile(r"^/api/sesion/(iniciar|cerrar|actividad|clave)$")
 _RE_USUARIOS = re.compile(r"^/api/usuarios(?:/(\d+)/(codigo|activar|desactivar|eliminar))?$")
 _RE_ASISTENTE = re.compile(r"^/api/asistente/(estado|mensaje|confirmar|cancelar|reiniciar)$")
@@ -95,6 +103,10 @@ _HTTP_ERRORES_USUARIOS = {
     "credenciales_invalidas": 401, "sesion_requerida": 401, "sin_permiso": 403, "bloqueado": 429,
     "turno_en_curso": 409, "nombre_duplicado": 409, "ultimo_administrador": 409, "usuario_inexistente": 404,
 }
+
+
+def _http_inventario(e: ErrorInventario):
+    return _HTTP_ERRORES_INVENTARIO.get(e.codigo, 400), {"error": e.codigo, **e.detalle}
 
 
 def _http_de(e: ErrorUsuarios):
@@ -173,6 +185,8 @@ class _Handler(BaseHTTPRequestHandler):
             usuarios = self.server.usuarios
             datos["acceso"] = usuarios.estado_publico(self._token()) if usuarios else None
             self._json(200, datos)
+        elif ruta in ("/api/inventario", "/api/inventario/agrupado"):
+            self._get_inventario(ruta.endswith("/agrupado"), urlsplit(self.path).query)
         elif ruta == "/api/usuarios":
             sesion = self._autorizar(PERMISO_ADMINISTRAR, "listar_usuarios")
             if sesion[0]:
@@ -204,6 +218,67 @@ class _Handler(BaseHTTPRequestHandler):
                 self._responder(200, "image/jpeg", foto)
         else:
             self._json(404, {"error": "no encontrado"})
+
+    def _get_inventario(self, agrupado: bool, query: str):
+        inventario = self.server.inventario
+        if inventario is None:
+            self._json(503, {"error": "inventario_no_disponible"})
+            return
+        p = {k: v[0] for k, v in parse_qs(query).items()}
+        try:
+            filtros = dict(
+                q=(p.get("q") or "").strip()[:100] or None,
+                destino=p.get("destino") or None,
+                revision=p.get("revision") == "1",
+                venc=p.get("venc") or None,
+                mostrar=p.get("mostrar", "activas"),
+                desde_ms=int(p["desde"]) if "desde" in p else None,
+                hasta_ms=int(p["hasta"]) if "hasta" in p else None,
+            )
+            paginacion = dict(limite=p.get("limite", 50), desplazamiento=p.get("desplazamiento", 0))
+            if agrupado:
+                datos = inventario.agrupar(**paginacion, **filtros)
+            else:
+                datos = inventario.listar(orden=p.get("orden", "auditada"), direccion=p.get("dir", "desc"),
+                                          **paginacion, **filtros)
+                datos["destinos"] = inventario.destinos()
+        except ValueError:                      # un número mal escrito (desde, hasta...)
+            self._json(400, {"error": "parametro_invalido"})
+            return
+        except ErrorInventario as e:
+            self._json(*_http_inventario(e))
+            return
+        except ErrorRegistro:
+            log.exception("No se pudo leer el inventario")
+            self._json(500, {"error": "error_interno"})
+            return
+        self._json(200, datos)
+
+    def _post_inventario(self, caja_id: int, accion: str):
+        inventario = self.server.inventario
+        if inventario is None:
+            self._json(503, {"error": "inventario_no_disponible"})
+            return
+        ok, actor = self._autorizar(PERMISO_EDITAR_INVENTARIO, f"{accion}_caja")
+        if not ok:
+            return
+        cuerpo = self._leer_cuerpo_json(_MAX_CUERPO_INVENTARIO_BYTES)
+        try:
+            if accion == "editar":
+                caja = inventario.editar(actor, caja_id, cuerpo.get("cambios"))
+            elif accion == "eliminar":
+                caja = inventario.eliminar(actor, caja_id, cuerpo.get("motivo"))
+            else:
+                caja = inventario.restaurar(actor, caja_id)
+        except ErrorInventario as e:
+            self._json(*_http_inventario(e))
+            return
+        except ErrorRegistro:
+            log.exception("No se pudo completar el cambio del inventario")
+            self._json(500, {"error": "error_interno"})
+            return
+        log.info("%s: %s la caja #%s", actor, {"editar": "editó", "eliminar": "eliminó", "restaurar": "restauró"}[accion], caja_id)
+        self._json(200, {"ok": True, "caja": caja})
 
     def _get_log(self, query: str):
         auditoria = self.server.auditoria
@@ -388,7 +463,8 @@ class _Handler(BaseHTTPRequestHandler):
         m_ciclo = _RE_CICLO.match(ruta)
         m_sesion = _RE_SESION.match(ruta)
         m_usuarios = _RE_USUARIOS.match(ruta)
-        if (not m and not m_ciclo and not m_sesion and not m_usuarios
+        m_inventario = _RE_INVENTARIO.match(ruta)
+        if (not m and not m_ciclo and not m_sesion and not m_usuarios and not m_inventario
                 and not (m_asistente and m_asistente.group(1) != "estado")):
             self._json(404, {"error": "no encontrado"})
             return
@@ -400,6 +476,9 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if m_usuarios:
             self._post_usuarios(m_usuarios.group(1), m_usuarios.group(2))
+            return
+        if m_inventario:
+            self._post_inventario(int(m_inventario.group(1)), m_inventario.group(2))
             return
         if m_ciclo and m_ciclo.group(1) == "detener":
             ok, responsable = self._autorizar(PERMISO_OPERAR, "detener_ciclo")
@@ -453,13 +532,14 @@ class _Handler(BaseHTTPRequestHandler):
 
 def crear_servidor_panel(estado: EstadoPanel, host: str = PANEL_HOST,
                          puerto: int = PANEL_PUERTO, asistente=None,
-                         auditoria=None, usuarios=None) -> ThreadingHTTPServer:
+                         auditoria=None, usuarios=None, inventario=None) -> ThreadingHTTPServer:
     servidor = ThreadingHTTPServer((host, puerto), _Handler)
     servidor.daemon_threads = True
     servidor.estado = estado
     servidor.asistente = asistente      # opcional: ver asistente_api.py
     servidor.auditoria = auditoria      # opcional: registro de eventos (auditoria.py)
     servidor.usuarios = usuarios        # gestor de usuarios y turnos (usuarios.py); None = sin sesiones
+    servidor.inventario = inventario    # inventario de cajas (inventario.py), opcional
     servidor.denegadas = {}             # (acción, motivo) -> último instante anotado (anti inundación)
     servidor.lock_denegadas = threading.Lock()
     return servidor
@@ -467,8 +547,8 @@ def crear_servidor_panel(estado: EstadoPanel, host: str = PANEL_HOST,
 
 def iniciar_panel(estado: EstadoPanel, host: str = PANEL_HOST,
                   puerto: int = PANEL_PUERTO, asistente=None,
-                  auditoria=None, usuarios=None) -> ThreadingHTTPServer:
+                  auditoria=None, usuarios=None, inventario=None) -> ThreadingHTTPServer:
     """Levanta el panel en un hilo daemon y devuelve el servidor."""
-    servidor = crear_servidor_panel(estado, host, puerto, asistente, auditoria, usuarios)
+    servidor = crear_servidor_panel(estado, host, puerto, asistente, auditoria, usuarios, inventario)
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
     return servidor

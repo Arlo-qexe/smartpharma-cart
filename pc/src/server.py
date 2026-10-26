@@ -30,6 +30,7 @@ from protocol_constants import (  # noqa: E402
 
 from auditoria import Auditoria, ErrorRegistro, ruta_db_desde_entorno
 from estado_panel import estado
+from inventario import Inventario
 from framing import ConexionSinDatos, FramingInvalido, enviar_json, recv_exacto
 from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
 from ocr_interface import procesar_lote_ocr
@@ -180,13 +181,20 @@ if __name__ == "__main__":
     except ErrorRegistro as e:
         log.critical("No se pudo preparar la tabla de usuarios: %s", e)
         sys.exit(1)
+    try:
+        inventario = Inventario(auditoria)
+    except ErrorRegistro as e:
+        log.critical("No se pudo preparar el inventario: %s", e)
+        sys.exit(1)
+    estado.conectar_inventario(inventario)
     if not usuarios.hay_administrador():
         log.warning("NO HAY ADMINISTRADOR: nadie podrá iniciar turno ni operar el panel. "
                     "Créalo con:  bash pc/scripts/usuarios.sh crear-admin")
     signal.signal(signal.SIGTERM, _al_terminar)
     asistente = _crear_asistente()
     try:
-        iniciar_panel(estado, asistente=asistente, auditoria=auditoria, usuarios=usuarios)
+        iniciar_panel(estado, asistente=asistente, auditoria=auditoria, usuarios=usuarios,
+                      inventario=inventario)
         logging.getLogger("panel").info("Panel de control en http://%s:%d/", PANEL_HOST, PANEL_PUERTO)
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.

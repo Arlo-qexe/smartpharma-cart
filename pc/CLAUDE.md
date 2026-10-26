@@ -105,9 +105,10 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
+- `src/inventario.py` — inventario de cajas (Parte C): una fila por caja auditada. Ver abajo.
 - `src/usuarios.py` — usuarios, turnos y permisos (Parte B); `src/usuarios_cli.py` + `scripts/usuarios.sh` — consola para crear el primer administrador. Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py`, `tests/test_inventario.py`, `tests/test_inventario_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -192,5 +193,20 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   turnos viven en RAM (reiniciar el servidor los cierra sin evento de cierre), y la cadena de hashes
   cubre los EVENTOS, no el contenido de la tabla `usuarios`. `server.py` SIEMPRE conecta el gestor;
   construir el panel sin él (solo pruebas) desactiva la exigencia de sesión.
+- **Inventario (Parte C):** `src/inventario.py` (`Inventario`), tabla `cajas` en el MISMO archivo que el
+  registro. Cada lote que llega crea una caja (`EstadoPanel.registrar_lote`, en la misma transacción que
+  su evento `lote_recibido`, que ahora lleva `caja_id`); cuando el regente resuelve una alarma, su destino
+  pasa a ser el de la caja (`alarma_resuelta` también lleva `caja_id`). Dos números que NO se confunden:
+  `captura_id` (el "Lote #N" de fotos, que reinicia en cada arranque; va con `arranque`) y `numero_lote`
+  (el lote del medicamento). `resultado` (lo que respondió el reconocimiento) y `destino` (el final) NO se
+  editan; medicamento, gramaje, lote del medicamento, vencimiento y notas sí, a mano, con turno
+  (`caja_editada` guarda el antes y el después). Hasta que se conecte el OCR (Parte D) esas columnas están
+  vacías; cuando las llene, `datos_origen` dirá 'ocr' (hoy 'manual' si una persona las tocó). Eliminar es
+  lógico y se puede restaurar; la búsqueda ignora mayúsculas y tildes (columna `busqueda`, calculada en
+  Python porque `lower()` de SQLite solo entiende ASCII); al ordenar, lo vacío va SIEMPRE al final. API:
+  `GET /api/inventario[/agrupado]` (libre) y `POST /api/inventario/<id>/editar|eliminar|restaurar` (exigen
+  turno). Si el inventario falla, el flujo físico sigue y el evento queda sin caja. Una caja por lote: el
+  lote vacío del sondeo de reconexión (informe 4.6, caso F2) puede duplicar una caja ya registrada; se
+  elimina a mano.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.
