@@ -214,8 +214,7 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   - [x] **E. Cierre** (2026-10-26): **exportación a CSV** del inventario y del registro de eventos (botón «Exportar CSV» en
     cada pestaña, con los filtros visibles y sin paginar; exige turno y cada descarga queda en el registro como
     `exportacion`; UTF-8 con BOM y `;` para Excel; celdas protegidas contra fórmulas). **Decidido no hacer** (proyecto de
-    clase, decisión del usuario) el respaldo de la base ni la política de retención del registro. Queda sin hacer la
-    documentación para el regente (guía de uso).
+    clase, decisión del usuario) el respaldo de la base ni la política de retención del registro. Guía de uso para el regente: `docs/GUIA_REGENTE.md`.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -509,6 +508,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | Guía de uso para el regente (`docs/GUIA_REGENTE.md`), cierre de PC-23 parte E. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte E `[x]`: exportación a CSV del inventario y del registro; respaldo y retención descartados por el usuario. Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte D `[x]`: la IA corre en la PC (`PC_RECONOCIMIENTO=ia`) y llena el inventario sin confirmación; simulador de la Orange Pi con fotos. Pendiente del equipo de IA: FEFO real y medir con la Arducam. Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 nuevo `[~]`: registro de eventos de solo escritura, usuarios, turnos y permisos, e inventario como base de datos (partes A a C hechas; D, conectar el OCR, y E, cierre, pendientes). D-13 (se persiste el registro, los usuarios y el inventario; revierte D-05 solo para eso) y D-14 (control de acceso). PC-14, D-05 y PC-11 anotados; aclaración del lado PC en S-05. Sin cambios de contrato ni de la Orange Pi. |
