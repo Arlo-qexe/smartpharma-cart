@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 registro de eventos, usuarios e inventario, partes A a C; D-13 y D-14).
+**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte D, OCR de la IA conectado al inventario).
+Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 partes A a C; D-13 y D-14).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 y PC-21 hechos).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
@@ -200,10 +201,15 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
     El resultado del reconocimiento y el destino no se editan. Medicamento, gramaje, lote y vencimiento
     arrancan **vacíos** y se completan a mano hasta la parte D. Una caja por lote: el lote vacío del sondeo
     de reconexión (informe 4.6, caso F2) puede duplicar una caja ya registrada; se elimina a mano.
-  - [ ] **D. Datos del OCR en el inventario:** conectar `IA/` a `pc/src/ocr_interface.py` (detrás de una
-    variable de entorno) y llenar las columnas con lo que lea. **Depende del equipo de IA:** rangos FEFO
-    reales (hoy placeholder), calibrar el tiempo por caja con cajas reales en la PC de la demo (ver
-    `IA/docs/DISENO.md`, §5) y **S-05**.
+  - [x] **D. Datos del OCR en el inventario** (2026-10-26): `pc/src/ocr_interface.py` ejecuta `IA/` en el proceso de
+    la PC con `PC_RECONOCIMIENTO=ia` (por defecto sigue el placeholder al azar) y `IA/modelos/v1_celular/best.onnx`;
+    llena medicamento, gramaje, lote, vencimiento y confianza **sin confirmación** (las correcciones humanas quedan en el
+    registro). Falla al arrancar si el modelo no carga. Para acotar el tiempo se tocó `IA/` (lectura por prioridad: lote y
+    fecha antes que nombre y gramaje; recortes grandes reducidos; `tiempo_maximo_s` 6 s): en 27 cajas de entrenamiento, media
+    3,5 s y máximo 7,2 s (la Orange Pi espera 10 s); 15 de 27 se leen completas, el resto va a revisión manual.
+    Nuevo `bash pc/scripts/simular_orangepi.sh`: Orange Pi simulada con fotos ya tomadas. **Pendiente del equipo de IA:**
+    rangos FEFO reales (hoy placeholder: en modo `ia` el carrito clasifica con ellos), medir con fotos de la Arducam
+    (lo medido es con fotos de celular), texto en relieve/al revés y **S-05**. Sin cambios de `shared/protocol_constants.py`.
   - [ ] **E. Cierre:** respaldo y exportación del registro y del inventario, política de retención y
     documentación para el regente.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
@@ -499,6 +505,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte D `[x]`: la IA corre en la PC (`PC_RECONOCIMIENTO=ia`) y llena el inventario sin confirmación; simulador de la Orange Pi con fotos. Pendiente del equipo de IA: FEFO real y medir con la Arducam. Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 nuevo `[~]`: registro de eventos de solo escritura, usuarios, turnos y permisos, e inventario como base de datos (partes A a C hechas; D, conectar el OCR, y E, cierre, pendientes). D-13 (se persiste el registro, los usuarios y el inventario; revierte D-05 solo para eso) y D-14 (control de acceso). PC-14, D-05 y PC-11 anotados; aclaración del lado PC en S-05. Sin cambios de contrato ni de la Orange Pi. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-21 `[x]`: en el router de la demo la PC y la Orange Pi se alcanzan sin el parche de ARP; se anota el requisito de red Privada en Windows y que la causa del fallo en la red anterior quedó sin explicar ni resolver. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 `[x]`: detener el ciclo y cantidad de cajas probados de punta a punta con la Orange Pi real (OP-26); el panel muestra siempre el lote más reciente y las fotos van 3 por fila. Sin cambios de contrato. |
