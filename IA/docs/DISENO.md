@@ -59,9 +59,12 @@ mismo lote varias veces a la vez) y alarmas falsas. Por eso el módulo debe resp
 - **Qué se cambió:** `Ocr.leer(imagen, exhaustivo=...)`. Con foto completa (`ETIQUETA_COMPLETA`) se hace UNA
   pasada: el borde no hace falta y RapidOCR ya endereza líneas al revés. Los recortes del detector CNN siguen
   siendo exhaustivos (giros y márgenes) porque ahí sí ayudan.
-- **Tope de tiempo** (`tiempo_maximo_s`, 7 s por defecto en `config/reconocimiento.json`): pasado ese tiempo se
+- **Tope de tiempo** (`tiempo_maximo_s`, 6 s por defecto en `config/reconocimiento.json`): pasado ese tiempo se
   dejan de leer caras y se decide con lo leído (si no alcanza, revisión manual con motivo `tiempo_agotado`). Se
-  comprueba entre llamadas al OCR, así que puede pasarse lo que dure UNA llamada. Contra: al saltarse caras se
+  comprueba entre llamadas al OCR, así que puede pasarse lo que dure UNA llamada. Orden: se detectan las
+  regiones de TODAS las caras y el OCR lee primero `lote` y `fecha` y después `nombre` y `gramaje`; los recortes
+  de más de 640 px se reducen antes de leerlos (uno de 997x539 tardaba 4,4 s). Medido en 27 cajas de
+  entrenamiento: media 3,5 s, máximo 7,2 s (antes 4,3 s y 8,3 s), mismos resultados. Contra: al saltarse caras se
   pierde la comparación entre fotos de esas caras.
 - **Probado y descartado:** reducir la imagen a 960 px (1,2 → 0,8 s por llamada, con riesgo para el texto
   pequeño) y leer las 5 caras en hilos (6,2 → 4,5 s; poco para el riesgo de concurrencia con un motor compartido).

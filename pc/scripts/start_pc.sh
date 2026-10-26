@@ -15,6 +15,11 @@
 #   PC_IP=192.168.x.y       fuerza la IP que se anuncia por mDNS (si la PC tiene varias redes
 #                           y la elegida no es la de la Orange Pi). Sin ella se usa la de la
 #                           ruta por defecto, y sin ruta por defecto la de la interfaz real.
+#   PC_RECONOCIMIENTO=ia    lee las cajas con el módulo de IA de IA/ (detector + OCR) y llena el inventario
+#                           SIN pedir confirmación. Por defecto `placeholder` (clasifica al azar, no lee).
+#                           Requiere `IA=1 bash scripts/setup_venv.sh` y los pesos del detector
+#                           (IA_MODELO=/ruta/best.onnx; por defecto IA/modelos/v1_celular/best.onnx).
+#                           OJO: los rangos FEFO de IA/config/reconocimiento.json siguen siendo PLACEHOLDER.
 #   PC_DB=...               archivo del registro de eventos (por defecto pc/data/smartpharma.db).
 #                           `:memory:` = sin persistencia (demos y pruebas).
 #   PC_TURNO_MIN=30         minutos de inactividad que cierran el turno de un auxiliar
@@ -106,6 +111,21 @@ print('administrador configurado' if GestorUsuarios(Auditoria(ruta_db_desde_ento
       else 'SIN ADMINISTRADOR -> crea uno: bash pc/scripts/usuarios.sh crear-admin')
 " 2>/dev/null || echo "no se pudo comprobar")"
 
+# Qué modo de reconocimiento está activo (sin cargar el modelo: eso lo hace el servidor al arrancar).
+ESTADO_RECONOCIMIENTO="$(python3 -c "
+import os, sys
+sys.path.insert(0, 'src')
+from ocr_interface import MODELO_DEFECTO, ReconocimientoNoDisponible, modo_reconocimiento
+try:
+    if modo_reconocimiento() == 'ia':
+        w = os.environ.get('IA_MODELO')
+        print('IA (' + (os.path.basename(w) if w else MODELO_DEFECTO.name if MODELO_DEFECTO.is_file() else 'FALTAN LOS PESOS') + (')' if w != '' else '') + ') — llena el inventario sin confirmación')
+    else:
+        print('placeholder (al azar entre TIPO_A, B y C; no lee datos)  [PC_RECONOCIMIENTO=ia para leer con la IA]')
+except ReconocimientoNoDisponible as e:
+    print('ERROR:', e)
+" 2>&1 || echo "no se pudo comprobar")"
+
 echo "=== SmartPharma Cart — lado PC ==="
 echo " Panel del regente : http://$H_PANEL:$P_PANEL/"
 echo " Lotes (TCP)       : $P_LOTES    Decisión y orden del ciclo (TCP): $P_DECISION"
@@ -118,6 +138,7 @@ esac
 echo " Asistente         : $etiqueta_asistente"
 echo " Registro eventos  : $RUTA_REGISTRO"
 echo " Usuarios          : $ESTADO_USUARIOS"
+echo " Reconocimiento    : $ESTADO_RECONOCIMIENTO"
 echo " Detener con Ctrl+C (lotes, alarmas y decisión en curso viven en RAM; el registro persiste)"
 echo "=================================="
 

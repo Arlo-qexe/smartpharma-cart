@@ -541,9 +541,12 @@ const EVENTOS = {
   sistema_detenido: ["Sistema detenido", () => "Servidor de la PC detenido de forma ordenada."],
   servicio_anunciado: ["Servicio anunciado", (d) => `Anunciado por mDNS como ${v(d.nombre)} en ${v(d.ip)}:${v(d.puerto)}.`],
   lote_recibido: ["Lote recibido", (d) =>
-    `Lote #${v(d.lote_id)} de ${v(d.origen)}: ${v(d.n_imagenes)} imágenes → ${resultadoHumano(d.resultado)}${d.caja_id ? ` (caja #${d.caja_id} del inventario)` : ""}.`],
+    `Lote #${v(d.lote_id)} de ${v(d.origen)}: ${v(d.n_imagenes)} imágenes → ${resultadoHumano(d.resultado)}${d.caja_id ? ` (caja #${d.caja_id} del inventario)` : ""}.` +
+    (d.lectura ? ` La IA leyó${d.lectura.medicamento ? ` ${d.lectura.medicamento},` : ""} lote ${v(d.lectura.numero_lote)}, vence ${fmtFecha(d.lectura.vencimiento)}` +
+      `${d.lectura.confianza ? ` (confianza ${Math.round(d.lectura.confianza * 100)} %)` : ""}${d.lectura.motivo ? `; revisión manual: ${motivoOcrHumano(d.lectura.motivo)}` : ""}` +
+      `${d.lectura.segundos ? ` en ${d.lectura.segundos} s` : ""}.` : "")],
   alarma_abierta: ["Alarma abierta", (d) =>
-    `Alarma #${v(d.alarma_id)}: ${motivoHumano(d.motivo)}${d.lote_id ? ` (lote #${d.lote_id})` : ""}.`],
+    `Alarma #${v(d.alarma_id)}: ${motivoHumano(d.motivo)}${d.lote_id ? ` (lote #${d.lote_id})` : ""}${d.detalle ? ` — ${motivoOcrHumano(d.detalle)}` : ""}.`],
   alarma_resuelta: ["Alarma resuelta", (d) =>
     `Alarma #${v(d.alarma_id)} (${motivoHumano(d.motivo)}${d.lote_id ? `, lote #${d.lote_id}` : ""}) resuelta con el destino ${v(d.destino)}.`],
   alarma_cerrada: ["Alarma cerrada", (d) =>
@@ -763,6 +766,19 @@ const COLUMNAS_CAJAS = [
 ];
 const COLUMNAS_GRUPOS = [[null, "Medicamento"], [null, "Gramaje"], [null, "Lote"], [null, "Vence"],
                          [null, "Cajas"], [null, "Última auditoría"]];
+// Códigos con que el módulo de IA explica por qué una caja fue a revisión manual (pueden venir varios, con ";").
+const MOTIVOS_OCR = {
+  lote_vacio: "lote sin fotos", fallo_reconocimiento: "falló el reconocimiento",
+  tiempo_agotado: "se agotó el tiempo de lectura",
+  "lote:ausente": "no se leyó el lote", "vencimiento:ausente": "no se leyó el vencimiento",
+  "nombre:ausente": "no se leyó el nombre",
+  "lote:confianza_baja": "lectura del lote poco fiable", "vencimiento:confianza_baja": "lectura del vencimiento poco fiable",
+  "lote:conflicto_entre_fotos": "las fotos no coinciden en el lote",
+  "vencimiento:conflicto_entre_fotos": "las fotos no coinciden en el vencimiento",
+  "lote:sin_mayoria": "no hay mayoría entre las fotos para el lote",
+  "vencimiento:sin_mayoria": "no hay mayoría entre las fotos para el vencimiento",
+};
+const motivoOcrHumano = (m) => m.split(";").map((x) => MOTIVOS_OCR[x] || x).join("; ");
 const CAMPOS_CAJA = { medicamento: "medicamento", gramaje: "gramaje", numero_lote: "lote del medicamento",
                       vencimiento: "vencimiento", notas: "notas" };
 const ERRORES_INVENTARIO = {
@@ -883,6 +899,9 @@ function filaCaja(c) {
     marca.title = "Datos completados o corregidos a mano";
     tdMed.appendChild(marca);
   }
+  if (c.datos_origen === "ocr") {
+    tdMed.appendChild(crear("span", "pequeno", `leído por la IA · confianza ${Math.round((c.confianza || 0) * 100)} %`));
+  }
   tr.appendChild(tdMed);
   tr.appendChild(celdaDato(c.gramaje));
   tr.appendChild(celdaDato(c.numero_lote));
@@ -895,6 +914,7 @@ function filaCaja(c) {
     tdClas.appendChild(crear("span", "venc-pronto", "Pendiente de decisión"));
     tdClas.appendChild(crear("span", "pequeno", "revisión manual"));
   }
+  if (c.motivo_ocr) tdClas.appendChild(crear("span", "pequeno", motivoOcrHumano(c.motivo_ocr)));
   tr.appendChild(tdClas);
   tr.appendChild(celdaDato(c.turno_de));
 
@@ -1134,7 +1154,9 @@ function renderAlertas() {
     tdPunto.appendChild(crear("span", "punto " + claseAlarma(a)));
     tr.appendChild(tdPunto);
     tr.appendChild(crear("td", "", fmtHora(a.ts)));
-    tr.appendChild(crear("td", "", motivoHumano(a.motivo)));
+    const tdMotivo = crear("td", "", motivoHumano(a.motivo));
+    if (a.detalle) tdMotivo.appendChild(crear("span", "pequeno", motivoOcrHumano(a.detalle)));
+    tr.appendChild(tdMotivo);
     tr.appendChild(crear("td", "", a.lote_id ? "#" + a.lote_id : "—"));
     tr.appendChild(crear("td", "", textoEstadoAlarma(a)));
     tr.appendChild(celdaAccion(a));

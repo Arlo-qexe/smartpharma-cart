@@ -172,7 +172,18 @@ class EstadoPanel:
         with self._lock:
             self._contacto = {"ip": ip, "ts": time.time()}
 
-    def registrar_lote(self, origen: str, imagenes: list, resultado: str) -> int:
+    @staticmethod
+    def _datos_de(reconocimiento) -> dict | None:
+        """Lo que leyó el módulo de IA (ocr_interface.ResultadoReconocimiento), o None si no hubo lectura
+        real (modo placeholder o lote vacío)."""
+        if reconocimiento is None or getattr(reconocimiento, "origen", None) != "ia":
+            return None
+        return {k: getattr(reconocimiento, k) for k in
+                ("medicamento", "gramaje", "numero_lote", "vencimiento", "confianza", "motivo", "segundos")}
+
+    def registrar_lote(self, origen: str, imagenes: list, resultado: str, datos=None) -> int:
+        """`datos`: el ResultadoReconocimiento del lote; si es del módulo de IA, sus campos llenan la caja."""
+        datos = self._datos_de(datos)
         with self._lock:
             lote_id = next(self._ids_lote)
             self._lotes.append({
@@ -186,6 +197,8 @@ class EstadoPanel:
             for viejo in list(self._lotes)[:-MAX_LOTES_CON_FOTOS]:
                 viejo["imagenes"] = None
             detalle = dict(lote_id=lote_id, origen=origen, n_imagenes=len(imagenes), resultado=resultado)
+            if datos is not None:        # lo que leyó la IA queda también en el registro, aunque luego se corrija
+                detalle["lectura"] = {k: v for k, v in datos.items() if v is not None}
             registrada = False
             if self._inventario is not None and self._auditoria is not None:
                 try:
@@ -193,7 +206,7 @@ class EstadoPanel:
                     turno_de = self._ciclo.get("iniciado_por") if self._ciclo["estado"] != CICLO_INACTIVO else None
                     self._inventario.registrar_caja(
                         arranque=self._arranque, captura_id=lote_id, origen=origen,
-                        n_imagenes=len(imagenes), resultado=resultado, turno_de=turno_de,
+                        n_imagenes=len(imagenes), resultado=resultado, turno_de=turno_de, datos=datos,
                         evento=("lote_recibido", RESPONSABLE_SISTEMA, self._con_arranque(detalle)))
                     registrada = True
                 except Exception:
@@ -202,7 +215,8 @@ class EstadoPanel:
                 self._evento("lote_recibido", RESPONSABLE_SISTEMA, **detalle)
             return lote_id
 
-    def registrar_alarma(self, motivo: str, lote_id: int | None = None) -> int:
+    def registrar_alarma(self, motivo: str, lote_id: int | None = None, detalle: str | None = None) -> int:
+        """`detalle`: por qué, en palabras del reconocimiento (p. ej. "lote:ausente"), para el regente."""
         with self._lock:
             alarma_id = next(self._ids_alarma)
             self._alarmas.append({
@@ -213,9 +227,10 @@ class EstadoPanel:
                 "activa": True,
                 "ts_resuelta": None,
                 "destino": None,
+                "detalle": detalle,
             })
             self._evento("alarma_abierta", RESPONSABLE_SISTEMA, alarma_id=alarma_id,
-                         motivo=motivo, lote_id=lote_id)
+                         motivo=motivo, lote_id=lote_id, **({"detalle": detalle} if detalle else {}))
             return alarma_id
 
     # -- decisión del regente (ver docs/propuesta_canal_regente.md, opción A) --

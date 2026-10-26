@@ -1,0 +1,13 @@
+# Módulo de reconocimiento de IA (PC_RECONOCIMIENTO=ia). Se instala con:  IA=1 bash scripts/setup_venv.sh
+#
+# PyTorch va ANTES, en su versión CPU: la de PyPI por defecto trae CUDA y pesa ~3 GB, y esta PC no tiene
+# GPU NVIDIA. (Ultralytics, el detector que entrenó el equipo de IA, lo necesita aunque los pesos sean .onnx.)
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#
+# `onnx` va fijado a propósito: sin él, Ultralytics intenta instalarlo por su cuenta al cargar el modelo.
+Pillow>=10
+numpy
+onnx
+onnxruntime
+rapidocr-onnxruntime>=1.3
+ultralytics>=8.3

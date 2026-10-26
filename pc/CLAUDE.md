@@ -38,6 +38,17 @@ source .venv/bin/activate             # en cada terminal nueva
   va primero en `../shared/`, junto con una entrada en
   `../docs/CHANGELOG_protocolo.md`.
 
+## Reconocimiento con la IA (Parte D, PC-23): `PC_RECONOCIMIENTO`
+
+`src/ocr_interface.py` tiene dos modos: `placeholder` (por defecto, al azar) e `ia`
+(`PC_RECONOCIMIENTO=ia bash scripts/start_pc.sh`), que ejecuta `IA/` **en este proceso** con
+`IA/modelos/v1_celular/best.onnx` (o `IA_MODELO=/ruta`; `IA_MODELO=` vacío = sin detector). Requiere
+`IA=1 bash scripts/setup_venv.sh` (`requirements-ia.txt`, torch CPU). Al arrancar carga y prueba el
+modelo; si falla, el servidor no arranca. El OCR llena **sin confirmación** medicamento, gramaje, lote,
+vencimiento y confianza del inventario; las correcciones humanas quedan en el registro. Un lote se
+reconoce en ~3,5 s de media (máx. ~7 s medido; la Orange Pi espera 10 s). Ojo: los rangos FEFO de
+`IA/config/reconocimiento.json` son PLACEHOLDER y en este modo el carrito clasifica con ellos.
+
 ## El motor de OCR/clasificación es una caja negra aquí
 
 `src/ocr_interface.py` define el **contrato** de entrada/salida con el
@@ -82,6 +93,13 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   abrir 5000/TCP, 5001/TCP y 5353/UDP.
 
 ## Cómo probar sin la Orange Pi real
+
+- **Orange Pi simulada con fotos ya tomadas** (`bash pc/scripts/simular_orangepi.sh`, con el servidor corriendo):
+  recorre el ciclo real (espera el botón «Iniciar recorrido», consulta `estado_ciclo`, envía el lote de 5 fotos,
+  espera la decisión del regente si hay error) con las cajas de `IA/dataset_ia/roboflow/roboflow_v1.zip` o de otra
+  carpeta/zip (`--fotos`, nombres `cajaNNN_caraK.jpg`). Opciones: `--sin-orden`, `--cajas 004 005`, `--repetir`,
+  `--lote-vacío-cada N`, `--ip`. Combinado con `PC_RECONOCIMIENTO=ia` prueba el reconocimiento de punta a punta.
+  Escribe en la base que use el servidor (`PC_DB=:memory:` para no ensuciar la real). No es parte del contrato.
 
 - `tests/mock_orangepi_client.py` simula el cliente: se conecta, envía un
   lote de imágenes de prueba (bytes aleatorios) y muestra la respuesta.

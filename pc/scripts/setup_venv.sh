@@ -3,6 +3,7 @@
 # Correr desde pc/:
 #   bash scripts/setup_venv.sh          # instala todo en CPU
 #   CUDA=1 bash scripts/setup_venv.sh   # además compila llama-cpp-python con soporte CUDA
+#   IA=1 bash scripts/setup_venv.sh     # además el módulo de reconocimiento de IA (PyTorch CPU, ~1 GB)
 #
 # IMPORTANTE: este venv es específico de la PC (x86_64). NO es intercambiable
 # con el venv de orange-pi/ (ARM64) — cada máquina crea el suyo con este mismo
@@ -31,6 +32,12 @@ if [ -f assistant/requirements.txt ]; then
     echo "Instalando dependencias del asistente (CPU). Usa CUDA=1 para GPU."
     pip install -r assistant/requirements.txt
   fi
+fi
+
+if [ "${IA:-0}" = "1" ] && [ -f requirements-ia.txt ]; then
+  echo "Instalando el módulo de IA (PyTorch en versión CPU + ultralytics + OCR; unos 1 GB)..."
+  pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+  pip install -r requirements-ia.txt
 fi
 
 echo ""

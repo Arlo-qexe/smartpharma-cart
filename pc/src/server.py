@@ -33,7 +33,7 @@ from estado_panel import estado
 from inventario import Inventario
 from framing import ConexionSinDatos, FramingInvalido, enviar_json, recv_exacto
 from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
-from ocr_interface import procesar_lote_ocr
+from ocr_interface import ReconocimientoNoDisponible, preparar, reconocer_lote
 from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
 from registro import configurar_logging
 from servidor_decision import iniciar_servidor_decision
@@ -57,10 +57,10 @@ def _recibir_lote(sock):
     return imagenes
 
 
-def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None) -> int:
+def disparar_alarma_dashboard(motivo: str, lote_id: int | None = None, detalle: str | None = None) -> int:
     """Registra la alarma en el panel web (panel_web.py) para que el regente
     la vea (ver docs/arquitectura_comunicacion.md, sección 8). Devuelve su id."""
-    alarma_id = estado.registrar_alarma(motivo, lote_id)
+    alarma_id = estado.registrar_alarma(motivo, lote_id, detalle)
     log_alarma.warning("Disparada — motivo: %s", motivo)
     return alarma_id
 
@@ -83,19 +83,22 @@ def _manejar_cliente(conn, addr):
 
         estado.registrar_contacto(addr[0])
         motivo_alarma = None
+        reconocimiento = None
         if len(imagenes) == 0:
             log.warning("Lote vacío de %s — captura fallida o reintento tras perder la conexión", addr)
             resultado = RESULTADO_ERROR_REVISION_MANUAL
             motivo_alarma = "fallo_captura"
         else:
             log.info("Lote recibido de %s: %d imágenes", addr, len(imagenes))
-            resultado = procesar_lote_ocr(imagenes)
+            reconocimiento = reconocer_lote(imagenes)
+            resultado = reconocimiento.clasificacion
             if resultado == RESULTADO_ERROR_REVISION_MANUAL:
                 motivo_alarma = "sin_consenso_ocr"
 
-        lote_id = estado.registrar_lote(addr[0], imagenes, resultado)
+        lote_id = estado.registrar_lote(addr[0], imagenes, resultado, datos=reconocimiento)
         if motivo_alarma:
-            alarma_id = disparar_alarma_dashboard(motivo_alarma, lote_id)
+            alarma_id = disparar_alarma_dashboard(motivo_alarma, lote_id,
+                                                  reconocimiento.motivo if reconocimiento else None)
             estado.abrir_decision(alarma_id)
         else:
             # Llegó un lote sin error: la Orange Pi ya siguió adelante.
@@ -176,6 +179,13 @@ if __name__ == "__main__":
     estado.registrar_arranque(base=auditoria.ruta, puerto_lotes=TCP_PUERTO_DEFECTO,
                               puerto_consultas=TCP_PUERTO_DECISION_DEFECTO, puerto_panel=PANEL_PUERTO)
     log.info("Registro de eventos en %s", auditoria.ruta)
+    try:
+        # En modo `ia` carga el detector y el OCR ahora: así el primer lote real no paga la carga (la
+        # Orange Pi solo espera unos segundos y reenviaría el lote). Sin módulo, no se arranca a medias.
+        log.info("Reconocimiento: %s", preparar())
+    except ReconocimientoNoDisponible as e:
+        log.critical("No se pudo preparar el reconocimiento: %s", e)
+        sys.exit(1)
     try:
         usuarios = GestorUsuarios(auditoria, inactividad_s=_inactividad_turno_s())
     except ErrorRegistro as e:

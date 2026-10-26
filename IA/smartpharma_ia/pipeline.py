@@ -27,6 +27,11 @@ log = logging.getLogger("smartpharma_ia")
 
 MOTIVO_TIEMPO_AGOTADO = "tiempo_agotado"
 
+# Orden en que el OCR lee las regiones: primero lo OBLIGATORIO (lote y vencimiento) de TODAS las caras y
+# después lo opcional (nombre y gramaje). Con el tiempo acotado, no se puede gastar en el nombre (un recorte
+# grande llegó a tardar 4,4 s) lo que hace falta para el lote, que además suele estar en la última foto.
+PRIORIDAD_REGION = {"lote": 0, "fecha": 0, ETIQUETA_COMPLETA: 0, "nombre": 1, "gramaje": 1}
+
 
 class Reconocedor:
     def __init__(self, ocr: Ocr, detector: Detector | None = None,
@@ -48,9 +53,16 @@ class Reconocedor:
         # si no llega, reenvía el lote entero (y acaba en alarma local). Mejor responder a tiempo
         # con lo leído que no responder.
         limite = (time.monotonic() + self.config.tiempo_maximo_s) if self.config.tiempo_maximo_s else None
-        lecturas: list[LecturaCara] = []
-        for i, datos in enumerate(imagenes):
-            lecturas.append(self._leer_cara(i, datos, limite))
+        # Fase 1: decodificar y detectar regiones en TODAS las caras (rápido: ~0,25 s por cara).
+        preparadas = [self._detectar_cara(i, datos, limite) for i, datos in enumerate(imagenes)]
+        lecturas = [lectura for lectura, _, _ in preparadas]
+        # Fase 2: OCR por prioridad (lote y fecha de todas las caras antes que nombre y gramaje).
+        tareas = sorted(((PRIORIDAD_REGION.get(r.etiqueta, 2), i, k, r)
+                         for i, (_, _, regiones) in enumerate(preparadas) for k, r in enumerate(regiones)),
+                        key=lambda t: t[:3])
+        for _, i, _, region in tareas:
+            lectura, imagen, _ = preparadas[i]
+            self._leer_region(lectura, imagen, region, limite)
 
         c = validacion.consolidar(lecturas, self.hoy, self.config)
         if c["errores"]:
@@ -76,41 +88,44 @@ class Reconocedor:
     def _sin_tiempo(limite: float | None) -> bool:
         return limite is not None and time.monotonic() > limite
 
-    def _leer_cara(self, indice: int, datos: bytes, limite: float | None = None) -> LecturaCara:
+    def _detectar_cara(self, indice: int, datos: bytes, limite: float | None = None):
+        """Fase 1 de UNA cara: decodifica la foto y detecta sus regiones. Devuelve (lectura vacía, imagen
+        o None, regiones); si algo falla, queda anotado en la lectura y no hay regiones que leer."""
         lectura = LecturaCara(indice=indice)
         if self._sin_tiempo(limite):
             lectura.observaciones.append(MOTIVO_TIEMPO_AGOTADO)
-            return lectura
+            return lectura, None, []
         try:
             imagen = Image.open(io.BytesIO(datos))
             imagen.load()
             imagen = imagen.convert("RGB")
         except (UnidentifiedImageError, OSError, ValueError):
             lectura.observaciones.append("imagen_ilegible")
-            return lectura
-
+            return lectura, None, []
         try:
             regiones = self.detector.detectar(imagen)
         except Exception:  # noqa: BLE001 - etapa externa/reemplazable
             log.exception("cara %d: falló el detector", indice)
             lectura.observaciones.append("detector_fallo")
-            return lectura
+            return lectura, None, []
+        return lectura, imagen, regiones
 
-        for region in regiones:
-            if self._sin_tiempo(limite):
+    def _leer_region(self, lectura: LecturaCara, imagen: Image.Image, region, limite: float | None) -> None:
+        """Fase 2: el OCR sobre UNA región de una cara, si queda tiempo."""
+        if self._sin_tiempo(limite):
+            if MOTIVO_TIEMPO_AGOTADO not in lectura.observaciones:
                 lectura.observaciones.append(MOTIVO_TIEMPO_AGOTADO)
-                break
-            x0, y0, x1, y1 = region.caja
-            recorte = imagen.crop((x0, y0, x1, y1))
-            try:
-                # Foto completa: una sola pasada (ver OcrRapid.leer). Recorte del detector: exhaustivo.
-                texto, conf = self.ocr.leer(recorte, exhaustivo=region.etiqueta != ETIQUETA_COMPLETA)
-            except Exception:  # noqa: BLE001
-                log.exception("cara %d: falló el OCR en región %s", indice, region.etiqueta)
-                lectura.observaciones.append(f"ocr_fallo:{region.etiqueta}")
-                continue
-            self._aplicar_texto(lectura, region.etiqueta, texto, conf)
-        return lectura
+            return
+        x0, y0, x1, y1 = region.caja
+        recorte = imagen.crop((x0, y0, x1, y1))
+        try:
+            # Foto completa: una sola pasada (ver OcrRapid.leer). Recorte del detector: exhaustivo.
+            texto, conf = self.ocr.leer(recorte, exhaustivo=region.etiqueta != ETIQUETA_COMPLETA)
+        except Exception:  # noqa: BLE001
+            log.exception("cara %d: falló el OCR en región %s", lectura.indice, region.etiqueta)
+            lectura.observaciones.append(f"ocr_fallo:{region.etiqueta}")
+            return
+        self._aplicar_texto(lectura, region.etiqueta, texto, conf)
 
     @staticmethod
     def _aplicar_texto(lectura: LecturaCara, etiqueta: str, texto: str, conf: float) -> None:

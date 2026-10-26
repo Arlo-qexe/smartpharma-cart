@@ -3,8 +3,9 @@ Inventario: una fila por CAJA auditada (Parte C del plan de inventario y usuario
 
 Cada lote de fotos que llega de la Orange Pi crea una fila. Las columnas con los datos que
 extrae el reconocimiento (medicamento, gramaje, lote del medicamento, vencimiento) están
-vacías mientras el módulo de IA no se conecte (Parte D) y una persona con turno abierto
-puede completarlas o corregirlas a mano; cuando el OCR las llene, `datos_origen` dirá 'ocr'.
+vacías con el reconocimiento en modo placeholder; con PC_RECONOCIMIENTO=ia (Parte D) el OCR las
+llena SIN pedir confirmación (`datos_origen` = 'ocr', con su `confianza`) y una persona con turno
+abierto puede corregirlas o completarlas a mano (`datos_origen` pasa a 'manual'; queda en el registro).
 
 Dos cosas que NO se confunden:
   - `captura_id`: el número del lote de FOTOS de esa ejecución del servidor (reinicia en 1 en
@@ -82,7 +83,9 @@ CREATE TABLE IF NOT EXISTS cajas (
     eliminada_ms    INTEGER,
     eliminada_por   TEXT,
     eliminada_motivo TEXT,
-    busqueda        TEXT    NOT NULL DEFAULT ''
+    busqueda        TEXT    NOT NULL DEFAULT '',
+    confianza       REAL,
+    motivo_ocr      TEXT
 );
 CREATE INDEX IF NOT EXISTS cajas_creada ON cajas (creada_ms);
 CREATE INDEX IF NOT EXISTS cajas_vencimiento ON cajas (vencimiento);
@@ -91,7 +94,10 @@ CREATE INDEX IF NOT EXISTS cajas_captura ON cajas (arranque, captura_id);
 
 _COLUMNAS = ("id, creada_ms, arranque, captura_id, origen, n_imagenes, resultado, destino, destino_por, "
              "destino_ms, turno_de, medicamento, gramaje, numero_lote, vencimiento, notas, datos_origen, "
-             "editada, eliminada, eliminada_ms, eliminada_por, eliminada_motivo")
+             "editada, eliminada, eliminada_ms, eliminada_por, eliminada_motivo, confianza, motivo_ocr")
+
+# Columnas añadidas después de la primera versión de la tabla (la base de una PC que ya corría las necesita).
+_COLUMNAS_NUEVAS = (("confianza", "REAL"), ("motivo_ocr", "TEXT"))
 
 
 class ErrorInventario(Exception):
@@ -131,6 +137,22 @@ def _valor_campo(campo: str, valor):
     return v
 
 
+def _limpiar_dato_ocr(campo: str, valor):
+    """Un dato leído por el OCR: texto limpio y recortado, o None si no sirve (una fecha imposible no se guarda)."""
+    if not isinstance(valor, str):
+        return None
+    v = " ".join(_RE_CONTROL.sub(" ", valor).split())
+    if not v:
+        return None
+    if campo == "vencimiento":
+        try:
+            f = date.fromisoformat(v)
+        except ValueError:
+            return None
+        return v if 1990 <= f.year <= 2100 and v == f.isoformat() else None
+    return v[:LARGO_MAXIMO[campo]]
+
+
 class Inventario:
     def __init__(self, auditoria: Auditoria, hoy=date.today, ahora_ms=None):
         self._aud = auditoria
@@ -140,6 +162,10 @@ class Inventario:
             for sentencia in _ESQUEMA.strip().split(";"):
                 if sentencia.strip():
                     tx.execute(sentencia)
+            existentes = {f[1] for f in tx.execute("PRAGMA table_info(cajas)").fetchall()}
+            for nombre, tipo in _COLUMNAS_NUEVAS:          # migración de una tabla creada antes
+                if nombre not in existentes:
+                    tx.execute(f"ALTER TABLE cajas ADD COLUMN {nombre} {tipo}")
 
     # ------------------------------------------------------------------ utilidades
     def _a_dict(self, f) -> dict:
@@ -153,9 +179,10 @@ class Inventario:
 
     def _reindexar(self, tx, caja_id: int) -> None:
         f = tx.execute("SELECT id, medicamento, gramaje, numero_lote, notas, destino, resultado, turno_de, "
-                       "origen, captura_id FROM cajas WHERE id = ?", (caja_id,)).fetchone()
+                       "origen, captura_id, motivo_ocr FROM cajas WHERE id = ?", (caja_id,)).fetchone()
         texto = normalizar(" ".join(str(x) for x in (f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8],
-                                                       f"captura {f[9]}" if f[9] else "") if x not in (None, "")))
+                                                       f"captura {f[9]}" if f[9] else "", f[10])
+                                    if x not in (None, "")))
         tx.execute("UPDATE cajas SET busqueda = ? WHERE id = ?", (texto, caja_id))
 
     def obtener(self, caja_id: int) -> dict | None:
@@ -163,17 +190,35 @@ class Inventario:
         return self._a_dict(f[0]) if f else None
 
     # ------------------------------------------------------------------ altas automáticas
+    @staticmethod
+    def _campos_ocr(datos: dict | None) -> dict:
+        """Lo que leyó el reconocimiento, limpio y con los largos de la tabla. El OCR puede devolver texto
+        largo o sucio: aquí se recorta en vez de rechazar (a diferencia de lo que escribe una persona)."""
+        datos = datos or {}
+        campos = {c: _limpiar_dato_ocr(c, datos.get(c)) for c in ("medicamento", "gramaje", "numero_lote", "vencimiento")}
+        conf = datos.get("confianza")
+        campos["confianza"] = float(conf) if isinstance(conf, (int, float)) and not isinstance(conf, bool) and 0 <= conf <= 1 else None
+        motivo = datos.get("motivo")
+        campos["motivo_ocr"] = " ".join(motivo.split())[:200] if isinstance(motivo, str) and motivo.strip() else None
+        return campos
+
     def registrar_caja(self, *, arranque, captura_id, origen, n_imagenes, resultado, turno_de=None,
-                       evento: tuple) -> int:
+                       datos: dict | None = None, evento: tuple) -> int:
         """Una caja nueva por cada lote recibido, y su evento `lote_recibido`, en una transacción.
-        `evento` = (tipo, responsable, detalle); al detalle se le añade `caja_id`."""
+        `datos` = lo que leyó el reconocimiento (medicamento, gramaje, numero_lote, vencimiento, confianza,
+        motivo); `evento` = (tipo, responsable, detalle), al que se le añade `caja_id`."""
         manual = resultado == RESULTADO_ERROR_REVISION_MANUAL
+        c = self._campos_ocr(datos)
+        leyo = any(c[k] for k in ("medicamento", "gramaje", "numero_lote", "vencimiento"))
         with self._aud.transaccion() as tx:
             cur = tx.execute(
                 "INSERT INTO cajas (creada_ms, arranque, captura_id, origen, n_imagenes, resultado, destino, "
-                "destino_por, turno_de) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "destino_por, turno_de, medicamento, gramaje, numero_lote, vencimiento, datos_origen, "
+                "confianza, motivo_ocr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (self._ahora_ms(), arranque, captura_id, origen, n_imagenes, resultado,
-                 None if manual else resultado, None if manual else RESPONSABLE_SISTEMA, turno_de))
+                 None if manual else resultado, None if manual else RESPONSABLE_SISTEMA, turno_de,
+                 c["medicamento"], c["gramaje"], c["numero_lote"], c["vencimiento"],
+                 "ocr" if leyo else None, c["confianza"], c["motivo_ocr"]))
             caja_id = cur.lastrowid
             self._reindexar(tx, caja_id)
             tipo, responsable, detalle = evento
