@@ -10,6 +10,11 @@
   <header class="cabecera">
     <h1>SmartPharma Cart</h1>
     <div class="cabecera-estado">
+      <span id="turno" class="turno">
+        <span id="turno-texto" class="turno-texto">Sin turno abierto</span>
+        <button id="turno-boton" class="btn-chico">Iniciar turno</button>
+        <small id="turno-aviso" class="turno-aviso" hidden></small>
+      </span>
       <span id="orangepi" class="orangepi sin-dato" title="Último mensaje recibido de la Orange Pi">
         <span class="punto"></span><span id="orangepi-texto">Orange Pi: sin contacto</span>
       </span>
@@ -35,6 +40,10 @@
     <button data-vista="registro">
       <svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM15 3v4h4M8 12h8M8 16h8"/></svg>
       REGISTRO
+    </button>
+    <button data-vista="usuarios" id="pestana-usuarios" hidden>
+      <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 5a3.5 3.5 0 010 7M18 14c2.4.5 3.5 2.4 3.5 6"/></svg>
+      USUARIOS
     </button>
     <button data-vista="config">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
@@ -120,6 +129,7 @@
     <section id="vista-alertas" class="vista" hidden>
       <h2>Alertas</h2>
       <p class="aviso">Cuando un lote termina en revisión manual, la Orange Pi espera tu decisión: escribe el destino (un tipo de producto o <code>DESCARTE</code>) y pulsa Confirmar. La Orange Pi lo recibe en su siguiente consulta y ordena clasificar. Las alarmas antiguas, que la Orange Pi ya no espera, solo se cierran.</p>
+      <p id="alertas-bloqueo" class="aviso aviso-bloqueo" hidden>Para resolver o cerrar alarmas debes tener un turno abierto: pulsa «Iniciar turno» arriba.</p>
       <datalist id="destinos"></datalist>
       <div class="tabla-envoltura">
         <table id="tabla-alertas">
@@ -152,6 +162,37 @@
       <button id="reg-mas" class="btn-chico" hidden>Cargar eventos anteriores</button>
     </section>
 
+    <section id="vista-usuarios" class="vista" hidden>
+      <h2>Usuarios y códigos</h2>
+      <p class="aviso">Cada auxiliar entra con un <strong>código de 6 dígitos</strong> que genera el sistema: se muestra una sola vez al crearlo o regenerarlo y no se puede volver a ver (si se pierde, se genera uno nuevo). Los nombres no se reutilizan, ni siquiera al eliminar a alguien: así el registro nunca confunde a dos personas. Eliminar es lógico: la persona ya no puede entrar, pero sus acciones pasadas siguen a su nombre en el registro.</p>
+      <div id="codigo-nuevo" class="codigo-nuevo" hidden>
+        <p id="codigo-nuevo-texto"></p>
+        <p id="codigo-nuevo-valor" class="codigo-valor"></p>
+        <p class="aviso">Anótalo ahora y entrégaselo a la persona: no se volverá a mostrar.</p>
+        <button id="codigo-nuevo-cerrar" class="btn-chico">Ya lo anoté</button>
+      </div>
+      <form id="usuario-form" class="filtros-registro">
+        <label>Nombre <input id="usuario-nombre" maxlength="60" required autocomplete="off"></label>
+        <label>Rol <select id="usuario-rol"><option value="auxiliar">Auxiliar (entra con código)</option><option value="administrador">Administrador (nombre y clave)</option></select></label>
+        <label id="usuario-clave-envoltura" hidden>Clave (mín. 10) <input id="usuario-clave" type="password" maxlength="200" autocomplete="new-password"></label>
+        <button type="submit" class="btn-chico">Crear usuario</button>
+      </form>
+      <p id="usuarios-error" class="error-chico"></p>
+      <div class="tabla-envoltura">
+        <table id="tabla-usuarios">
+          <thead><tr><th>Nombre</th><th>Rol</th><th>Estado</th><th>Alta</th><th>Acciones</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <h3 class="recientes-titulo">Mi clave</h3>
+      <form id="clave-form" class="filtros-registro">
+        <label>Clave actual <input id="clave-actual" type="password" maxlength="200" autocomplete="current-password"></label>
+        <label>Clave nueva (mín. 10) <input id="clave-nueva" type="password" maxlength="200" autocomplete="new-password"></label>
+        <button type="submit" class="btn-chico">Cambiar mi clave</button>
+      </form>
+      <p id="clave-mensaje" class="aviso"></p>
+    </section>
+
     <section id="vista-config" class="vista" hidden>
       <h2>Configuración (solo lectura)</h2>
       <p class="aviso">Valores del contrato en <code>shared/protocol_constants.py</code>. Para cambiarlos hay que modificar el contrato y avisar al equipo.</p>
@@ -163,6 +204,29 @@
       </div>
     </section>
   </main>
+
+  <dialog id="login" class="login" aria-label="Iniciar turno">
+    <form id="login-form" autocomplete="off">
+      <h2>Iniciar turno</h2>
+      <div class="tabs-login">
+        <button type="button" id="login-tab-aux" class="btn-chico activa">Auxiliar</button>
+        <button type="button" id="login-tab-admin" class="btn-chico">Administrador</button>
+      </div>
+      <div id="login-aux">
+        <label>Tu código de 6 dígitos <input id="login-codigo" type="password" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off"></label>
+      </div>
+      <div id="login-admin" hidden>
+        <label>Nombre <input id="login-nombre" maxlength="60" autocomplete="username"></label>
+        <label>Clave <input id="login-clave" type="password" maxlength="200" autocomplete="current-password"></label>
+      </div>
+      <p id="login-error" class="error-chico"></p>
+      <p id="login-sin-admin" class="aviso" hidden>Todavía no hay ningún administrador. Créalo en la PC con: <code>bash pc/scripts/usuarios.sh crear-admin</code></p>
+      <div class="login-botones">
+        <button type="submit" class="btn-chico">Entrar</button>
+        <button type="button" id="login-cancelar" class="btn-chico">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="visor" class="visor" aria-label="Foto ampliada">
     <div class="visor-caja">

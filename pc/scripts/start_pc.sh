@@ -17,6 +17,7 @@
 #                           ruta por defecto, y sin ruta por defecto la de la interfaz real.
 #   PC_DB=...               archivo del registro de eventos (por defecto pc/data/smartpharma.db).
 #                           `:memory:` = sin persistencia (demos y pruebas).
+#   PC_TURNO_MIN=30         minutos de inactividad que cierran el turno de un auxiliar
 #   PC_VENV=...             otro entorno virtual (por defecto pc/.venv)
 #
 # IMPORTANTE: conecta la PC a la red de la demo ANTES de lanzarlo. La IP se fija al arrancar;
@@ -95,6 +96,16 @@ from auditoria import ruta_db_desde_entorno
 print(ruta_db_desde_entorno())
 ")"
 
+# ¿Hay un administrador? Sin él nadie puede iniciar turno ni operar el panel.
+ESTADO_USUARIOS="$(python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from auditoria import Auditoria, ruta_db_desde_entorno
+from usuarios import GestorUsuarios
+print('administrador configurado' if GestorUsuarios(Auditoria(ruta_db_desde_entorno())).hay_administrador()
+      else 'SIN ADMINISTRADOR -> crea uno: bash pc/scripts/usuarios.sh crear-admin')
+" 2>/dev/null || echo "no se pudo comprobar")"
+
 echo "=== SmartPharma Cart — lado PC ==="
 echo " Panel del regente : http://$H_PANEL:$P_PANEL/"
 echo " Lotes (TCP)       : $P_LOTES    Decisión y orden del ciclo (TCP): $P_DECISION"
@@ -106,6 +117,7 @@ case "$IP_ANUNCIADA" in
 esac
 echo " Asistente         : $etiqueta_asistente"
 echo " Registro eventos  : $RUTA_REGISTRO"
+echo " Usuarios          : $ESTADO_USUARIOS"
 echo " Detener con Ctrl+C (lotes, alarmas y decisión en curso viven en RAM; el registro persiste)"
 echo "=================================="
 

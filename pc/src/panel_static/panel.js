@@ -191,6 +191,15 @@ function renderRecorrido() {
     texto.textContent = fin + espera;
   }
   cantidad.disabled = !editable;
+  if (!puedeOperar()) {                       // sin turno se mira, no se opera
+    iniciar.disabled = true;
+    detener.disabled = true;
+    cantidad.disabled = true;
+    const a = acceso();
+    texto.textContent = (a && !a.admin_configurado
+      ? "No hay administrador: créalo en la PC con «bash pc/scripts/usuarios.sh crear-admin». "
+      : "Inicia tu turno para operar el recorrido. ") + texto.textContent;
+  }
 }
 
 // Indicador de conexión con la Orange Pi: se basa en el último mensaje recibido de ella
@@ -219,6 +228,9 @@ async function postCiclo(ruta, cuerpo) {
       headers: cuerpo ? { "Content-Type": "application/json" } : {},
       body: cuerpo ? JSON.stringify(cuerpo) : undefined,
     });
+    if (r.status === 401 || r.status === 403) {
+      $("recorrido-estado").textContent = "Tu turno no está abierto o venció: inicia turno para operar.";
+    }
     return r.ok;
   } catch (e) {
     return false;
@@ -244,6 +256,252 @@ $("boton-detener").addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Acceso: turno, inicio de sesión y administración de usuarios (usuarios.py).
+// Mirar el panel es libre; operar (iniciar/detener, resolver alarmas) exige un turno abierto.
+let sesionPrevia = false;          // ¿había sesión en el sondeo anterior? (para avisar si se perdió sola)
+let cierreVoluntario = false;
+let avisoAcceso = "";
+let ultimaActividad = 0;
+let usuarios = [];
+let usuariosCargados = false;
+let codigoNuevo = null;            // {nombre, codigo}: solo vive aquí hasta que se descarta
+
+// `acceso` es null si el servidor no controla accesos (solo pruebas): entonces todo está permitido.
+const acceso = () => (estado ? estado.acceso : null);
+const puedeOperar = () => {
+  const a = acceso();
+  return !a || !!(a.sesion && a.sesion.permisos.includes("operar"));
+};
+const esAdmin = () => {
+  const a = acceso();
+  return !!(a && a.sesion && a.sesion.rol === "administrador");
+};
+
+function renderAcceso() {
+  const a = acceso();
+  $("turno").hidden = !a;
+  if (!a) return;
+  if (sesionPrevia && !a.sesion && !cierreVoluntario) {
+    avisoAcceso = "Tu turno terminó (venció por inactividad o un administrador tomó el control).";
+  }
+  if (a.sesion) avisoAcceso = "";
+  sesionPrevia = !!a.sesion;
+  cierreVoluntario = false;
+
+  const texto = $("turno-texto");
+  texto.classList.toggle("activo", !!a.sesion);
+  if (a.sesion) {
+    texto.textContent = `${a.sesion.nombre} · ${a.sesion.rol}`;
+  } else if (a.turno) {
+    texto.textContent = `Turno de ${a.turno.nombre}`;
+  } else {
+    texto.textContent = "Sin turno abierto";
+  }
+  $("turno-boton").textContent = a.sesion ? "Cerrar turno" : "Iniciar turno";
+  $("turno-aviso").hidden = !avisoAcceso;
+  $("turno-aviso").textContent = avisoAcceso;
+
+  const admin = esAdmin();
+  $("pestana-usuarios").hidden = !admin;
+  if (!admin && vista === "usuarios") cambiarVista("inicio");
+}
+
+function abrirLogin() {
+  $("login-error").textContent = "";
+  $("login-sin-admin").hidden = !acceso() || acceso().admin_configurado;
+  modoLogin("aux");
+  $("login").showModal();
+  $("login-codigo").focus();
+}
+function modoLogin(modo) {
+  $("login-aux").hidden = modo !== "aux";
+  $("login-admin").hidden = modo !== "admin";
+  $("login-tab-aux").classList.toggle("activa", modo === "aux");
+  $("login-tab-admin").classList.toggle("activa", modo === "admin");
+  $(modo === "aux" ? "login-codigo" : "login-nombre").focus();
+}
+const ERRORES_ACCESO = {
+  credenciales_invalidas: "Código o clave incorrectos.",
+  sesion_requerida: "Tu turno no está abierto o venció: inicia turno de nuevo.",
+  sin_permiso: "No tienes permiso para hacer esto.",
+  error_interno: "Error interno del servidor (revisa el log de la PC).",
+};
+function textoErrorAcceso(d) {
+  if (d.error === "bloqueado") return `Demasiados intentos fallidos. Espera ${d.espera_s} s.`;
+  if (d.error === "turno_en_curso") {
+    return `${d.nombre} tiene el turno abierto. Debe cerrarlo (un administrador puede tomar el control).`;
+  }
+  return ERRORES_ACCESO[d.error] || ERRORES_USUARIOS[d.error] || "No se pudo completar la acción.";
+}
+
+$("turno-boton").addEventListener("click", async () => {
+  const a = acceso();
+  if (a && a.sesion) {
+    cierreVoluntario = true;
+    await fetch("/api/sesion/cerrar", { method: "POST" }).catch(() => {});
+    codigoNuevo = null;
+    refrescar();
+  } else {
+    abrirLogin();
+  }
+});
+$("login-tab-aux").addEventListener("click", () => modoLogin("aux"));
+$("login-tab-admin").addEventListener("click", () => modoLogin("admin"));
+$("login-cancelar").addEventListener("click", () => $("login").close());
+$("login-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const aux = !$("login-aux").hidden;
+  const cuerpo = aux
+    ? { codigo: $("login-codigo").value.trim() }
+    : { nombre: $("login-nombre").value.trim(), clave: $("login-clave").value };
+  $("login-error").textContent = "";
+  try {
+    const r = await fetch("/api/sesion/iniciar", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $("login-error").textContent = textoErrorAcceso(d); return; }
+    avisoAcceso = "";
+    $("login").close();
+    refrescar();
+  } catch (e) {
+    $("login-error").textContent = "No se pudo contactar al servidor.";
+  } finally {
+    for (const id of ["login-codigo", "login-nombre", "login-clave"]) $(id).value = "";   // nunca se deja un secreto en el formulario
+  }
+});
+
+// Si hay turno, cualquier clic o tecla lo mantiene vivo (como máximo un aviso por minuto).
+function actividadUsuario() {
+  const a = acceso();
+  if (!a || !a.sesion || Date.now() - ultimaActividad < 60000) return;
+  ultimaActividad = Date.now();
+  fetch("/api/sesion/actividad", { method: "POST" }).catch(() => {});
+}
+for (const tipo of ["pointerdown", "keydown"]) document.addEventListener(tipo, actividadUsuario, { passive: true });
+
+// ---- Pestaña USUARIOS (solo administrador) ------------------------------------------
+const ERRORES_USUARIOS = {
+  nombre_duplicado: "Ya existe un usuario con ese nombre (los nombres no se reutilizan).",
+  nombre_invalido: "El nombre debe tener entre 2 y 60 caracteres.",
+  clave_invalida: "La clave debe tener al menos 10 caracteres, sin espacios al principio ni al final.",
+  rol_invalido: "Rol inválido.",
+  ultimo_administrador: "No se puede desactivar ni eliminar al único administrador.",
+  usuario_inexistente: "Ese usuario ya no existe.",
+  solo_auxiliares: "Solo los auxiliares tienen código.",
+  sin_codigos_libres: "No quedan códigos libres.",
+};
+
+async function cargarUsuarios() {
+  try {
+    const r = await fetch("/api/usuarios", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    usuarios = (await r.json()).usuarios;
+    usuariosCargados = true;
+  } catch (e) {
+    $("usuarios-error").textContent = "No se pudo leer la lista de usuarios.";
+  }
+  renderUsuarios();
+}
+
+async function accionUsuarios(ruta, cuerpo) {
+  $("usuarios-error").textContent = "";
+  try {
+    const r = await fetch(ruta, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo || {}),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { $("usuarios-error").textContent = textoErrorAcceso(d); return null; }
+    return d;
+  } catch (e) {
+    $("usuarios-error").textContent = "No se pudo contactar al servidor.";
+    return null;
+  } finally {
+    cargarUsuarios();
+  }
+}
+
+function mostrarCodigo(nombre, codigo) {
+  codigoNuevo = codigo ? { nombre, codigo } : null;
+  renderUsuarios();
+}
+
+let firmaUsuarios = null;
+function renderUsuarios() {
+  if (vista !== "usuarios") return;
+  // Se reconstruye solo si cambió algo: así un clic no se pierde porque la tabla se rehízo a mitad.
+  const firma = JSON.stringify([usuarios, codigoNuevo, usuariosCargados]);
+  if (firma === firmaUsuarios) return;
+  firmaUsuarios = firma;
+  $("codigo-nuevo").hidden = !codigoNuevo;
+  if (codigoNuevo) {
+    $("codigo-nuevo-texto").textContent = `Código de ${codigoNuevo.nombre}:`;
+    $("codigo-nuevo-valor").textContent = codigoNuevo.codigo;
+  }
+  const cuerpo = $("tabla-usuarios").tBodies[0];
+  vaciar(cuerpo);
+  if (!usuarios.length) filaVacia(cuerpo, 5, usuariosCargados ? "No hay usuarios." : "Cargando…");
+  for (const u of usuarios) {
+    const tr = crear("tr", u.eliminado || !u.activo ? "baja" : "");
+    tr.appendChild(crear("td", "responsable", u.nombre));
+    tr.appendChild(crear("td", "", u.rol));
+    tr.appendChild(crear("td", "", u.eliminado ? "Eliminado" : u.activo ? "Activo" : "Desactivado"));
+    tr.appendChild(crear("td", "", `${fmtHora(u.creado_ms / 1000)} · ${u.creado_por}`));
+    const td = crear("td");
+    const caja = crear("div", "acciones");
+    if (!u.eliminado) {
+      if (u.rol === "auxiliar") {
+        const nuevo = crear("button", "btn-chico", "Nuevo código");
+        nuevo.addEventListener("click", async () => {
+          if (!confirm(`Se generará un código nuevo para ${u.nombre} y el anterior dejará de servir. ¿Continuar?`)) return;
+          const d = await accionUsuarios(`/api/usuarios/${u.id}/codigo`);
+          if (d) mostrarCodigo(u.nombre, d.codigo);
+        });
+        caja.appendChild(nuevo);
+      }
+      const alternar = crear("button", "btn-chico", u.activo ? "Desactivar" : "Activar");
+      alternar.addEventListener("click", () => accionUsuarios(`/api/usuarios/${u.id}/${u.activo ? "desactivar" : "activar"}`));
+      const eliminar = crear("button", "btn-chico", "Eliminar");
+      eliminar.addEventListener("click", () => {
+        if (confirm(`¿Eliminar a ${u.nombre}? Ya no podrá entrar; sus acciones pasadas siguen a su nombre en el registro y el nombre no se podrá reutilizar.`)) {
+          accionUsuarios(`/api/usuarios/${u.id}/eliminar`);
+        }
+      });
+      caja.append(alternar, eliminar);
+    }
+    td.appendChild(caja);
+    tr.appendChild(td);
+    cuerpo.appendChild(tr);
+  }
+}
+
+$("usuario-rol").addEventListener("change", () => {
+  $("usuario-clave-envoltura").hidden = $("usuario-rol").value !== "administrador";
+});
+$("usuario-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const rol = $("usuario-rol").value;
+  const nombre = $("usuario-nombre").value.trim();
+  const cuerpo = { nombre, rol };
+  if (rol === "administrador") cuerpo.clave = $("usuario-clave").value;
+  const d = await accionUsuarios("/api/usuarios", cuerpo);
+  $("usuario-clave").value = "";
+  if (d) {
+    $("usuario-nombre").value = "";
+    mostrarCodigo(d.usuario.nombre, d.codigo);
+  }
+});
+$("codigo-nuevo-cerrar").addEventListener("click", () => mostrarCodigo(null, null));
+$("clave-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("clave-mensaje").textContent = "";
+  const d = await accionUsuarios("/api/sesion/clave", { actual: $("clave-actual").value, nueva: $("clave-nueva").value });
+  $("clave-actual").value = "";
+  $("clave-nueva").value = "";
+  if (d) $("clave-mensaje").textContent = "Clave cambiada.";
+});
+
+// ---------------------------------------------------------------------------
 // Registro de eventos (solo lectura). Los datos vienen de /api/log (auditoria.py).
 const PAGINA_REGISTRO = 100;
 const registro = { eventos: [], hayMas: false, tipos: [], total: 0, cargado: false,
@@ -253,6 +511,21 @@ let ultimaIntegridad = 0;
 let firmaRegistro = null;
 let firmaTipos = null;
 
+const MOTIVOS_TURNO = {
+  voluntario: "lo cerró la propia persona",
+  expirado: "venció por inactividad",
+  tomado_por_administrador: "un administrador tomó el control",
+  reemplazado_por_nuevo_inicio: "la misma persona volvió a entrar",
+  codigo_regenerado: "se regeneró su código",
+  usuario_desactivado: "se desactivó al usuario",
+  usuario_eliminado: "se eliminó al usuario",
+  clave_restablecida: "se restableció su clave",
+};
+const ACCIONES = {
+  iniciar_ciclo: "iniciar el recorrido", detener_ciclo: "detener el recorrido", resolver_alarma: "resolver una alarma",
+  asistente_confirmar: "confirmar una acción del asistente", listar_usuarios: "ver los usuarios",
+  administrar_usuarios: "administrar usuarios",
+};
 const MOTIVOS_FIN = {
   detenido_por_regente: "lo detuvo el regente",
   cantidad_alcanzada: "se alcanzó la cantidad de cajas fijada",
@@ -284,12 +557,28 @@ const EVENTOS = {
     `Recorrido detenido: ${MOTIVOS_FIN[d.motivo] || v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
   ciclo_orden_cancelada: ["Orden cancelada", () => "Se canceló la orden de inicio antes de que la Orange Pi la recogiera."],
   ciclo_orden_vencida: ["Orden vencida", (d) => `La orden de inicio de ${v(d.ordenada_por)} venció sin que la Orange Pi la recogiera.`],
+  usuario_creado: ["Usuario creado", (d) => `Se creó al ${v(d.rol)} ${v(d.nombre)}.`],
+  usuario_codigo_regenerado: ["Código regenerado", (d) => `Nuevo código para ${v(d.nombre)}; el anterior dejó de servir.`],
+  usuario_activado: ["Usuario activado", (d) => `${v(d.nombre)} vuelve a poder entrar.`],
+  usuario_desactivado: ["Usuario desactivado", (d) => `${v(d.nombre)} ya no puede entrar.`],
+  usuario_eliminado: ["Usuario eliminado", (d) => `${v(d.nombre)} eliminado (su nombre no se reutiliza).`],
+  usuario_clave_cambiada: ["Clave cambiada", (d) => `${v(d.nombre)} cambió su propia clave.`],
+  usuario_clave_restablecida: ["Clave restablecida", (d) => `Clave de ${v(d.nombre)} restablecida desde la consola de la PC.`],
+  turno_iniciado: ["Turno iniciado", (d) => `Abrió su turno (${v(d.rol)}).`],
+  turno_cerrado: ["Turno cerrado", (d) =>
+    `Turno de ${v(d.nombre)} cerrado: ${MOTIVOS_TURNO[d.motivo] || v(d.motivo)} (duró ${v(d.duracion_s)} s).`],
+  login_fallido: ["Intento fallido", (d) =>
+    `Intento fallido con ${d.via === "codigo" ? "un código" : `nombre y clave${d.nombre_intentado ? ` (${d.nombre_intentado})` : ""}`}; ${v(d.fallos_seguidos)} seguidos.`],
+  login_bloqueado: ["Acceso bloqueado", (d) => `Demasiados intentos fallidos: inicio de sesión bloqueado ${v(d.espera_s)} s.`],
+  accion_denegada: ["Acción denegada", (d) =>
+    `Se negó «${ACCIONES[d.accion] || v(d.accion)}»: ${d.motivo === "sin_permiso" ? "la persona no tiene permiso" : "no había turno abierto"}.`],
   ciclo_interrumpido: ["Recorrido interrumpido", (d) =>
     `${v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
 };
 const etiquetaEvento = (tipo) => (EVENTOS[tipo] ? EVENTOS[tipo][0] : tipo);
 const claseEvento = (tipo) =>
-  tipo === "alarma_abierta" ? "rojo" : (tipo === "ciclo_orden_vencida" || tipo === "ciclo_interrumpido") ? "amarillo" : "";
+  (tipo === "alarma_abierta" || tipo === "login_bloqueado") ? "rojo"
+    : ["ciclo_orden_vencida", "ciclo_interrumpido", "login_fallido", "accion_denegada"].includes(tipo) ? "amarillo" : "";
 function describirEvento(e) {
   const f = EVENTOS[e.tipo];
   return f ? f[1](e.detalle || {}) : JSON.stringify(e.detalle);
@@ -486,6 +775,10 @@ async function resolver(id, destino, nodoError) {
       nodoError.textContent = "Destino inválido: solo A-Z, 0-9 y _ (máx. 32).";
       return;
     }
+    if (resp.status === 401 || resp.status === 403) {
+      nodoError.textContent = "Inicia tu turno para resolver alarmas.";      // se conserva lo que escribió
+      return;
+    }
     borradores.delete(id);
   } finally {
     firmaAlertas = null;
@@ -497,6 +790,8 @@ function celdaAccion(a) {
   const td = crear("td");
   if (!a.activa) return td;
   const caja = crear("div", "accion");
+  const bloqueado = !puedeOperar();
+  if (bloqueado) caja.title = "Inicia tu turno para resolver alarmas";
   if (a.espera_decision) {
     const campo = crear("input");
     campo.setAttribute("list", "destinos");
@@ -510,10 +805,13 @@ function celdaAccion(a) {
     campo.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") resolver(a.id, campo.value, error);
     });
+    campo.disabled = bloqueado;
+    confirmar.disabled = bloqueado;
     caja.append(campo, confirmar, error);
   } else {
     const cerrar = crear("button", "btn-chico", "Cerrar");
     cerrar.addEventListener("click", () => resolver(a.id, "", crear("span")));
+    cerrar.disabled = bloqueado;
     caja.appendChild(cerrar);
   }
   td.appendChild(caja);
@@ -527,10 +825,11 @@ function textoEstadoAlarma(a) {
 
 function renderAlertas() {
   // Se reconstruye solo si cambió algo, para no borrar lo que el regente está escribiendo.
-  const firma = JSON.stringify([estado.alarmas, estado.destinos_sugeridos]);
+  const firma = JSON.stringify([estado.alarmas, estado.destinos_sugeridos, puedeOperar()]);
   if (firma === firmaAlertas) return;
   firmaAlertas = firma;
 
+  $("alertas-bloqueo").hidden = puedeOperar();
   const lista = $("destinos");
   vaciar(lista);
   for (const d of estado.destinos_sugeridos) {
@@ -620,6 +919,7 @@ const ERRORES_ASISTENTE = {
   texto_invalido: "El mensaje está vacío o es demasiado largo (máx. 1000 caracteres).",
   asistente_no_disponible: "El asistente no está disponible.",
   error_interno: "El asistente tuvo un error interno (revisa el log de la PC).",
+  sesion_requerida: "Inicia tu turno para ejecutar acciones del asistente.",
 };
 
 async function cargarEstadoAsistente() {
@@ -759,11 +1059,13 @@ const RENDERS = {
   inventario: renderInventario,
   alertas: renderAlertas,
   registro: () => { tickRegistro(); renderRegistro(); },
+  usuarios: () => { if (!usuariosCargados) cargarUsuarios(); renderUsuarios(); },
   config: renderConfig,
 };
 
 function render() {
   if (!estado) return;
+  renderAcceso();
   renderOrangePi();
   renderBanner();
   RENDERS[vista]();
@@ -774,9 +1076,11 @@ function cambiarVista(nueva) {
   for (const b of document.querySelectorAll("#pestanas button")) {
     b.classList.toggle("activa", b.dataset.vista === nueva);
   }
-  for (const v of ["inicio", "inventario", "alertas", "registro", "config"]) {
+  for (const v of ["inicio", "inventario", "alertas", "registro", "usuarios", "config"]) {
     $("vista-" + v).hidden = v !== nueva;
   }
+  if (nueva === "usuarios") usuariosCargados = false;
+  else codigoNuevo = null;                // un código recién generado no sobrevive a salir de la pestaña
   if (nueva === "registro") {            // al entrar se vuelve a leer todo y a verificar la cadena
     registro.cargado = false;
     ultimaIntegridad = 0;

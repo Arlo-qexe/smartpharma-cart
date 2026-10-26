@@ -7,6 +7,7 @@ Si el lote termina en ERROR_REVISION_MANUAL, la PC deja una decisión en espera
 para el regente; la Orange Pi la consulta por servidor_decision.py.
 """
 import logging
+import os
 import signal
 import socket
 import struct
@@ -35,6 +36,7 @@ from ocr_interface import procesar_lote_ocr
 from panel_web import PANEL_HOST, PANEL_PUERTO, iniciar_panel
 from registro import configurar_logging
 from servidor_decision import iniciar_servidor_decision
+from usuarios import INACTIVIDAD_TURNO_S, GestorUsuarios
 
 log = logging.getLogger("server")
 log_alarma = logging.getLogger("alarma")
@@ -140,6 +142,21 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
         hilo.start()
 
 
+def _inactividad_turno_s() -> float:
+    """Inactividad que cierra un turno: PC_TURNO_MIN (minutos) o el valor por defecto."""
+    crudo = os.environ.get("PC_TURNO_MIN", "").strip()
+    if not crudo:
+        return INACTIVIDAD_TURNO_S
+    try:
+        minutos = float(crudo)
+        if minutos <= 0:
+            raise ValueError
+        return minutos * 60
+    except ValueError:
+        log.warning("PC_TURNO_MIN=%r no es un número de minutos positivo; se usa el valor por defecto", crudo)
+        return INACTIVIDAD_TURNO_S
+
+
 def _al_terminar(signum, frame):
     # kill -TERM se trata como Ctrl+C: apagado ordenado (anuncia mDNS apagado y deja el
     # evento "sistema_detenido" en el registro).
@@ -158,10 +175,18 @@ if __name__ == "__main__":
     estado.registrar_arranque(base=auditoria.ruta, puerto_lotes=TCP_PUERTO_DEFECTO,
                               puerto_consultas=TCP_PUERTO_DECISION_DEFECTO, puerto_panel=PANEL_PUERTO)
     log.info("Registro de eventos en %s", auditoria.ruta)
+    try:
+        usuarios = GestorUsuarios(auditoria, inactividad_s=_inactividad_turno_s())
+    except ErrorRegistro as e:
+        log.critical("No se pudo preparar la tabla de usuarios: %s", e)
+        sys.exit(1)
+    if not usuarios.hay_administrador():
+        log.warning("NO HAY ADMINISTRADOR: nadie podrá iniciar turno ni operar el panel. "
+                    "Créalo con:  bash pc/scripts/usuarios.sh crear-admin")
     signal.signal(signal.SIGTERM, _al_terminar)
     asistente = _crear_asistente()
     try:
-        iniciar_panel(estado, asistente=asistente, auditoria=auditoria)
+        iniciar_panel(estado, asistente=asistente, auditoria=auditoria, usuarios=usuarios)
         logging.getLogger("panel").info("Panel de control en http://%s:%d/", PANEL_HOST, PANEL_PUERTO)
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.

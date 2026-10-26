@@ -24,6 +24,7 @@ import os
 import sqlite3
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 log = logging.getLogger("auditoria")
@@ -74,6 +75,51 @@ def _escapar_like(texto: str) -> str:
     return texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _insertar_evento(con, tipo, responsable, detalle, ts_ms) -> int:
+    """Valida y agrega un evento. Debe llamarse dentro de una transacción ya abierta
+    (BEGIN IMMEDIATE) y con el candado de la conexión tomado."""
+    if not isinstance(tipo, str) or not tipo.strip():
+        raise ErrorRegistro("el evento necesita un tipo")
+    if not isinstance(responsable, str) or not responsable.strip():
+        raise ErrorRegistro("el evento necesita un responsable")
+    if detalle is not None and not isinstance(detalle, dict):
+        raise ErrorRegistro("el detalle del evento debe ser un diccionario")
+    try:
+        detalle_json = _canonico(detalle or {})
+    except (TypeError, ValueError) as e:
+        raise ErrorRegistro(f"detalle no serializable: {e}") from e
+    ts_ms = int(time.time() * 1000) if ts_ms is None else int(ts_ms)
+    # Se relee el último evento dentro de la transacción: así la cadena sigue bien aunque
+    # otro proceso (p. ej. la consola de usuarios) comparta el archivo.
+    fila = con.execute("SELECT id, hash FROM eventos ORDER BY id DESC LIMIT 1").fetchone()
+    id_, hash_prev = (fila[0] + 1, fila[1]) if fila else (1, HASH_INICIAL)
+    h = _calcular_hash(hash_prev, id_, ts_ms, tipo, responsable, detalle_json)
+    con.execute(
+        "INSERT INTO eventos (id, ts_ms, tipo, responsable, detalle, hash_prev, hash) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (id_, ts_ms, tipo, responsable, detalle_json, hash_prev, h))
+    return id_
+
+
+class Transaccion:
+    """Acceso exclusivo a la base dentro de UNA transacción (ver Auditoria.transaccion).
+    Lo que se cambia con `execute` y el evento que lo registra con `registrar` se confirman
+    juntos o ninguno: no puede existir un cambio sin su evento."""
+
+    def __init__(self, con):
+        self._con = con
+
+    def execute(self, sql: str, args=()):
+        return self._con.execute(sql, args)
+
+    def registrar(self, tipo: str, responsable: str, detalle: dict | None = None,
+                  ts_ms: int | None = None) -> int:
+        try:
+            return _insertar_evento(self._con, tipo, responsable, detalle, ts_ms)
+        except sqlite3.Error as e:
+            raise ErrorRegistro(f"no se pudo registrar el evento: {e}") from e
+
+
 class Auditoria:
     def __init__(self, ruta: str | Path):
         self.ruta = str(ruta)
@@ -96,38 +142,60 @@ class Auditoria:
     def registrar(self, tipo: str, responsable: str, detalle: dict | None = None,
                   ts_ms: int | None = None) -> int:
         """Agrega un evento y devuelve su id. Nunca modifica uno existente."""
-        if not isinstance(tipo, str) or not tipo.strip():
-            raise ErrorRegistro("el evento necesita un tipo")
-        if not isinstance(responsable, str) or not responsable.strip():
-            raise ErrorRegistro("el evento necesita un responsable")
-        if detalle is not None and not isinstance(detalle, dict):
-            raise ErrorRegistro("el detalle del evento debe ser un diccionario")
-        try:
-            detalle_json = _canonico(detalle or {})
-        except (TypeError, ValueError) as e:
-            raise ErrorRegistro(f"detalle no serializable: {e}") from e
-        ts_ms = int(time.time() * 1000) if ts_ms is None else int(ts_ms)
         with self._lock:
             try:
                 self._con.execute("BEGIN IMMEDIATE")
-                # Se relee el último evento dentro de la transacción: así la cadena sigue
-                # bien aunque otro proceso comparta el archivo.
-                fila = self._con.execute(
-                    "SELECT id, hash FROM eventos ORDER BY id DESC LIMIT 1").fetchone()
-                id_, hash_prev = (fila[0] + 1, fila[1]) if fila else (1, HASH_INICIAL)
-                h = _calcular_hash(hash_prev, id_, ts_ms, tipo, responsable, detalle_json)
-                self._con.execute(
-                    "INSERT INTO eventos (id, ts_ms, tipo, responsable, detalle, hash_prev, hash) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                    (id_, ts_ms, tipo, responsable, detalle_json, hash_prev, h))
+                id_ = _insertar_evento(self._con, tipo, responsable, detalle, ts_ms)
+                self._con.execute("COMMIT")
+            except (sqlite3.Error, ErrorRegistro) as e:
+                try:
+                    self._con.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+                if isinstance(e, ErrorRegistro):
+                    raise
+                raise ErrorRegistro(f"no se pudo registrar el evento: {e}") from e
+        return id_
+
+    @contextmanager
+    def transaccion(self):
+        """Transacción exclusiva para cambios que deben quedar registrados:
+
+            with auditoria.transaccion() as tx:
+                tx.execute("INSERT INTO usuarios ...", (...))
+                tx.registrar("usuario_creado", actor, {...})
+
+        Si algo falla (incluido el registro del evento), no se guarda NADA. Dentro del bloque
+        hay que usar `tx.registrar`, no `auditoria.registrar` (tomaría el mismo candado)."""
+        with self._lock:
+            try:
+                self._con.execute("BEGIN IMMEDIATE")
+            except sqlite3.Error as e:
+                raise ErrorRegistro(f"no se pudo abrir la transacción: {e}") from e
+            try:
+                yield Transaccion(self._con)
+            except BaseException:
+                try:
+                    self._con.execute("ROLLBACK")
+                except sqlite3.Error:
+                    pass
+                raise
+            try:
                 self._con.execute("COMMIT")
             except sqlite3.Error as e:
                 try:
                     self._con.execute("ROLLBACK")
                 except sqlite3.Error:
                     pass
-                raise ErrorRegistro(f"no se pudo registrar el evento: {e}") from e
-        return id_
+                raise ErrorRegistro(f"no se pudo confirmar la transacción: {e}") from e
+
+    def leer(self, sql: str, args=()) -> list:
+        """Consulta de solo lectura sobre la misma base (para las tablas que viven junto al registro)."""
+        with self._lock:
+            try:
+                return self._con.execute(sql, args).fetchall()
+            except sqlite3.Error as e:
+                raise ErrorRegistro(f"no se pudo leer: {e}") from e
 
     # -- lectura ------------------------------------------------------------------
     def listar(self, limite: int = LIMITE_DEFECTO, antes_id: int | None = None,

@@ -196,3 +196,30 @@ code { background: #fff; padding: 1px 5px; border-radius: 4px; }
 #tabla-registro td.detalle { min-width: 320px; }
 #tabla-registro td:nth-child(2), #tabla-registro td:nth-child(3) { white-space: nowrap; }
 #tabla-registro td.responsable { font-weight: 600; }
+
+/* Turno e inicio de sesión */
+.turno { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.turno-texto { font-weight: 700; }
+.turno-texto.activo::before { content: "●"; color: var(--verde); margin-right: 5px; }
+.turno-aviso { flex-basis: 100%; text-align: right; color: var(--suave); }
+.aviso-bloqueo { color: var(--tinta); font-weight: 600; }
+dialog.login {
+  border: 2px solid var(--tinta); border-radius: 10px; padding: 18px 22px; background: var(--crema);
+  color: var(--tinta); min-width: 320px; max-width: 92vw;
+}
+dialog.login::backdrop { background: rgba(29, 35, 38, .55); }
+dialog.login h2 { margin: 0 0 12px; font-size: 20px; }
+dialog.login label { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-weight: 600; font-size: 14px; }
+dialog.login input { padding: 10px; border: 1px solid var(--tinta); border-radius: 6px; font: 18px system-ui, sans-serif; background: #fff; }
+#login-codigo { letter-spacing: .35em; text-align: center; font-size: 24px; }
+.tabs-login { display: flex; gap: 8px; margin-bottom: 6px; }
+.tabs-login .btn-chico.activa { background: var(--teal); color: #fff; }
+.login-botones { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
+
+/* Usuarios */
+.codigo-nuevo { margin: 12px 0; padding: 12px 16px; border: 2px solid var(--amarillo); border-radius: 10px; background: #fff; }
+.codigo-nuevo p { margin: 4px 0; }
+.codigo-valor { font: 800 38px ui-monospace, monospace; letter-spacing: .3em; }
+#tabla-usuarios td { white-space: normal; vertical-align: middle; }
+#tabla-usuarios tr.baja td { color: var(--gris); }
+#tabla-usuarios .acciones { display: flex; gap: 6px; flex-wrap: wrap; }

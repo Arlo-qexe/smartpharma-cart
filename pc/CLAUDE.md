@@ -61,7 +61,10 @@ fijas). Los puertos se leen de `shared/` y `panel_web.py`, no están escritos en
 Se puede sobrescribir al lanzar: `ASISTENTE_MODO= bash pc/scripts/start_pc.sh` (vacío =
 asistente desactivado), `ASISTENTE_MODELO=/ruta/modelo.gguf`, `PC_LOG_LEVEL=DEBUG`,
 `PANEL_PUERTO=...`, `PC_DB=...` (archivo del registro de eventos; `:memory:` = sin persistencia),
-`PC_VENV=...`. No hace `git pull`: hazlo antes si hace falta.
+`PC_TURNO_MIN=...` (minutos de inactividad que cierran un turno; 30 por defecto), `PC_VENV=...`.
+No hace `git pull`: hazlo antes si hace falta. **La primera vez hay que crear un administrador**
+(`bash scripts/usuarios.sh crear-admin`, en una terminal; sin terminal: `--clave-env VARIABLE`); sin él nadie
+puede iniciar turno ni operar el panel, y el banner de arranque lo avisa.
 
 ### Red y qué IP anuncia la PC
 
@@ -102,8 +105,9 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
 - `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
+- `src/usuarios.py` — usuarios, turnos y permisos (Parte B); `src/usuarios_cli.py` + `scripts/usuarios.sh` — consola para crear el primer administrador. Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -167,11 +171,26 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   recorte del final del archivo (por eso el panel muestra el último sello). Lo escribe
   `EstadoPanel` (`_evento`, dentro del candado, para que el orden sea el de las transiciones); un
   fallo al registrar **nunca** rompe el flujo físico (se loguea y sigue). Las acciones humanas del
-  panel pasan un `responsable` (hoy `RESPONSABLE_SIN_SESION`; la Parte B lo sustituirá por la
-  persona con sesión). Los ids de lote y alarma reinician con cada arranque: cada evento lleva
+  panel pasan un `responsable`: la persona con turno abierto (`RESPONSABLE_SIN_SESION` solo existe para
+  las pruebas, que construyen el panel sin gestor de usuarios). Los ids de lote y alarma reinician con cada arranque: cada evento lleva
   `arranque` (id del evento `sistema_iniciado`). El servidor **no arranca** si no puede abrir el
   registro. Panel: pestaña REGISTRO (`#registro`), `GET /api/log` y `GET /api/log/verificar`;
   **no hay ninguna ruta para editarlo**. El resto del estado (lotes con fotos, alarmas activas,
   decisión en espera) sigue en RAM.
+- **Usuarios, turnos y permisos (Parte B):** `src/usuarios.py` (`GestorUsuarios`), en el MISMO archivo que
+  el registro (`PC_DB`). Mirar el panel y el registro es libre; **iniciar/detener el recorrido, resolver
+  alarmas y confirmar acciones del asistente exigen un turno abierto** (cookie `sesion`, HttpOnly y
+  SameSite=Strict; sin sesión 401, sin permiso 403); administrar usuarios, solo un administrador.
+  Auxiliar = **código de 6 dígitos** que genera el sistema (se muestra UNA vez); administrador = nombre y
+  clave (≥10 caracteres); todo con PBKDF2 + sal, nunca en claro ni en el registro. **Un solo turno a la
+  vez**; vence por inactividad; un administrador puede tomar el control. Un recorrido en marcha sigue a
+  nombre de quien lo inició aunque su turno se cierre. Tras 5 intentos fallidos seguidos el inicio de
+  sesión se bloquea (60 s, el doble en cada fallo más, máx. 15 min). Los nombres son únicos sin distinguir
+  mayúsculas ni tildes y **no se reutilizan** (eliminar es lógico). Cada cambio (crear, regenerar código,
+  desactivar, eliminar, turnos, intentos fallidos, acciones denegadas) se confirma en la **misma
+  transacción** que su evento (`Auditoria.transaccion()`): no hay cambio sin su evento. Límites: los
+  turnos viven en RAM (reiniciar el servidor los cierra sin evento de cierre), y la cadena de hashes
+  cubre los EVENTOS, no el contenido de la tabla `usuarios`. `server.py` SIEMPRE conecta el gestor;
+  construir el panel sin él (solo pruebas) desactiva la exigencia de sesión.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.
