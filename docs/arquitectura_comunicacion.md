@@ -230,6 +230,28 @@ procesar. Mismo canal que 4.5 y 4.7: conexión TCP corta, puerto
 - Un `continuar` cuya respuesta se pierde y se repite cuenta dos cajas (la PC no usa IDs
   de correlación); con cantidad fijada, la Orange Pi procesaría una caja menos.
 
+### 4.9 Telemetría hacia la PC (Orange Pi → PC)
+
+Decisión (PC-24/S-12): la Orange Pi envía a la PC, **una vez cada `INTERVALO_ENVIO_TELEMETRIA_PC_S` (5 s)**, su
+propia telemetría y la **última** que recibió de la ESP32-S3 (sección 5.6). Mismo canal que 4.5, 4.7 y 4.8: conexión TCP
+corta, puerto `TCP_PUERTO_DECISION_DEFECTO`, framing de 4.2.
+
+- **Mensaje:** `{"consulta": "telemetria", "orange_pi": {...}, "esp32": {...} | null, "esp32_edad_s": <s> | null}`.
+  `esp32` es la última telemetría recibida (los mismos campos de 5.6, sin `evento`) y `esp32_edad_s` los segundos que
+  tiene; ambos `null` si aún no hubo ninguna.
+- **Respuesta:** `{"ok": true}`, o `{"error": "consulta_invalida"}`.
+- **Campos de `orange_pi`** (`TELEM_OPI_*`): `t_s` (segundos desde el arranque), `fase` (una de `esperando_orden`,
+  `introduciendo`, `capturando`, `enviando`, `esperando_regente`, `recuperando_pc`, `detenido`), `cpu_temp_c`, `cpu_pct`,
+  `ram_pct`, `disco_pct`, `wifi_dbm`, `rtt_pc_ms` (latencia a la PC), `camara` (`disponible`/`ausente`), `uart`
+  (`ok`/`sin_respuesta`), `ciclos`, `lotes_vacios`, `ultimo_ciclo_s`. Lo que no se pueda leer va como `null`.
+- **Mejor esfuerzo:** si la PC no contesta, la Orange Pi descarta el envío en silencio: **sin reintento, sin alarma** y
+  sin tocar la recuperación de 4.6. No cuenta para el límite de 30 s ni bloquea el ciclo (se envía en segundo plano).
+- **La PC no la guarda en el registro de eventos** (es de solo escritura y encadenado: un dato cada 5 s lo inflaría
+  sin control). La conserva solo en RAM y la muestra en su pestaña TELEMETRÍA; al registro solo irían eventos notables.
+- Cada mensaje cuenta también como contacto de la Orange Pi (indicador de conexión del panel).
+- Además, la Orange Pi permite **monitorear la telemetría desde su propia terminal** (sin PC). Eso es local de la
+  Orange Pi y **no es parte del contrato**.
+
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
 ### 5.1 Decisión: enlace serie con estructura de mensaje y suma de verificación
@@ -268,6 +290,8 @@ uno de los cinco giros de rotación durante la ráfaga de fotos.
 | Orange Pi → ESP32-S3 | `{"accion": "activar_alarma_local"}` | Enciende el indicador físico ante un fallo de red prolongado |
 | Orange Pi → ESP32-S3 | `{"accion": "desactivar_alarma_local"}` | Apaga el indicador físico cuando la PC vuelve a responder (sección 4.6) |
 | Orange Pi → ESP32-S3 | `{"accion": "clasificar", "destino": "TIPO_X"}` | Ordena accionar el mecanismo de clasificación |
+| Orange Pi → ESP32-S3 | `{"accion": "solicitar_telemetria"}` | Pide el estado de sensores y actuadores (sección 5.6) |
+| ESP32-S3 → Orange Pi | `{"evento": "telemetria", ...}` | Responde a la petición anterior; puede llegar en cualquier momento |
 
 ### 5.4 Límite de reintentos en la introducción del objeto
 
@@ -298,6 +322,41 @@ ESP32-S3 — consistente con el resto de actuadores, y evita abrir un segundo
 canal de control fuera del protocolo UART. La orden es `activar_dispensador`
 (`ACCION_ACTIVAR_DISPENSADOR`) y **reemplaza** a `introducir_objeto`: se confirma
 igual, con `objeto_en_posicion`, y conserva el límite de reintentos de 5.
+
+### 5.6 Telemetría de la ESP32-S3 (UART)
+
+Decisión (PC-24/S-12/S-13, pedida a raíz de la realimentación del profesor): la ESP32-S3 expone su estado
+interno **solo cuando la Orange Pi lo pide**. Es observación de **mejor esfuerzo**: nunca puede frenar,
+retrasar ni alterar el ciclo de auditoría.
+
+- **Petición/respuesta, no emisión espontánea.** Cada `INTERVALO_SOLICITUD_TELEMETRIA_ESP_S` (2 s) la Orange Pi
+  envía `{"accion": "solicitar_telemetria"}` y la ESP32-S3 responde `{"evento": "telemetria", ...}`. Así se respeta
+  5.2 (la ESP32-S3 solo ejecuta órdenes, sin temporizadores propios) y la línea no se llena de mensajes sin pedir.
+- **Sin ID de correlación:** el evento tiene nombre propio, así que no se confunde con `en_posicion` ni con
+  `objeto_en_posicion`. **El lector UART de la Orange Pi debe despachar por nombre de evento**: una telemetría
+  puede llegar mientras espera una confirmación de giro, y no debe contarse como respuesta ni como error.
+- **Plazo:** la ESP32-S3 responde en menos de `TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S` (0,5 s) y **no interrumpe un
+  movimiento** para hacerlo (basta con leer los valores ya medidos). Si no responde, la Orange Pi marca `uart:
+  "sin_respuesta"` y sigue: sin reintento y sin alarma.
+- **Campos** (nombres en `shared/protocol_constants.py`, `TELEM_*`; esquema en `shared/schemas/messages.schema.json`):
+
+| Campo | Contenido |
+|---|---|
+| `t_ms` | milisegundos desde el arranque |
+| `estado` | `"reposo"` o `"moviendo"` |
+| `alarma` | `true` si el indicador local está encendido |
+| `giro_dps` | `[x, y, z]` giroscopio (I2C), grados/s |
+| `corriente_ma` | `[c1, c2]` los 2 sensores de corriente (ADC I2C), mA |
+| `enc` | `[e1..e5]` cuenta acumulada con signo de los 5 encoders de cuadratura (A, B) |
+| `pwm` | `[p1..p11]` ciclo de trabajo de las 11 salidas PWM, de 0 a 1000 (1000 = 100,0 %) |
+| `uart_ok` / `uart_err` | mensajes UART válidos / descartados por checksum o formato, desde el arranque |
+| `heap` | bytes de memoria libre |
+| `temp_c` | temperatura interna del chip, °C |
+
+  Un sensor que falle (p. ej. error de I2C) se manda como `null` en su posición: la línea sigue siendo válida.
+  Ejemplo (233 bytes): `{"evento":"telemetria","t_ms":123456,"estado":"reposo","alarma":false,"giro_dps":[0.1,-0.2,0.0],
+  "corriente_ma":[120,95],"enc":[1200,-300,0,55,900],"pwm":[0,0,0,0,0,0,0,0,0,0,0],"uart_ok":120,"uart_err":0,
+  "heap":210000,"temp_c":41.5}`.
 
 ## 6. Proceso de captura de imágenes
 
@@ -379,6 +438,9 @@ no la copies a mano en otro lugar.
 | Intervalo de consulta de decisión | 2 s | `INTERVALO_CONSULTA_DECISION_S` |
 | Destino de descarte definitivo | `DESCARTE` | `DESTINO_DESCARTE` |
 | Vigencia de la orden de inicio del ciclo | 60 s | `VIGENCIA_ORDEN_CICLO_S` |
+| Cada cuánto la Orange Pi pide la telemetría a la ESP32-S3 | 2 s | `INTERVALO_SOLICITUD_TELEMETRIA_ESP_S` |
+| Plazo de respuesta de la ESP32-S3 a esa petición | 0,5 s | `TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S` |
+| Cada cuánto la Orange Pi envía la telemetría a la PC | 5 s | `INTERVALO_ENVIO_TELEMETRIA_PC_S` |
 
 ---
 

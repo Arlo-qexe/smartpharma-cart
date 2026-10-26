@@ -160,6 +160,79 @@ CICLO_CONTINUAR = "continuar"
 CICLO_DETENER = "detener"
 
 # ---------------------------------------------------------------------------
+# Telemetría (ESP32-S3 -> Orange Pi -> PC) — informe 4.9 y 5.6. NO es control: es solo
+# observación, de MEJOR ESFUERZO, y nunca puede frenar ni alterar el ciclo de auditoría.
+#
+# Tramo 1, UART (la Orange Pi PIDE, la ESP32-S3 RESPONDE; la ESP32-S3 nunca emite sola):
+#   Orange Pi -> ESP32-S3: {"accion": "solicitar_telemetria"}
+#   ESP32-S3 -> Orange Pi: {"evento": "telemetria", <campos TELEM_*>}
+# Un evento "telemetria" puede llegar en CUALQUIER momento (también mientras la Orange Pi
+# espera `objeto_en_posicion` o `en_posicion`): el lector UART debe despacharlo por nombre
+# de evento, sin confundirlo con una confirmación. Si la ESP32-S3 no responde en
+# TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S, la Orange Pi lo anota como "sin datos": sin reintento
+# y sin alarma. La ESP32-S3 ignora la petición solo si está ocupada con algo crítico.
+#
+# Tramo 2, TCP (Orange Pi -> PC; conexión corta al puerto TCP_PUERTO_DECISION_DEFECTO, framing
+# de 4.2, UNA vez cada INTERVALO_ENVIO_TELEMETRIA_PC_S):
+#   Mensaje:   {"consulta": "telemetria", "orange_pi": {<TELEM_OPI_*>},
+#               "esp32": {<TELEM_*>} | null, "esp32_edad_s": <segundos> | null}
+#   Respuesta: {"ok": true}   |   {"error": "consulta_invalida"}
+# `esp32` es la ÚLTIMA telemetría recibida (sin el campo "evento") y `esp32_edad_s` cuántos
+# segundos tiene; ambos null si todavía no hubo ninguna. Si la PC no contesta, la Orange Pi
+# descarta el envío en silencio: sin reintento, sin alarma, sin tocar la recuperación de 4.6.
+# ---------------------------------------------------------------------------
+INTERVALO_SOLICITUD_TELEMETRIA_ESP_S = 2.0     # cada cuánto la Orange Pi pide la telemetría a la ESP32-S3; valor inicial
+TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S = 0.5       # la ESP32-S3 debe responder en menos de esto; valor inicial
+INTERVALO_ENVIO_TELEMETRIA_PC_S = 5.0          # cada cuánto la Orange Pi envía su telemetría a la PC; valor inicial
+
+CONSULTA_TELEMETRIA = "telemetria"             # valor de "consulta" (puerto 5001)
+CLAVE_TELEMETRIA_OPI_JSON = "orange_pi"
+CLAVE_TELEMETRIA_ESP_JSON = "esp32"
+CLAVE_TELEMETRIA_ESP_EDAD_S_JSON = "esp32_edad_s"
+CLAVE_OK_JSON = "ok"
+
+# Campos de la telemetría de la ESP32-S3 (los mismos en el UART y dentro de "esp32" del mensaje TCP).
+# Un valor numérico de un sensor puede ser null si ese sensor falló (p. ej. error de I2C).
+TELEM_T_MS = "t_ms"                  # int: milisegundos desde el arranque de la ESP32-S3
+TELEM_ESTADO = "estado"              # "reposo" | "moviendo"
+TELEM_ALARMA = "alarma"              # bool: indicador físico local encendido
+TELEM_GIRO_DPS = "giro_dps"          # [x, y, z] velocidad angular del giroscopio (I2C), grados/s
+TELEM_CORRIENTE_MA = "corriente_ma"  # [c1, c2] los 2 sensores de corriente (ADC I2C), miliamperios
+TELEM_ENCODERS = "enc"               # [e1..e5] cuenta acumulada con signo de cada encoder de cuadratura (A, B)
+TELEM_PWM = "pwm"                    # [p1..p11] ciclo de trabajo de cada salida PWM, 0..TELEM_PWM_MAXIMO
+TELEM_UART_OK = "uart_ok"            # int: mensajes UART válidos recibidos desde el arranque
+TELEM_UART_ERR = "uart_err"          # int: mensajes UART descartados por checksum/formato desde el arranque
+TELEM_HEAP_LIBRE = "heap"            # int: bytes de memoria libre
+TELEM_TEMP_C = "temp_c"              # temperatura interna del chip, °C (null si no se puede leer)
+ESTADO_ESP_REPOSO = "reposo"
+ESTADO_ESP_MOVIENDO = "moviendo"
+TELEM_NUM_SENSORES_CORRIENTE = 2
+TELEM_NUM_ENCODERS = 5
+TELEM_NUM_PWM = 11
+TELEM_PWM_MAXIMO = 1000              # 1000 = 100,0 % de ciclo de trabajo (milésimas)
+
+# Campos de la telemetría de la Orange Pi (dentro de "orange_pi" del mensaje TCP).
+TELEM_OPI_T_S = "t_s"                    # int: segundos desde el arranque de la Orange Pi
+TELEM_OPI_FASE = "fase"                  # una de FASES_OPI
+TELEM_OPI_CPU_TEMP_C = "cpu_temp_c"      # temperatura de la CPU, °C
+TELEM_OPI_CPU_PCT = "cpu_pct"            # uso de CPU, 0..100
+TELEM_OPI_RAM_PCT = "ram_pct"            # memoria usada, 0..100
+TELEM_OPI_DISCO_PCT = "disco_pct"        # disco usado, 0..100
+TELEM_OPI_WIFI_DBM = "wifi_dbm"          # señal Wi-Fi, dBm (null si no se puede leer)
+TELEM_OPI_RTT_PC_MS = "rtt_pc_ms"        # latencia a la PC, ms (null si no hubo respuesta reciente)
+TELEM_OPI_CAMARA = "camara"              # "disponible" | "ausente"
+TELEM_OPI_UART = "uart"                  # "ok" | "sin_respuesta" (la ESP32-S3 no respondió la última petición)
+TELEM_OPI_CICLOS = "ciclos"              # int: objetos procesados desde el arranque
+TELEM_OPI_LOTES_VACIOS = "lotes_vacios"  # int: lotes vacíos enviados desde el arranque
+TELEM_OPI_ULTIMO_CICLO_S = "ultimo_ciclo_s"  # segundos del último ciclo completo (null si aún no hubo)
+FASES_OPI = ("esperando_orden", "introduciendo", "capturando", "enviando",
+             "esperando_regente", "recuperando_pc", "detenido")
+CAMARA_DISPONIBLE = "disponible"
+CAMARA_AUSENTE = "ausente"
+UART_OK = "ok"
+UART_SIN_RESPUESTA = "sin_respuesta"
+
+# ---------------------------------------------------------------------------
 # Enlace serie (Orange Pi <-> ESP32-S3) — UART con checksum
 # ---------------------------------------------------------------------------
 UART_BAUDRATE = 115200
@@ -217,10 +290,12 @@ ACCION_GIRAR_POSICION = "girar_posicion"           # campo adicional: "cara": N
 ACCION_ACTIVAR_ALARMA_LOCAL = "activar_alarma_local"
 ACCION_DESACTIVAR_ALARMA_LOCAL = "desactivar_alarma_local"   # apaga el indicador; ver informe 4.6
 ACCION_CLASIFICAR = "clasificar"                   # campo adicional: "destino": "<TIPO_X>"
+ACCION_SOLICITAR_TELEMETRIA = "solicitar_telemetria"  # la ESP32-S3 responde EVENTO_TELEMETRIA (ver arriba)
 
 # ESP32-S3 -> Orange Pi
 EVENTO_OBJETO_EN_POSICION = "objeto_en_posicion"   # llegada inicial (una vez por objeto)
 EVENTO_EN_POSICION = "en_posicion"                 # confirma cada giro, campo: "cara": N
+EVENTO_TELEMETRIA = "telemetria"                   # respuesta a ACCION_SOLICITAR_TELEMETRIA; campos TELEM_*
 
 # Dispensador (servo): DECIDIDO — lo controla la ESP32-S3 (informe 5.5). La orden
 # `activar_dispensador` reemplaza a `introducir_objeto` y se confirma igual, con

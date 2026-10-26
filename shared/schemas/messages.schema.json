@@ -149,6 +149,379 @@
         }
       ]
     },
+    "orangepi_a_esp32__solicitar_telemetria": {
+      "type": "object",
+      "description": "La Orange Pi pide la telemetría; la ESP32-S3 responde con el evento telemetria (informe 5.6).",
+      "properties": {
+        "accion": {
+          "const": "solicitar_telemetria"
+        }
+      },
+      "required": [
+        "accion"
+      ],
+      "additionalProperties": false
+    },
+    "esp32_a_orangepi__telemetria": {
+      "type": "object",
+      "description": "Telemetría de la ESP32-S3 (informe 5.6). Un sensor que falló se manda como null.",
+      "properties": {
+        "evento": {
+          "const": "telemetria"
+        },
+        "t_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estado": {
+          "enum": [
+            "reposo",
+            "moviendo"
+          ]
+        },
+        "alarma": {
+          "type": "boolean"
+        },
+        "giro_dps": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "corriente_ma": {
+          "type": "array",
+          "items": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "enc": {
+          "type": "array",
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "pwm": {
+          "type": "array",
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1000
+          },
+          "minItems": 11,
+          "maxItems": 11
+        },
+        "uart_ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uart_err": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "heap": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "temp_c": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "evento",
+        "t_ms",
+        "estado",
+        "alarma",
+        "giro_dps",
+        "corriente_ma",
+        "enc",
+        "pwm",
+        "uart_ok",
+        "uart_err",
+        "heap",
+        "temp_c"
+      ],
+      "additionalProperties": false
+    },
+    "orangepi_a_pc__telemetria": {
+      "type": "object",
+      "description": "Telemetría de la Orange Pi y la última de la ESP32-S3 (informe 4.9). Conexión corta al puerto 5001.",
+      "properties": {
+        "consulta": {
+          "const": "telemetria"
+        },
+        "orange_pi": {
+          "type": "object",
+          "properties": {
+            "t_s": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fase": {
+              "enum": [
+                "esperando_orden",
+                "introduciendo",
+                "capturando",
+                "enviando",
+                "esperando_regente",
+                "recuperando_pc",
+                "detenido"
+              ]
+            },
+            "cpu_temp_c": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "cpu_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100
+            },
+            "ram_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100
+            },
+            "disco_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100
+            },
+            "wifi_dbm": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "rtt_pc_ms": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "camara": {
+              "enum": [
+                "disponible",
+                "ausente"
+              ]
+            },
+            "uart": {
+              "enum": [
+                "ok",
+                "sin_respuesta"
+              ]
+            },
+            "ciclos": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "lotes_vacios": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ultimo_ciclo_s": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "t_s",
+            "fase",
+            "cpu_temp_c",
+            "cpu_pct",
+            "ram_pct",
+            "disco_pct",
+            "wifi_dbm",
+            "rtt_pc_ms",
+            "camara",
+            "uart",
+            "ciclos",
+            "lotes_vacios",
+            "ultimo_ciclo_s"
+          ],
+          "additionalProperties": false
+        },
+        "esp32": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "t_ms": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "estado": {
+                  "enum": [
+                    "reposo",
+                    "moviendo"
+                  ]
+                },
+                "alarma": {
+                  "type": "boolean"
+                },
+                "giro_dps": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "minItems": 3,
+                  "maxItems": 3
+                },
+                "corriente_ma": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "enc": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "minItems": 5,
+                  "maxItems": 5
+                },
+                "pwm": {
+                  "type": "array",
+                  "items": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0,
+                    "maximum": 1000
+                  },
+                  "minItems": 11,
+                  "maxItems": 11
+                },
+                "uart_ok": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "uart_err": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "heap": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "temp_c": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "t_ms",
+                "estado",
+                "alarma",
+                "giro_dps",
+                "corriente_ma",
+                "enc",
+                "pwm",
+                "uart_ok",
+                "uart_err",
+                "heap",
+                "temp_c"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "esp32_edad_s": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "consulta",
+        "orange_pi",
+        "esp32",
+        "esp32_edad_s"
+      ],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_telemetria": {
+      "description": "Respuesta de la PC al mensaje de telemetría.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "const": true
+            }
+          },
+          "required": [
+            "ok"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "const": "consulta_invalida"
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "pc_a_orangepi__respuesta_clasificacion": {
       "type": "object",
       "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",

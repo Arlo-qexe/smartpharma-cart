@@ -14,6 +14,33 @@ Formato de cada entrada:
 
 ---
 
+## 2026-10-26 — Arlo-qexe (con Claude Code, lado PC)
+- **Nueva telemetría ESP32-S3 → Orange Pi → PC** (el profesor pidió ver la telemetría de la ESP32-S3 y de la Orange Pi;
+  la del terminal de la Orange Pi tiene prioridad sobre la del panel). Detalle en `arquitectura_comunicacion.md`,
+  secciones 4.9 y 5.6. **Solo observación, de mejor esfuerzo: no cambia el flujo de control.**
+- **UART (5.6):** la Orange Pi PIDE con `{"accion": "solicitar_telemetria"}` (cada 2 s) y la ESP32-S3 responde
+  `{"evento": "telemetria", ...}` (<0,5 s, sin interrumpir un movimiento). La ESP32-S3 **nunca emite sola**. Campos: `t_ms`,
+  `estado` (`reposo`/`moviendo`), `alarma`, `giro_dps` [x,y,z], `corriente_ma` [2], `enc` [5 encoders de cuadratura],
+  `pwm` [11, de 0 a 1000], `uart_ok`, `uart_err`, `heap`, `temp_c`. Un sensor que falle va como `null`.
+- **TCP (4.9):** cada 5 s la Orange Pi envía a la PC `{"consulta": "telemetria", "orange_pi": {...}, "esp32": {...}|null,
+  "esp32_edad_s": ...}` (puerto 5001, framing de 4.2); responde `{"ok": true}`. Sin reintento ni alarma si falla. La PC la guarda
+  solo en RAM (**no** en el registro de eventos).
+- Constantes nuevas en `shared/protocol_constants.py`: `ACCION_SOLICITAR_TELEMETRIA`, `EVENTO_TELEMETRIA`,
+  `INTERVALO_SOLICITUD_TELEMETRIA_ESP_S`, `TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S`, `INTERVALO_ENVIO_TELEMETRIA_PC_S`,
+  `CONSULTA_TELEMETRIA`, `CLAVE_TELEMETRIA_OPI_JSON`, `CLAVE_TELEMETRIA_ESP_JSON`, `CLAVE_TELEMETRIA_ESP_EDAD_S_JSON`,
+  `CLAVE_OK_JSON`, los nombres de campo `TELEM_*` y `TELEM_OPI_*`, `FASES_OPI` y valores (`ESTADO_ESP_*`, `CAMARA_*`, `UART_*`).
+  `protocol_constants.h` recibe la acción, el evento y los `TELEM_*` de la ESP32-S3.
+- **Compatible hacia atrás:** una Orange Pi que no pide telemetría sigue funcionando; una ESP32-S3 que no la implementa simplemente
+  no responde (la Orange Pi lo anota como `sin_respuesta`).
+- **Impacto para orange-pi (S-12):** el lector UART debe **despachar por nombre de evento** (la telemetría puede llegar mientras
+  espera un giro); pedirla cada 2 s; enviar la suya a la PC cada 5 s en segundo plano; y un monitor de terminal local (fuera del
+  contrato). **Impacto para esp32-firmware (S-13):** responder `solicitar_telemetria` con los campos de 5.6 en menos de 0,5 s sin
+  interrumpir un movimiento. **Impacto para pc (PC-24):** atender `telemetria` en el puerto 5001 y mostrarla en una pestaña nueva.
+- Esquema: `esp32_a_orangepi__telemetria`, `orangepi_a_esp32__solicitar_telemetria`, `orangepi_a_pc__telemetria`,
+  `pc_a_orangepi__respuesta_telemetria`.
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`, `shared/schemas/messages.schema.json`,
+  `docs/arquitectura_comunicacion.md`.
+
 ## 2026-10-23 — Arlo-qexe (con Claude Code, lado PC)
 - **Nuevo mensaje Orange Pi → PC: continuar o detener el ciclo, entre objetos** (opción 2
   de S-06; el usuario pidió un botón "Detener" y una casilla con la cantidad de cajas,
