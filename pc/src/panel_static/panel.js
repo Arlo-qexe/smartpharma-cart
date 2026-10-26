@@ -75,6 +75,42 @@ function loteMostrado() {
   return estado.lotes.find((l) => l.id === loteSeleccionado) || estado.lotes[0];
 }
 
+// Lo que leyó la IA del lote mostrado (nombre, gramaje, lote, vencimiento y estado FEFO).
+// FEFO = cuánto falta para vencer: la barra se llena con los días que quedan (tope 365) y cambia de color
+// según el vencimiento; la CLASIFICACIÓN que decide el carrito sale de los rangos del módulo de IA.
+function renderLectura(lote) {
+  const lec = lote && lote.lectura;
+  const poner = (id, texto, clase = "") => {
+    const el = $(id);
+    el.textContent = texto || "—";
+    el.className = "valor chico" + (texto ? (clase ? " " + clase : "") : " sin-dato");
+  };
+  poner("d-nombre", lec && lec.medicamento);
+  poner("d-gramaje", lec && lec.gramaje);
+  poner("d-numero-lote", lec && lec.numero_lote);
+  poner("d-venc", lec && lec.vencimiento ? fmtFecha(lec.vencimiento) : null);
+
+  const d = lec ? lec.dias_para_vencer : null;
+  const barra = $("d-fefo-barra");
+  barra.parentElement.classList.toggle("activa", d !== null && d !== undefined);
+  if (d === null || d === undefined) {
+    poner("d-fefo", null);
+    barra.style.width = "0";
+  } else {
+    const clase = d < 0 ? "rojo" : d <= 90 ? "ambar" : "ok";
+    poner("d-fefo", d < 0 ? `Vencido hace ${-d} días` : d === 0 ? "Vence hoy" : `Vence en ${d} días`, clase);
+    barra.style.width = `${Math.max(0, Math.min(d, 365)) / 365 * 100}%`;
+    barra.style.background = `var(--${d < 0 ? "rojo" : d <= 90 ? "amarillo" : "verde"})`;
+  }
+  let aviso = "";
+  if (!lote) aviso = "";
+  else if (lote.n_imagenes === 0) aviso = "Lote vacío: no hay nada que leer.";
+  else if (!lec) aviso = "Sin lectura de la IA para este lote (reconocimiento en modo de prueba).";
+  else if (lec.motivo) aviso = `Revisión manual: ${motivoOcrHumano(lec.motivo)}.`;
+  else if (lec.confianza) aviso = `Confianza de la lectura: ${Math.round(lec.confianza * 100)} %.`;
+  $("d-lectura-aviso").textContent = aviso;
+}
+
 function renderInicio() {
   renderRecorrido();
   const lote = loteMostrado();
@@ -85,6 +121,7 @@ function renderInicio() {
     $("d-clasif").textContent = "—";
     $("d-clasif").className = "valor sin-dato";
     $("d-lote").textContent = "";
+    renderLectura(null);
     $("fotos-aviso").textContent = "";
     vaciar(fotos);
     claveFotos = null;
@@ -95,6 +132,7 @@ function renderInicio() {
     clasif.textContent = resultadoHumano(lote.resultado);
     clasif.className = "valor" + (lote.resultado === ERROR_REVISION ? " error" : "");
     $("d-lote").textContent = `${lote.n_imagenes} imágenes recibidas`;
+    renderLectura(lote);
 
     // Las fotos se reconstruyen solo si cambió el lote, para no parpadear.
     const clave = `${lote.id}:${lote.fotos_disponibles}`;

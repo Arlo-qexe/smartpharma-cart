@@ -68,7 +68,7 @@ main { margin-top: 14px; }
 }
 
 .ciclo { display: grid; grid-template-columns: auto 1fr; gap: 14px 22px; align-items: center; }
-.caja { grid-row: span 2; width: 130px; fill: #fff; stroke: var(--tinta); stroke-width: 2; stroke-linejoin: round; }
+.caja { grid-row: span 5; align-self: start; width: 130px; fill: #fff; stroke: var(--tinta); stroke-width: 2; stroke-linejoin: round; }
 .dato { display: flex; flex-direction: column; gap: 2px; }
 .et { font-size: 13px; font-weight: 600; letter-spacing: .03em; }
 .valor { font-size: 22px; font-weight: 800; }
@@ -76,6 +76,11 @@ main { margin-top: 14px; }
 .valor.error { color: var(--rojo); }
 .barra { height: 12px; background: var(--gris); border-radius: 6px; overflow: hidden; margin-top: 6px; opacity: .45; }
 .barra div { width: 0; height: 100%; }
+.barra.activa { opacity: 1; }
+.valor.chico { font-size: 17px; overflow-wrap: anywhere; }
+.valor.rojo { color: var(--rojo); }
+.valor.ambar { color: #a87a00; }
+.valor.ok { color: var(--verde); }
 
 .recientes-titulo { margin: 22px 0 8px; font-size: 17px; }
 .pie { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }

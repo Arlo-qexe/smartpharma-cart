@@ -389,6 +389,20 @@ def test_el_lote_reconocido_por_la_ia_llena_la_caja_y_queda_en_el_registro(estad
     assert ev["detalle"]["caja_id"] == c["id"]
 
 
+def test_el_estado_del_panel_expone_la_lectura_de_cada_lote(estado_con_inventario):
+    from datetime import date, timedelta
+    e, _, _ = estado_con_inventario
+    venc = (date.today() + timedelta(days=45)).isoformat()
+    e.registrar_lote("x", [b"a"] * 5, "TIPO_A", datos=ResultadoReconocimiento(
+        "TIPO_A", medicamento="Aciclovir", gramaje="200 mg", numero_lote="F01", vencimiento=venc,
+        confianza=0.95, origen="ia"))
+    e.registrar_lote("x", [b"a"] * 5, "TIPO_B")              # placeholder: sin lectura
+    sin, con = e.snapshot()["lotes"]                          # el más reciente primero
+    assert sin["lectura"] is None
+    assert (con["lectura"]["medicamento"], con["lectura"]["numero_lote"], con["lectura"]["dias_para_vencer"]) \
+        == ("Aciclovir", "F01", 45)
+
+
 def test_el_placeholder_no_llena_ningun_dato(estado_con_inventario):
     e, i, aud = estado_con_inventario
     e.registrar_lote("x", [b"a"] * 5, "TIPO_A", datos=ResultadoReconocimiento("TIPO_A"))

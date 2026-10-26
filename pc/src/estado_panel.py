@@ -7,6 +7,7 @@ Las imágenes viven SOLO en RAM (ver pc/CLAUDE.md: nunca se escriben a disco)
 y solo se conservan las de los últimos MAX_LOTES_CON_FOTOS lotes.
 """
 import itertools
+from datetime import date
 import logging
 import re
 import sys
@@ -181,6 +182,21 @@ class EstadoPanel:
         return {k: getattr(reconocimiento, k) for k in
                 ("medicamento", "gramaje", "numero_lote", "vencimiento", "confianza", "motivo", "segundos")}
 
+    @staticmethod
+    def _lectura_visible(datos: dict | None) -> dict | None:
+        """Lo que leyó la IA de un lote, para la pestaña Inicio (None si no hubo lectura real). Agrega los
+        días que faltan para el vencimiento, contados desde hoy."""
+        if not datos:
+            return None
+        lectura = {k: datos.get(k) for k in ("medicamento", "gramaje", "numero_lote", "vencimiento", "confianza", "motivo")}
+        lectura["dias_para_vencer"] = None
+        if lectura["vencimiento"]:
+            try:
+                lectura["dias_para_vencer"] = (date.fromisoformat(lectura["vencimiento"]) - date.today()).days
+            except ValueError:
+                pass
+        return lectura
+
     def registrar_lote(self, origen: str, imagenes: list, resultado: str, datos=None) -> int:
         """`datos`: el ResultadoReconocimiento del lote; si es del módulo de IA, sus campos llenan la caja."""
         datos = self._datos_de(datos)
@@ -193,6 +209,7 @@ class EstadoPanel:
                 "resultado": resultado,
                 "n_imagenes": len(imagenes),
                 "imagenes": list(imagenes),
+                "lectura": datos,
             })
             for viejo in list(self._lotes)[:-MAX_LOTES_CON_FOTOS]:
                 viejo["imagenes"] = None
@@ -440,6 +457,7 @@ class EstadoPanel:
                 "resultado": l["resultado"],
                 "n_imagenes": l["n_imagenes"],
                 "fotos_disponibles": l["imagenes"] is not None and l["n_imagenes"] > 0,
+                "lectura": self._lectura_visible(l.get("lectura")),
             } for l in reversed(self._lotes)]
             d = self._decision
             espera_id = (d["alarma_id"] if d and d["estado"] == ESTADO_DECISION_PENDIENTE

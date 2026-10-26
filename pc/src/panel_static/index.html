@@ -67,14 +67,17 @@
             <div class="ciclo">
               <svg class="caja" viewBox="0 0 120 80" aria-hidden="true"><path d="M8 28l20-18h84v44l-20 16H8z M8 28h84v42 M92 28l20-18 M92 70l20-16"/><circle cx="64" cy="52" r="7"/></svg>
               <div class="dato"><span class="et">CLASIFICACIÓN</span><span id="d-clasif" class="valor">—</span></div>
-              <div class="dato"><span class="et">LECTURA OCR</span><span class="valor sin-dato">—</span></div>
-              <div class="dato"><span class="et">FECHA VENCIMIENTO</span><span class="valor sin-dato">—</span></div>
+              <div class="dato"><span class="et">MEDICAMENTO</span><span id="d-nombre" class="valor chico sin-dato">—</span></div>
+              <div class="dato"><span class="et">GRAMAJE</span><span id="d-gramaje" class="valor chico sin-dato">—</span></div>
+              <div class="dato"><span class="et">LOTE</span><span id="d-numero-lote" class="valor chico sin-dato">—</span></div>
+              <div class="dato"><span class="et">FECHA VENCIMIENTO</span><span id="d-venc" class="valor chico sin-dato">—</span></div>
               <div class="dato">
                 <span class="et">ESTADO FEFO</span>
-                <div class="barra"><div></div></div>
+                <span id="d-fefo" class="valor chico sin-dato">—</span>
+                <div class="barra"><div id="d-fefo-barra"></div></div>
               </div>
             </div>
-            <p class="aviso">Lectura OCR, fecha de vencimiento y FEFO aún no llegan: hoy el módulo de reconocimiento solo entrega la clasificación.</p>
+            <p id="d-lectura-aviso" class="aviso"></p>
             <p id="d-lote" class="aviso"></p>
           </div>
         </div>
