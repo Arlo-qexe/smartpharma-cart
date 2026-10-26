@@ -19,6 +19,10 @@ Rutas:
                                             opcional {"cantidad": N}: cajas a procesar (sin él, sin límite)
     POST /api/ciclo/detener                 el regente ordena detener el ciclo: la Orange Pi lo recoge
                                             antes del siguiente objeto (informe 4.8)
+    GET  /api/log                           registro de eventos (solo lectura), del más reciente al más
+                                            antiguo. Parámetros: limite, antes, despues (ids), tipo, q
+                                            (texto), desde, hasta (epoch ms). Ver auditoria.py
+    GET  /api/log/verificar                 comprueba la cadena de hashes del registro
     GET  /api/asistente/estado              {"disponible", "modo": "modelo|prueba|desactivado"}
     POST /api/asistente/mensaje             {"texto"} -> respuesta o propuesta (ver asistente_api.py)
     POST /api/asistente/confirmar|cancelar  {"id"} de una propuesta pendiente
@@ -33,12 +37,13 @@ import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 import protocol_constants as pc  # noqa: E402
 
 from asistente_api import AsistenteOcupado, PropuestaInexistente, TextoInvalido  # noqa: E402
+from auditoria import LIMITE_DEFECTO, ErrorRegistro  # noqa: E402
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
     DESTINO_INVALIDO,
@@ -47,6 +52,7 @@ from estado_panel import (  # noqa: E402
     INICIO_ORDENADO,
     INICIO_YA_INICIADO,
     ORDEN_CANCELADA,
+    RESPONSABLE_SIN_SESION,
     RESUELTA_CON_DECISION,
     SIN_CICLO,
     EstadoPanel,
@@ -136,6 +142,18 @@ class _Handler(BaseHTTPRequestHandler):
             datos = estado.snapshot()
             datos["config"] = _configuracion()
             self._json(200, datos)
+        elif ruta == "/api/log":
+            self._get_log(urlsplit(self.path).query)
+        elif ruta == "/api/log/verificar":
+            auditoria = self.server.auditoria
+            if auditoria is None:
+                self._json(503, {"error": "registro_no_disponible"})
+                return
+            try:
+                self._json(200, auditoria.verificar())
+            except ErrorRegistro:
+                log.exception("No se pudo verificar el registro de eventos")
+                self._json(500, {"error": "error_interno"})
         elif ruta == "/api/asistente/estado":
             asistente = self.server.asistente
             if asistente is None:
@@ -151,6 +169,41 @@ class _Handler(BaseHTTPRequestHandler):
                 self._responder(200, "image/jpeg", foto)
         else:
             self._json(404, {"error": "no encontrado"})
+
+    def _get_log(self, query: str):
+        auditoria = self.server.auditoria
+        if auditoria is None:
+            self._json(503, {"error": "registro_no_disponible"})
+            return
+        p = {k: v[0] for k, v in parse_qs(query).items()}
+        try:
+            filtros = dict(
+                limite=int(p.get("limite", LIMITE_DEFECTO)),
+                antes_id=int(p["antes"]) if "antes" in p else None,
+                despues_id=int(p["despues"]) if "despues" in p else None,
+                tipo=p.get("tipo") or None,
+                texto=(p.get("q") or "").strip()[:100] or None,
+                desde_ms=int(p["desde"]) if "desde" in p else None,
+                hasta_ms=int(p["hasta"]) if "hasta" in p else None,
+            )
+        except ValueError:
+            self._json(400, {"error": "parametro_invalido"})
+            return
+        try:
+            datos = auditoria.listar(**filtros)
+            datos["total"] = auditoria.total()
+            datos["tipos"] = auditoria.tipos()
+        except ErrorRegistro:
+            log.exception("No se pudo leer el registro de eventos")
+            self._json(500, {"error": "error_interno"})
+            return
+        self._json(200, datos)
+
+    def _responsable(self) -> str:
+        """Quién hace la acción que llega al panel. Hoy no hay inicio de sesión: se anota como
+        "operador sin sesión". Cuando exista (Parte B del plan de usuarios), aquí se devuelve
+        la persona con la sesión abierta."""
+        return RESPONSABLE_SIN_SESION
 
     def _leer_cuerpo_json(self, max_bytes=_MAX_CUERPO_POST_BYTES):
         """Cuerpo JSON opcional del POST; devuelve {} si no hay o es inválido."""
@@ -214,7 +267,7 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(403, {"error": "origen no permitido"})
             return
         if m_ciclo and m_ciclo.group(1) == "detener":
-            resultado = self.server.estado.ordenar_detencion()
+            resultado = self.server.estado.ordenar_detencion(responsable=self._responsable())
             if resultado == SIN_CICLO:
                 self._json(409, {"error": "sin_ciclo"})
             else:
@@ -226,7 +279,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if m_ciclo:
             cantidad = self._leer_cuerpo_json().get("cantidad")
-            resultado = self.server.estado.ordenar_inicio(cantidad)
+            resultado = self.server.estado.ordenar_inicio(cantidad, responsable=self._responsable())
             if resultado == INICIO_YA_INICIADO:
                 self._json(409, {"error": "ya_iniciada"})
             elif resultado == INICIO_CANTIDAD_INVALIDA:
@@ -241,7 +294,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._post_asistente(m_asistente.group(1))
             return
         destino = self._leer_cuerpo_json().get("destino")
-        resultado = self.server.estado.resolver_alarma(int(m.group(1)), destino)
+        resultado = self.server.estado.resolver_alarma(
+            int(m.group(1)), destino, responsable=self._responsable())
         if resultado == RESUELTA_CON_DECISION:
             log.info("Alarma %s resuelta por el regente: destino %s", m.group(1), destino)
             self._json(200, {"ok": True, "decision_aplicada": True})
@@ -255,17 +309,20 @@ class _Handler(BaseHTTPRequestHandler):
 
 
 def crear_servidor_panel(estado: EstadoPanel, host: str = PANEL_HOST,
-                         puerto: int = PANEL_PUERTO, asistente=None) -> ThreadingHTTPServer:
+                         puerto: int = PANEL_PUERTO, asistente=None,
+                         auditoria=None) -> ThreadingHTTPServer:
     servidor = ThreadingHTTPServer((host, puerto), _Handler)
     servidor.daemon_threads = True
     servidor.estado = estado
     servidor.asistente = asistente      # opcional: ver asistente_api.py
+    servidor.auditoria = auditoria      # opcional: registro de eventos (auditoria.py)
     return servidor
 
 
 def iniciar_panel(estado: EstadoPanel, host: str = PANEL_HOST,
-                  puerto: int = PANEL_PUERTO, asistente=None) -> ThreadingHTTPServer:
+                  puerto: int = PANEL_PUERTO, asistente=None,
+                  auditoria=None) -> ThreadingHTTPServer:
     """Levanta el panel en un hilo daemon y devuelve el servidor."""
-    servidor = crear_servidor_panel(estado, host, puerto, asistente)
+    servidor = crear_servidor_panel(estado, host, puerto, asistente, auditoria)
     threading.Thread(target=servidor.serve_forever, daemon=True).start()
     return servidor

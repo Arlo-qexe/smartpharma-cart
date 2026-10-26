@@ -32,6 +32,10 @@
       <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2zM12 10v5M12 18v.5"/></svg>
       ALERTAS <span id="insignia" class="insignia" hidden></span>
     </button>
+    <button data-vista="registro">
+      <svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM15 3v4h4M8 12h8M8 16h8"/></svg>
+      REGISTRO
+    </button>
     <button data-vista="config">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>
       CONFIGURACIÓN
@@ -123,6 +127,29 @@
           <tbody></tbody>
         </table>
       </div>
+    </section>
+
+    <section id="vista-registro" class="vista" hidden>
+      <h2>Registro de eventos</h2>
+      <p class="aviso">Todo lo que ocurre en el sistema (lotes, alarmas, decisiones, órdenes del recorrido), con fecha, hora y responsable. Es de solo lectura: nadie puede editarlo ni borrarlo desde el panel, y cada evento queda encadenado al anterior para poder detectar cualquier alteración. Los eventos se conservan aunque se reinicie la PC.</p>
+      <p id="registro-integridad" class="integridad">Verificando el registro…</p>
+      <div class="filtros-registro">
+        <label>Evento <select id="reg-tipo"><option value="">Todos</option></select></label>
+        <label>Buscar <input id="reg-texto" type="search" placeholder="responsable, lote, destino…" maxlength="100"></label>
+        <label>Desde <input id="reg-desde" type="date"></label>
+        <label>Hasta <input id="reg-hasta" type="date"></label>
+        <button id="reg-aplicar" class="btn-chico">Filtrar</button>
+        <button id="reg-limpiar" class="btn-chico">Limpiar</button>
+        <button id="reg-verificar" class="btn-chico">Verificar integridad</button>
+      </div>
+      <div class="tabla-envoltura">
+        <table id="tabla-registro">
+          <thead><tr><th>#</th><th>Fecha y hora</th><th>Evento</th><th>Responsable</th><th>Detalle</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p id="registro-pie" class="aviso"></p>
+      <button id="reg-mas" class="btn-chico" hidden>Cargar eventos anteriores</button>
     </section>
 
     <section id="vista-config" class="vista" hidden>

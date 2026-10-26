@@ -243,6 +243,214 @@ $("boton-detener").addEventListener("click", async () => {
   await postCiclo("/api/ciclo/detener", null);
 });
 
+// ---------------------------------------------------------------------------
+// Registro de eventos (solo lectura). Los datos vienen de /api/log (auditoria.py).
+const PAGINA_REGISTRO = 100;
+const registro = { eventos: [], hayMas: false, tipos: [], total: 0, cargado: false,
+                   cargando: false, noDisponible: false, error: false };
+let integridad = null;
+let ultimaIntegridad = 0;
+let firmaRegistro = null;
+let firmaTipos = null;
+
+const MOTIVOS_FIN = {
+  detenido_por_regente: "lo detuvo el regente",
+  cantidad_alcanzada: "se alcanzó la cantidad de cajas fijada",
+};
+const v = (x) => (x === null || x === undefined || x === "" ? "—" : String(x));
+const cajas = (c) => (c ? `${c} ${c === 1 ? "caja" : "cajas"}` : "sin límite de cajas");
+const iniciadas = (n) => `${v(n)} ${n === 1 ? "caja iniciada" : "cajas iniciadas"}`;
+
+// Cada evento: [etiqueta corta, función que redacta el detalle a partir de su contenido].
+const EVENTOS = {
+  sistema_iniciado: ["Sistema iniciado", (d) => `Servidor de la PC iniciado (registro en ${v(d.base)}).`],
+  sistema_detenido: ["Sistema detenido", () => "Servidor de la PC detenido de forma ordenada."],
+  servicio_anunciado: ["Servicio anunciado", (d) => `Anunciado por mDNS como ${v(d.nombre)} en ${v(d.ip)}:${v(d.puerto)}.`],
+  lote_recibido: ["Lote recibido", (d) =>
+    `Lote #${v(d.lote_id)} de ${v(d.origen)}: ${v(d.n_imagenes)} imágenes → ${resultadoHumano(d.resultado)}.`],
+  alarma_abierta: ["Alarma abierta", (d) =>
+    `Alarma #${v(d.alarma_id)}: ${motivoHumano(d.motivo)}${d.lote_id ? ` (lote #${d.lote_id})` : ""}.`],
+  alarma_resuelta: ["Alarma resuelta", (d) =>
+    `Alarma #${v(d.alarma_id)} (${motivoHumano(d.motivo)}${d.lote_id ? `, lote #${d.lote_id}` : ""}) resuelta con el destino ${v(d.destino)}.`],
+  alarma_cerrada: ["Alarma cerrada", (d) =>
+    `Alarma #${v(d.alarma_id)} (${motivoHumano(d.motivo)}) cerrada sin decisión: la Orange Pi ya no la esperaba.`],
+  decision_entregada: ["Decisión entregada", (d) =>
+    `Destino ${v(d.destino)} de la alarma #${v(d.alarma_id)} entregado a la Orange Pi (${v(d.ip_orangepi)}).`],
+  ciclo_inicio_ordenado: ["Inicio ordenado", (d) => `Orden de iniciar el recorrido (${cajas(d.cantidad)}).`],
+  ciclo_iniciado: ["Recorrido iniciado", (d) => `La Orange Pi recogió la orden (${cajas(d.cantidad)}).`],
+  ciclo_detencion_ordenada: ["Detención ordenada", (d) =>
+    `Orden de detener el recorrido (${iniciadas(d.cajas_iniciadas)}).`],
+  ciclo_detenido: ["Recorrido detenido", (d) =>
+    `Recorrido detenido: ${MOTIVOS_FIN[d.motivo] || v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
+  ciclo_orden_cancelada: ["Orden cancelada", () => "Se canceló la orden de inicio antes de que la Orange Pi la recogiera."],
+  ciclo_orden_vencida: ["Orden vencida", (d) => `La orden de inicio de ${v(d.ordenada_por)} venció sin que la Orange Pi la recogiera.`],
+  ciclo_interrumpido: ["Recorrido interrumpido", (d) =>
+    `${v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
+};
+const etiquetaEvento = (tipo) => (EVENTOS[tipo] ? EVENTOS[tipo][0] : tipo);
+const claseEvento = (tipo) =>
+  tipo === "alarma_abierta" ? "rojo" : (tipo === "ciclo_orden_vencida" || tipo === "ciclo_interrumpido") ? "amarillo" : "";
+function describirEvento(e) {
+  const f = EVENTOS[e.tipo];
+  return f ? f[1](e.detalle || {}) : JSON.stringify(e.detalle);
+}
+
+function filtrosRegistro() {
+  const f = {};
+  const tipo = $("reg-tipo").value;
+  if (tipo) f.tipo = tipo;
+  const q = $("reg-texto").value.trim();
+  if (q) f.q = q;
+  const desde = $("reg-desde").value;
+  if (desde) f.desde = String(new Date(desde + "T00:00:00").getTime());
+  const hasta = $("reg-hasta").value;
+  if (hasta) f.hasta = String(new Date(hasta + "T23:59:59.999").getTime());
+  return f;
+}
+
+// modo: "todo" (primera página con los filtros), "mas" (anteriores) o "nuevos" (posteriores al más reciente)
+async function cargarRegistro(modo = "todo") {
+  if (registro.cargando) return;
+  registro.cargando = true;
+  try {
+    const q = new URLSearchParams(filtrosRegistro());
+    q.set("limite", String(PAGINA_REGISTRO));
+    if (modo === "mas" && registro.eventos.length) q.set("antes", String(registro.eventos[registro.eventos.length - 1].id));
+    if (modo === "nuevos" && registro.eventos.length) q.set("despues", String(registro.eventos[0].id));
+    const r = await fetch("/api/log?" + q, { cache: "no-store" });
+    if (r.status === 503) { registro.noDisponible = true; registro.cargado = true; return; }
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    registro.noDisponible = false;
+    registro.error = false;
+    if (modo === "mas") {
+      registro.eventos = registro.eventos.concat(d.eventos);
+      registro.hayMas = d.hay_mas;
+    } else if (modo === "nuevos" && !d.hay_mas) {
+      registro.eventos = d.eventos.concat(registro.eventos);
+    } else if (modo === "nuevos") {
+      registro.cargado = false;          // llegaron más de una página: se vuelve a leer todo
+    } else {
+      registro.eventos = d.eventos;
+      registro.hayMas = d.hay_mas;
+    }
+    if (modo !== "nuevos" || registro.cargado !== false) registro.cargado = true;
+    registro.total = d.total;
+    registro.tipos = d.tipos;
+  } catch (e) {
+    registro.error = true;
+  } finally {
+    registro.cargando = false;
+    renderRegistro();
+  }
+}
+
+async function verificarRegistro() {
+  ultimaIntegridad = Date.now();
+  try {
+    const r = await fetch("/api/log/verificar", { cache: "no-store" });
+    integridad = r.ok ? await r.json() : null;
+  } catch (e) {
+    integridad = null;
+  }
+  renderRegistro();
+}
+
+// Se llama en cada sondeo mientras se mira la pestaña: trae lo nuevo y re-verifica cada 30 s.
+function tickRegistro() {
+  if (registro.cargando) return;
+  if (!registro.cargado) cargarRegistro("todo");
+  else cargarRegistro("nuevos");
+  if (Date.now() - ultimaIntegridad > 30000) verificarRegistro();
+}
+
+function renderRegistro() {
+  if (vista !== "registro") return;
+  const caja = $("registro-integridad");
+  caja.classList.remove("buena", "mala");
+  vaciar(caja);
+  if (registro.noDisponible) {
+    caja.textContent = "El registro de eventos no está disponible en este servidor.";
+  } else if (!integridad) {
+    caja.textContent = "Verificando el registro…";
+  } else if (integridad.ok) {
+    caja.classList.add("buena");
+    caja.appendChild(document.createTextNode(`✔ Registro íntegro: ${integridad.total} eventos verificados. `));
+    caja.appendChild(crear("small", "", integridad.total ? `Último sello: ${integridad.ultimo_hash}` : ""));
+  } else {
+    caja.classList.add("mala");
+    const MOTIVOS_INTEGRIDAD = {
+      falta_un_evento: "falta un evento (hueco en la numeración)",
+      cadena_rota: "la cadena no encaja con el evento anterior",
+      evento_modificado: "el contenido del evento no coincide con su sello",
+    };
+    caja.textContent = `⚠ El registro fue alterado: la cadena se rompe en el evento #${integridad.primer_invalido} ` +
+      `(${MOTIVOS_INTEGRIDAD[integridad.motivo] || integridad.motivo}). Avisa al responsable del sistema.`;
+  }
+
+  const firma = `${registro.eventos.length}:${registro.eventos[0] ? registro.eventos[0].id : 0}:${registro.hayMas}:${registro.error}`;
+  const firmaT = registro.tipos.join("|");
+  if (firmaT !== firmaTipos) {            // el selector de eventos se reconstruye solo si cambió
+    firmaTipos = firmaT;
+    const sel = $("reg-tipo");
+    const actual = sel.value;
+    vaciar(sel);
+    const todos = crear("option", "", "Todos");
+    todos.value = "";
+    sel.appendChild(todos);
+    for (const t of registro.tipos) {
+      const o = crear("option", "", etiquetaEvento(t));
+      o.value = t;
+      sel.appendChild(o);
+    }
+    sel.value = actual;
+  }
+  if (firma === firmaRegistro) return;
+  firmaRegistro = firma;
+
+  const cuerpo = $("tabla-registro").tBodies[0];
+  vaciar(cuerpo);
+  if (registro.error && !registro.eventos.length) {
+    filaVacia(cuerpo, 5, "No se pudo leer el registro.");
+  } else if (!registro.eventos.length) {
+    filaVacia(cuerpo, 5, registro.cargado ? "No hay eventos que coincidan." : "Cargando…");
+  }
+  for (const e of registro.eventos) {
+    const tr = crear("tr");
+    tr.appendChild(crear("td", "", String(e.id)));
+    tr.appendChild(crear("td", "", fmtHora(e.ts_ms / 1000)));
+    const tdTipo = crear("td");
+    const punto = crear("span", "punto " + claseEvento(e.tipo));
+    tdTipo.appendChild(punto);
+    tdTipo.appendChild(document.createTextNode(" " + etiquetaEvento(e.tipo)));
+    tr.appendChild(tdTipo);
+    tr.appendChild(crear("td", "responsable", e.responsable));
+    const tdDetalle = crear("td", "detalle", describirEvento(e));
+    if (e.detalle && e.detalle.arranque) tdDetalle.title = `Ejecución del sistema #${e.detalle.arranque} · sello ${e.hash}`;
+    tr.appendChild(tdDetalle);
+    cuerpo.appendChild(tr);
+  }
+  $("registro-pie").textContent =
+    `Mostrando ${registro.eventos.length} de ${registro.total} eventos en total` +
+    (registro.hayMas ? ". Hay más antiguos." : ".");
+  $("reg-mas").hidden = !registro.hayMas;
+}
+
+function aplicarFiltrosRegistro() {
+  registro.cargado = false;
+  firmaRegistro = null;
+  registro.eventos = [];
+  cargarRegistro("todo");
+}
+$("reg-aplicar").addEventListener("click", aplicarFiltrosRegistro);
+$("reg-texto").addEventListener("keydown", (ev) => { if (ev.key === "Enter") aplicarFiltrosRegistro(); });
+$("reg-limpiar").addEventListener("click", () => {
+  for (const id of ["reg-tipo", "reg-texto", "reg-desde", "reg-hasta"]) $(id).value = "";
+  aplicarFiltrosRegistro();
+});
+$("reg-mas").addEventListener("click", () => cargarRegistro("mas"));
+$("reg-verificar").addEventListener("click", verificarRegistro);
+
 function renderInventario() {
   $("inv-max").textContent = estado.max_lotes_con_fotos;
   const cuerpo = $("tabla-lotes").tBodies[0];
@@ -550,6 +758,7 @@ const RENDERS = {
   inicio: () => { renderInicio(); renderAsistente(); },
   inventario: renderInventario,
   alertas: renderAlertas,
+  registro: () => { tickRegistro(); renderRegistro(); },
   config: renderConfig,
 };
 
@@ -565,8 +774,12 @@ function cambiarVista(nueva) {
   for (const b of document.querySelectorAll("#pestanas button")) {
     b.classList.toggle("activa", b.dataset.vista === nueva);
   }
-  for (const v of ["inicio", "inventario", "alertas", "config"]) {
+  for (const v of ["inicio", "inventario", "alertas", "registro", "config"]) {
     $("vista-" + v).hidden = v !== nueva;
+  }
+  if (nueva === "registro") {            // al entrar se vuelve a leer todo y a verificar la cadena
+    registro.cargado = false;
+    ultimaIntegridad = 0;
   }
   claveFotos = null;
   firmaAlertas = null;
@@ -593,7 +806,12 @@ async function refrescar() {
 }
 
 for (const b of document.querySelectorAll("#pestanas button")) {
-  b.addEventListener("click", () => cambiarVista(b.dataset.vista));
+  b.addEventListener("click", () => {
+    cambiarVista(b.dataset.vista);
+    history.replaceState(null, "", "#" + b.dataset.vista);     // la URL recuerda la pestaña (marcador)
+  });
 }
+// http://127.0.0.1:8080/#registro abre directamente esa pestaña.
+if (Object.prototype.hasOwnProperty.call(RENDERS, location.hash.slice(1))) cambiarVista(location.hash.slice(1));
 refrescar();
 setInterval(refrescar, INTERVALO_MS);

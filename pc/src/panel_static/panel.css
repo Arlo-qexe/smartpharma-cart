@@ -180,3 +180,19 @@ code { background: #fff; padding: 1px 5px; border-radius: 4px; }
   .panel-der { padding: 16px 0 0; }
   .pestanas button { padding: 8px 12px; font-size: 15px; }
 }
+
+/* Registro de eventos (solo lectura) */
+.filtros-registro { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin: 10px 0 12px; }
+.filtros-registro label { display: flex; flex-direction: column; gap: 3px; font-size: 13px; font-weight: 600; }
+.filtros-registro input[type=search] { width: 260px; }
+.filtros-registro select, .filtros-registro input {
+  padding: 7px 8px; border: 1px solid var(--tinta); border-radius: 6px; background: #fff; font: 14px system-ui, sans-serif;
+}
+.integridad { margin: 6px 0; padding: 8px 12px; border-radius: 8px; font-weight: 600; background: #fff; border: 1px solid #b9c9c5; }
+.integridad.buena { border-color: var(--verde); }
+.integridad.mala { background: var(--rojo); border-color: var(--rojo); color: #fff; }
+.integridad small { font-weight: 400; word-break: break-all; }
+#tabla-registro td { white-space: normal; vertical-align: top; }
+#tabla-registro td.detalle { min-width: 320px; }
+#tabla-registro td:nth-child(2), #tabla-registro td:nth-child(3) { white-space: nowrap; }
+#tabla-registro td.responsable { font-weight: 600; }

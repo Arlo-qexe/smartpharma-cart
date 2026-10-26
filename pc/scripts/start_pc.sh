@@ -15,13 +15,17 @@
 #   PC_IP=192.168.x.y       fuerza la IP que se anuncia por mDNS (si la PC tiene varias redes
 #                           y la elegida no es la de la Orange Pi). Sin ella se usa la de la
 #                           ruta por defecto, y sin ruta por defecto la de la interfaz real.
+#   PC_DB=...               archivo del registro de eventos (por defecto pc/data/smartpharma.db).
+#                           `:memory:` = sin persistencia (demos y pruebas).
 #   PC_VENV=...             otro entorno virtual (por defecto pc/.venv)
 #
 # IMPORTANTE: conecta la PC a la red de la demo ANTES de lanzarlo. La IP se fija al arrancar;
 # si cambias de red con el servidor corriendo, detenlo (Ctrl+C) y vuelve a lanzarlo.
 #
 # Los puertos NO se escriben aquí: se leen de shared/protocol_constants.py y panel_web.py.
-# Detener: Ctrl+C. Todo el estado vive en RAM y se pierde al detener (a propósito).
+# Detener: Ctrl+C. El REGISTRO DE EVENTOS (lotes, alarmas, decisiones, órdenes del ciclo) se guarda
+# en disco y sobrevive a los reinicios; el resto del estado (lotes con fotos, alarmas activas,
+# decisión en espera) vive en RAM y se pierde al detener.
 set -euo pipefail
 
 PC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -83,6 +87,13 @@ from mdns_service import elegir_ip_anunciada
 ip, origen = elegir_ip_anunciada()
 print(f'{ip}|{origen}')
 ")
+# Dónde queda el registro de eventos (misma lógica que usa el servidor).
+RUTA_REGISTRO="$(python3 -c "
+import sys
+sys.path.insert(0, 'src')
+from auditoria import ruta_db_desde_entorno
+print(ruta_db_desde_entorno())
+")"
 
 echo "=== SmartPharma Cart — lado PC ==="
 echo " Panel del regente : http://$H_PANEL:$P_PANEL/"
@@ -94,7 +105,8 @@ case "$IP_ANUNCIADA" in
     echo "           Conecta la PC a la red de la demo y vuelve a lanzar, o fuerza PC_IP=<ip>." >&2 ;;
 esac
 echo " Asistente         : $etiqueta_asistente"
-echo " Detener con Ctrl+C (el estado en RAM se pierde)"
+echo " Registro eventos  : $RUTA_REGISTRO"
+echo " Detener con Ctrl+C (lotes, alarmas y decisión en curso viven en RAM; el registro persiste)"
 echo "=================================="
 
 # exec: Ctrl+C llega directo al servidor, que se apaga ordenadamente (baja el mDNS).

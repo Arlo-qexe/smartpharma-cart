@@ -60,7 +60,8 @@ el venv o si otro servidor ya ocupa los puertos, y lanza `src/server.py` con la
 fijas). Los puertos se leen de `shared/` y `panel_web.py`, no están escritos en el script.
 Se puede sobrescribir al lanzar: `ASISTENTE_MODO= bash pc/scripts/start_pc.sh` (vacío =
 asistente desactivado), `ASISTENTE_MODELO=/ruta/modelo.gguf`, `PC_LOG_LEVEL=DEBUG`,
-`PANEL_PUERTO=...`, `PC_VENV=...`. No hace `git pull`: hazlo antes si hace falta.
+`PANEL_PUERTO=...`, `PC_DB=...` (archivo del registro de eventos; `:memory:` = sin persistencia),
+`PC_VENV=...`. No hace `git pull`: hazlo antes si hace falta.
 
 ### Red y qué IP anuncia la PC
 
@@ -100,8 +101,9 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `assistant/comandos_panel.py` — comandos de solo lectura del asistente sobre el estado del panel (ver `assistant/CLAUDE.md`).
 - `src/registro.py` — configuración de logging (`PC_LOG_LEVEL`).
 - `src/estado_panel.py` — estado en memoria (lotes, fotos, alarmas) compartido entre el servidor y el panel.
+- `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
-- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
+- `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
 - `tests/mock_orangepi_client.py` — cliente falso para probar el servidor de forma aislada.
 - `assistant/` — asistente conversacional embebido del panel de control (chat del
   operador → comandos validados). Ver @assistant/CLAUDE.md. Es un submódulo
@@ -157,5 +159,19 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   OCR/FEFO que debe entregar el reconocimiento.
 - `src/ocr_interface.py` es un placeholder que clasifica **al azar** entre `TIPOS_PLACEHOLDER`
   (`TIPO_A/B/C`) hasta que el equipo de IA entregue el módulo real.
+- **Registro de eventos (Parte A del plan de inventario/usuarios; revierte D-05 solo para el log):**
+  `src/auditoria.py` guarda en disco (`pc/data/smartpharma.db`, ignorado por git; `PC_DB` lo cambia)
+  cada lote recibido, alarma, decisión del regente, orden de iniciar/detener y arranque/apagado,
+  con fecha, hora y **responsable**. Es de solo escritura (triggers contra UPDATE/DELETE) y cada
+  evento lleva el hash del anterior; `verificar()` detecta ediciones o borrados a mano, pero no el
+  recorte del final del archivo (por eso el panel muestra el último sello). Lo escribe
+  `EstadoPanel` (`_evento`, dentro del candado, para que el orden sea el de las transiciones); un
+  fallo al registrar **nunca** rompe el flujo físico (se loguea y sigue). Las acciones humanas del
+  panel pasan un `responsable` (hoy `RESPONSABLE_SIN_SESION`; la Parte B lo sustituirá por la
+  persona con sesión). Los ids de lote y alarma reinician con cada arranque: cada evento lleva
+  `arranque` (id del evento `sistema_iniciado`). El servidor **no arranca** si no puede abrir el
+  registro. Panel: pestaña REGISTRO (`#registro`), `GET /api/log` y `GET /api/log/verificar`;
+  **no hay ninguna ruta para editarlo**. El resto del estado (lotes con fotos, alarmas activas,
+  decisión en espera) sigue en RAM.
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

@@ -50,7 +50,7 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
             if tipo in (CONSULTA_DECISION_REGENTE, CONSULTA_ORDEN_CICLO, CONSULTA_ESTADO_CICLO):
                 self.server.estado.registrar_contacto(self.client_address[0])
             if tipo == CONSULTA_DECISION_REGENTE:
-                respuesta = self.server.estado.consultar_decision()
+                respuesta = self.server.estado.consultar_decision(self.client_address[0])
                 enviar_json(conn, respuesta)
                 self._registrar_si_cambio(tipo, respuesta)
             elif tipo == CONSULTA_ORDEN_CICLO:

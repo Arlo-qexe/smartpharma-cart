@@ -7,6 +7,7 @@ Las imágenes viven SOLO en RAM (ver pc/CLAUDE.md: nunca se escriben a disco)
 y solo se conservan las de los últimos MAX_LOTES_CON_FOTOS lotes.
 """
 import itertools
+import logging
 import re
 import sys
 import threading
@@ -31,6 +32,15 @@ from protocol_constants import (  # noqa: E402
     RESULTADO_ERROR_REVISION_MANUAL,
     VIGENCIA_ORDEN_CICLO_S,
 )
+
+log_auditoria = logging.getLogger("auditoria")
+
+# Quién queda anotado en el registro de eventos. Los eventos automáticos (lote recibido,
+# alarma abierta...) los hace el "sistema"; las acciones del panel (iniciar, detener,
+# resolver una alarma) las hace una persona. Mientras no haya inicio de sesión (Parte B del
+# plan de usuarios) no se sabe quién es: queda como "operador sin sesión".
+RESPONSABLE_SISTEMA = "sistema"
+RESPONSABLE_SIN_SESION = "operador sin sesión"
 
 MAX_LOTES_CON_FOTOS = 5
 MAX_HISTORIAL_LOTES = 50
@@ -100,12 +110,49 @@ class EstadoPanel:
         # {"alarma_id": int, "estado": pendiente|resuelta, "destino": str|None}
         self._decision = None
         # Orden de inicio del ciclo (una sola, de un solo uso; ver ordenar_inicio)
-        self._orden = {"estado": ORDEN_SIN_ORDEN, "ts_ordenada": None, "ts_entregada": None}
+        self._orden = {"estado": ORDEN_SIN_ORDEN, "ts_ordenada": None, "ts_entregada": None,
+                       "ordenada_por": None}
         self._ts_ultima_consulta_orden = None
         self._cantidad_ordenada = None      # cantidad fijada al pulsar "Iniciar", aún sin recoger
         self._ciclo = {"estado": CICLO_INACTIVO, "cantidad": None, "iniciadas": 0,
-                       "motivo_fin": None, "ts_fin": None}
+                       "motivo_fin": None, "ts_fin": None,
+                       "iniciado_por": None, "detencion_ordenada_por": None}
         self._contacto = {"ip": None, "ts": None}   # último mensaje válido de la Orange Pi
+        self._auditoria = None                      # registro de eventos (auditoria.py), opcional
+        self._arranque = None                       # id del evento "sistema_iniciado" de esta ejecución
+
+    # -- registro de eventos (log) -------------------------------------------------
+    def conectar_auditoria(self, auditoria) -> None:
+        """Conecta el registro de eventos persistente. Sin él, el estado funciona igual."""
+        self._auditoria = auditoria
+
+    def _evento(self, tipo: str, responsable: str, **detalle):
+        """Anota un evento. Se llama DENTRO del candado, así el orden del registro es el de
+        las transiciones del estado. Un fallo al registrar nunca rompe el flujo físico:
+        se deja en el log técnico y el ciclo sigue (la Orange Pi no puede quedar esperando)."""
+        if self._auditoria is None:
+            return None
+        if self._arranque is not None:
+            # Los ids de lote y de alarma reinician en 1 con cada arranque del servidor:
+            # el de arranque desambigua "lote #3" entre ejecuciones distintas.
+            detalle.setdefault("arranque", self._arranque)
+        try:
+            return self._auditoria.registrar(tipo, responsable, detalle)
+        except Exception:
+            log_auditoria.exception("no se pudo registrar el evento %s", tipo)
+            return None
+
+    def registrar_arranque(self, **detalle):
+        """Primer evento de cada ejecución. Devuelve su id (los demás lo llevan como `arranque`)."""
+        with self._lock:
+            self._arranque = None
+            self._arranque = self._evento("sistema_iniciado", RESPONSABLE_SISTEMA, **detalle)
+            return self._arranque
+
+    def registrar_evento(self, tipo: str, responsable: str = RESPONSABLE_SISTEMA, **detalle):
+        """Evento genérico (arranque del servicio, apagado...) desde fuera del estado."""
+        with self._lock:
+            return self._evento(tipo, responsable, **detalle)
 
     def registrar_contacto(self, ip: str) -> None:
         """La Orange Pi envió un mensaje válido (lote o consulta): sirve de indicador de
@@ -126,6 +173,8 @@ class EstadoPanel:
             })
             for viejo in list(self._lotes)[:-MAX_LOTES_CON_FOTOS]:
                 viejo["imagenes"] = None
+            self._evento("lote_recibido", RESPONSABLE_SISTEMA, lote_id=lote_id, origen=origen,
+                         n_imagenes=len(imagenes), resultado=resultado)
             return lote_id
 
     def registrar_alarma(self, motivo: str, lote_id: int | None = None) -> int:
@@ -140,6 +189,8 @@ class EstadoPanel:
                 "ts_resuelta": None,
                 "destino": None,
             })
+            self._evento("alarma_abierta", RESPONSABLE_SISTEMA, alarma_id=alarma_id,
+                         motivo=motivo, lote_id=lote_id)
             return alarma_id
 
     # -- decisión del regente (ver docs/propuesta_canal_regente.md, opción A) --
@@ -158,18 +209,24 @@ class EstadoPanel:
         with self._lock:
             self._decision = None
 
-    def consultar_decision(self) -> dict:
-        """Respuesta para la consulta de la Orange Pi (no consume la decisión)."""
+    def consultar_decision(self, ip: str | None = None) -> dict:
+        """Respuesta para la consulta de la Orange Pi (no consume la decisión). `ip` es la de
+        quien consulta, solo para el registro de eventos."""
         with self._lock:
             d = self._decision
             if d is None:
                 return {CLAVE_ESTADO_DECISION_JSON: ESTADO_DECISION_NINGUNA}
             if d["estado"] == ESTADO_DECISION_RESUELTA:
+                if not d.get("entregada"):
+                    d["entregada"] = True       # solo la PRIMERA vez: es el hecho que se audita
+                    self._evento("decision_entregada", RESPONSABLE_SISTEMA,
+                                 alarma_id=d["alarma_id"], destino=d["destino"], ip_orangepi=ip)
                 return {CLAVE_ESTADO_DECISION_JSON: ESTADO_DECISION_RESUELTA,
                         CLAVE_DESTINO_JSON: d["destino"]}
             return {CLAVE_ESTADO_DECISION_JSON: ESTADO_DECISION_PENDIENTE}
 
-    def resolver_alarma(self, alarma_id: int, destino: str | None) -> str:
+    def resolver_alarma(self, alarma_id: int, destino: str | None,
+                        responsable: str = RESPONSABLE_SIN_SESION) -> str:
         """El regente resuelve una alarma desde el panel.
 
         Si es la que la Orange Pi está esperando, `destino` es obligatorio
@@ -192,6 +249,11 @@ class EstadoPanel:
             if alarma["activa"]:
                 alarma["activa"] = False
                 alarma["ts_resuelta"] = time.time()
+                alarma["resuelta_por"] = responsable
+                # Qué alarma era, qué se decidió (TIPO_X o DESCARTE) y quién lo decidió.
+                self._evento("alarma_resuelta" if espera else "alarma_cerrada", responsable,
+                             alarma_id=alarma_id, motivo=alarma["motivo"], lote_id=alarma["lote_id"],
+                             destino=destino if espera else None, decision_aplicada=espera)
             return RESUELTA_CON_DECISION if espera else CERRADA_SIN_DECISION
 
     # -- orden de inicio del ciclo (consulta S-06, opción 1; informe 4.7) ----------
@@ -200,9 +262,12 @@ class EstadoPanel:
         el ciclo en un arranque posterior sin que nadie lo decida."""
         o = self._orden
         if o["estado"] == ORDEN_ORDENADA and time.time() - o["ts_ordenada"] >= VIGENCIA_ORDEN_CICLO_S:
-            o.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None)
+            self._evento("ciclo_orden_vencida", RESPONSABLE_SISTEMA,
+                         ordenada_por=o.get("ordenada_por"), cantidad=self._cantidad_ordenada)
+            o.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ordenada_por=None)
 
-    def ordenar_inicio(self, cantidad: int | None = None) -> str:
+    def ordenar_inicio(self, cantidad: int | None = None,
+                       responsable: str = RESPONSABLE_SIN_SESION) -> str:
         """El regente pulsó "Iniciar recorrido". `cantidad` = cuántas cajas procesar
         (None = sin límite: sigue hasta que el regente pulse "Detener")."""
         with self._lock:
@@ -215,8 +280,10 @@ class EstadoPanel:
                 return INICIO_YA_INICIADO
             if o["estado"] == ORDEN_ORDENADA:
                 return INICIO_YA_ORDENADO
-            o.update(estado=ORDEN_ORDENADA, ts_ordenada=time.time())
+            o.update(estado=ORDEN_ORDENADA, ts_ordenada=time.time(), ordenada_por=responsable)
             self._cantidad_ordenada = cantidad
+            self._evento("ciclo_inicio_ordenado", responsable, cantidad=cantidad,
+                         vigencia_s=VIGENCIA_ORDEN_CICLO_S)
             return INICIO_ORDENADO
 
     def consultar_orden_ciclo(self) -> dict:
@@ -230,6 +297,11 @@ class EstadoPanel:
             if o["estado"] == ORDEN_INICIADA:
                 # La Orange Pi solo pregunta mientras espera: si vuelve a preguntar
                 # después de recibir la orden, reinició y necesita una orden nueva.
+                if self._ciclo["estado"] != CICLO_INACTIVO:
+                    self._evento("ciclo_interrumpido", RESPONSABLE_SISTEMA,
+                                 motivo="la Orange Pi volvió a pedir orden (se reinició)",
+                                 cajas_iniciadas=self._ciclo["iniciadas"],
+                                 iniciado_por=self._ciclo.get("iniciado_por"))
                 o.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ts_entregada=None)
                 self._ciclo.update(estado=CICLO_INACTIVO)
             orden = ORDEN_CICLO_INICIAR if o["estado"] == ORDEN_ORDENADA else ORDEN_CICLO_ESPERANDO
@@ -241,23 +313,33 @@ class EstadoPanel:
             if o["estado"] == ORDEN_ORDENADA:
                 o.update(estado=ORDEN_INICIADA, ts_entregada=time.time())
                 self._ciclo = {"estado": CICLO_ACTIVO, "cantidad": self._cantidad_ordenada,
-                               "iniciadas": 0, "motivo_fin": None, "ts_fin": None}
+                               "iniciadas": 0, "motivo_fin": None, "ts_fin": None,
+                               "iniciado_por": o.get("ordenada_por"), "detencion_ordenada_por": None}
+                # El ciclo corre bajo la autoridad de quien dio la orden de inicio.
+                self._evento("ciclo_iniciado", o.get("ordenada_por") or RESPONSABLE_SISTEMA,
+                             cantidad=self._cantidad_ordenada)
 
     # -- continuar o detener entre objetos (informe 4.8) ---------------------------
-    def ordenar_detencion(self) -> str:
+    def ordenar_detencion(self, responsable: str = RESPONSABLE_SIN_SESION) -> str:
         """El regente pulsó "Detener". No interrumpe una caja en vuelo: la Orange Pi lo
         recoge en su próxima consulta, antes del siguiente objeto."""
         with self._lock:
             c = self._ciclo
             if c["estado"] == CICLO_ACTIVO:
                 c["estado"] = CICLO_DETENIENDO
+                c["detencion_ordenada_por"] = responsable
+                self._evento("ciclo_detencion_ordenada", responsable,
+                             cajas_iniciadas=c["iniciadas"], cantidad=c["cantidad"])
                 return DETENCION_ORDENADA
             if c["estado"] == CICLO_DETENIENDO:
                 return DETENCION_YA_ORDENADA
             self._vencer_orden_locked()
             if self._orden["estado"] == ORDEN_ORDENADA:
                 # Pulsó "Iniciar" y se arrepintió antes de que la Orange Pi la recogiera.
-                self._orden.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None)
+                self._evento("ciclo_orden_cancelada", responsable,
+                             ordenada_por=self._orden.get("ordenada_por"),
+                             cantidad=self._cantidad_ordenada)
+                self._orden.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ordenada_por=None)
                 return ORDEN_CANCELADA
             return SIN_CICLO
 
@@ -272,10 +354,17 @@ class EstadoPanel:
                 return {CLAVE_CICLO_JSON: CICLO_DETENER}
             cantidad_alcanzada = c["cantidad"] is not None and c["iniciadas"] >= c["cantidad"]
             if c["estado"] == CICLO_DETENIENDO or cantidad_alcanzada:
+                por_regente = c["estado"] == CICLO_DETENIENDO
                 c.update(estado=CICLO_INACTIVO, ts_fin=time.time(),
-                         motivo_fin=FIN_POR_REGENTE if c["estado"] == CICLO_DETENIENDO
-                         else FIN_POR_CANTIDAD)
-                self._orden.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ts_entregada=None)
+                         motivo_fin=FIN_POR_REGENTE if por_regente else FIN_POR_CANTIDAD)
+                self._orden.update(estado=ORDEN_SIN_ORDEN, ts_ordenada=None, ts_entregada=None,
+                                   ordenada_por=None)
+                # Si lo detuvo una persona, es su acción; si fue por la cantidad, del sistema.
+                self._evento("ciclo_detenido",
+                             (c.get("detencion_ordenada_por") if por_regente else None)
+                             or RESPONSABLE_SISTEMA,
+                             motivo=c["motivo_fin"], cajas_iniciadas=c["iniciadas"],
+                             cantidad=c["cantidad"], iniciado_por=c.get("iniciado_por"))
                 return {CLAVE_CICLO_JSON: CICLO_DETENER}
             c["iniciadas"] += 1
             return {CLAVE_CICLO_JSON: CICLO_CONTINUAR}
@@ -331,6 +420,7 @@ class EstadoPanel:
                     "estado": o["estado"],
                     "restante_s": restante,
                     "ts_entregada": o["ts_entregada"],
+                    "ordenada_por": o.get("ordenada_por"),
                     "ts_ultima_consulta": self._ts_ultima_consulta_orden,
                 },
                 "ts_servidor": time.time(),

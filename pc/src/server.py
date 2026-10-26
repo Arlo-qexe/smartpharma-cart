@@ -7,6 +7,7 @@ Si el lote termina en ERROR_REVISION_MANUAL, la PC deja una decisión en espera
 para el regente; la Orange Pi la consulta por servidor_decision.py.
 """
 import logging
+import signal
 import socket
 import struct
 import sys
@@ -26,6 +27,7 @@ from protocol_constants import (  # noqa: E402
     TIMEOUT_INACTIVIDAD_RECEPCION_S,
 )
 
+from auditoria import Auditoria, ErrorRegistro, ruta_db_desde_entorno
 from estado_panel import estado
 from framing import ConexionSinDatos, FramingInvalido, enviar_json, recv_exacto
 from mdns_service import detener_servicio_mdns, registrar_servicio_mdns
@@ -138,11 +140,28 @@ def iniciar_servidor(puerto: int = TCP_PUERTO_DEFECTO):
         hilo.start()
 
 
+def _al_terminar(signum, frame):
+    # kill -TERM se trata como Ctrl+C: apagado ordenado (anuncia mDNS apagado y deja el
+    # evento "sistema_detenido" en el registro).
+    raise KeyboardInterrupt
+
+
 if __name__ == "__main__":
     configurar_logging()
+    try:
+        auditoria = Auditoria(ruta_db_desde_entorno())
+    except ErrorRegistro as e:
+        # Un sistema que debe dejar constancia de lo que ocurre no arranca sin su registro.
+        log.critical("%s. Para una demo sin persistencia usa PC_DB=:memory:", e)
+        sys.exit(1)
+    estado.conectar_auditoria(auditoria)
+    estado.registrar_arranque(base=auditoria.ruta, puerto_lotes=TCP_PUERTO_DEFECTO,
+                              puerto_consultas=TCP_PUERTO_DECISION_DEFECTO, puerto_panel=PANEL_PUERTO)
+    log.info("Registro de eventos en %s", auditoria.ruta)
+    signal.signal(signal.SIGTERM, _al_terminar)
     asistente = _crear_asistente()
     try:
-        iniciar_panel(estado, asistente=asistente)
+        iniciar_panel(estado, asistente=asistente, auditoria=auditoria)
         logging.getLogger("panel").info("Panel de control en http://%s:%d/", PANEL_HOST, PANEL_PUERTO)
     except OSError as e:
         # El panel no debe impedir que el transporte funcione.
@@ -156,8 +175,16 @@ if __name__ == "__main__":
             "consultar la decisión del regente", e)
     zc, info = registrar_servicio_mdns(puerto=TCP_PUERTO_DEFECTO)
     try:
+        ip_anunciada = info.parsed_addresses()[0]
+    except Exception:  # solo informativo para el registro
+        ip_anunciada = None
+    estado.registrar_evento("servicio_anunciado", nombre=info.name, ip=ip_anunciada,
+                            puerto=TCP_PUERTO_DEFECTO)
+    try:
         iniciar_servidor(puerto=TCP_PUERTO_DEFECTO)
     except KeyboardInterrupt:
         log.info("Apagando...")
     finally:
         detener_servicio_mdns(zc, info)
+        estado.registrar_evento("sistema_detenido")
+        auditoria.cerrar()
