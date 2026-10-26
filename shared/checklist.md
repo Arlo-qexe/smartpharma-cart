@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 y PC-21 hechos).
+**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 registro de eventos, usuarios e inventario, partes A a C; D-13 y D-14).
+Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 y PC-21 hechos).
 Anterior: 2026-10-23 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-22 hecho).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: OP-23 probado en el router de la demo, S-10 hecha).
 Anterior: 2026-10-23 (reloj de la Orange Pi) — Arlo-qexe (lado Orange Pi: D-12 autoenfoque explícito).
@@ -72,7 +73,8 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   `192.168.20.72` → lote de 5 imágenes respondido `TIPO_A` unos 20 s después → una
   consulta posterior respondida `esperando`, coherente con un nuevo arranque). Detener el
   ciclo se agregó después (**PC-22**, **S-11**); pausar/reanudar no existe.
-- [ ] **PC-11** Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
+- [ ] **PC-11** *(ver también **PC-23**, parte D: el inventario ya tiene las columnas de medicamento, gramaje,
+  lote y vencimiento, vacías hasta que el OCR las llene)* Campos "Lectura OCR", "Fecha de vencimiento" y "Estado FEFO" del
   panel: muestran "—" hasta que el módulo de reconocimiento los entregue
   (depende del equipo de IA, ver **S-05**). *Sigue pendiente del equipo de IA
   (confirmado por el usuario, 2026-10-05).*
@@ -94,6 +96,8 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   reinicia, la Orange Pi recibe `ninguna` y se recupera sola con el sondeo de la
   sección 4.6, así que solo se pierde el historial del panel. Se reevalúa si
   hace falta auditoría o trazabilidad. (Las fotos no se guardan, por diseño.)
+  **Revisada por D-13 (2026-10-26):** el registro de eventos, los usuarios y el inventario sí
+  se guardan en disco; el resto (lotes con fotos, alarmas activas, decisión en espera) sigue en RAM.
 - [x] **PC-15** Acceso al panel: **el regente trabaja frente a la PC**, así que el
   panel sigue escuchando solo en `127.0.0.1` (sin autenticación; **D-09**). Si
   más adelante el regente usa otro dispositivo, hay que arrancar con
@@ -168,6 +172,40 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
     una sola observación en la red de la demo. Si el problema reaparece en otra red, el parche
     de arriba sigue sirviendo, y las salidas estables serían la PC por cable Ethernet o el
     servidor directamente en Windows.
+- [~] **PC-23** Registro de eventos, usuarios y inventario (2026-10-26). Origen: realimentación del profesor
+  sobre la demo (la pestaña de inventario era solo un log; faltaba control de quién opera y un registro
+  que nadie pueda editar), estructurada en partes con el usuario. **Todo del lado PC: no cambia el
+  protocolo con la Orange Pi ni con la ESP32-S3, ni `shared/protocol_constants.py`.** Decisiones en
+  **D-13** y **D-14**. 426 pruebas pasan (119 previas, 150 nuevas en las partes A y B y 157 en la C) y la interfaz se verificó
+  además con 56 comprobaciones de clics reales sobre un navegador sin interfaz.
+  - [x] **A. Registro de eventos** (commit `75bab73`): `pc/src/auditoria.py`, SQLite en `pc/data/smartpharma.db`
+    (ignorado por git; `PC_DB` lo cambia; `:memory:` = sin persistencia). **Solo escritura** (triggers contra
+    UPDATE y DELETE) y con **cadena de hashes**: ediciones o borrados hechos a mano se detectan. Anota
+    lotes, alarmas, decisiones del regente (**cuál alarma, qué destino y quién**), entrega del destino a la
+    Orange Pi, órdenes de iniciar y detener, arranques y apagados, con fecha, hora y responsable. Pestaña
+    REGISTRO de solo lectura (filtros, eventos en vivo, verificación de integridad). Un fallo al registrar
+    nunca detiene el flujo físico; el servidor no arranca si no puede abrir su registro.
+  - [x] **B. Usuarios, turnos y permisos** (commit `e46dddd`): `pc/src/usuarios.py` y consola
+    `bash pc/scripts/usuarios.sh crear-admin`. Iniciar o detener el recorrido, resolver alarmas y confirmar
+    acciones del asistente **exigen un turno abierto**; mirar el panel y el registro es libre. Cada acción
+    queda a nombre de la persona. Cada cambio de usuarios se confirma en la misma transacción que su evento.
+    **Primer arranque:** hay que crear un administrador por consola; sin él nadie puede operar el panel
+    (el banner de arranque lo avisa). **Límites:** los turnos viven en RAM (reiniciar el servidor los
+    cierra); la cadena de hashes cubre los eventos, no el contenido de la tabla de usuarios; el código de
+    6 dígitos se sostiene en el bloqueo por intentos fallidos, no en su fortaleza.
+  - [x] **C. Inventario como base de datos** (commit `8779bd0`): `pc/src/inventario.py`, una fila por caja
+    auditada. Filtros (texto sin mayúsculas ni tildes, clasificación, vencimiento, estado, fechas), orden por
+    columna, vista agrupada por medicamento y lote, paginación, **edición** de medicamento, gramaje, lote,
+    vencimiento y notas (con el antes y el después en el registro) y **eliminación lógica** con restauración.
+    El resultado del reconocimiento y el destino no se editan. Medicamento, gramaje, lote y vencimiento
+    arrancan **vacíos** y se completan a mano hasta la parte D. Una caja por lote: el lote vacío del sondeo
+    de reconexión (informe 4.6, caso F2) puede duplicar una caja ya registrada; se elimina a mano.
+  - [ ] **D. Datos del OCR en el inventario:** conectar `IA/` a `pc/src/ocr_interface.py` (detrás de una
+    variable de entorno) y llenar las columnas con lo que lea. **Depende del equipo de IA:** rangos FEFO
+    reales (hoy placeholder), calibrar el tiempo por caja con cajas reales en la PC de la demo (ver
+    `IA/docs/DISENO.md`, §5) y **S-05**.
+  - [ ] **E. Cierre:** respaldo y exportación del registro y del inventario, política de retención y
+    documentación para el regente.
 - [~] **PC-19** Asistente conversacional con LLM (`pc/assistant/`), **por fases**
   (ver `pc/assistant/ASSISTANT_CONTEXT.md`, sección 11):
   - [x] **Fase 0:** el motor acepta un LLM inyectado (`Assistant(llm=...)`) y se
@@ -334,7 +372,7 @@ Estados: `Abierta` · `Aceptada` · `En discusión` · `Hecha` · `Rechazada`.
 | S-02 | PC → Orange Pi (+ ESP32-S3) | Definir cómo se **reanuda el ciclo tras un fallo de comunicación** con la PC (situaciones F1 a F3: 30 s sin respuesta, `ninguna`, PC sin contestar en la espera). El informe solo dice "alarma física local"; no dice qué hace después ni quién desbloquea. Hoy la ESP32-S3 **no puede apagar** la alarma. | Hecha | **Opciones redactadas por el lado PC** en `docs/propuesta_reanudacion_fallo_comunicacion.md`; resumen y tabla de respuestas en la sección "Consulta abierta — S-02" más abajo. **Cada lado responde ahí antes de implementar.** **Cerrada el 2026-10-06** del lado Orange Pi y contrato: Opción 1 con confirmación del regente (**D-06/D-07**), sección 4.6, `ACCION_DESACTIVAR_ALARMA_LOCAL` e `INTERVALO_REINTENTO_PC_S` en `shared/`. Lo que falta de la ESP32-S3 es **S-09**. |
 | S-03 | PC → Orange Pi | Confirmar los supuestos del canal de decisión: sin tope de espera al regente, `ninguna` ⇒ mantener caja y activar alarma local, destino con formato `[A-Z0-9_]{1,32}`. | Hecha | Confirmados los dos primeros. Formato del destino: el cliente acepta cualquier cadena no vacía y deja a la PC la validación (`[A-Z0-9_]{1,32}`). |
 | S-04 | PC → ESP32-S3 | `ACCION_CLASIFICAR` puede traer `"destino": "DESCARTE"`: mapearlo a su contenedor de descarte. `DESTINO_DESCARTE` ya está en `protocol_constants.h`. | Abierta | Lo gestiona quien lleve el firmware. |
-| S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. |
+| S-05 | PC → equipo de IA | Definir qué entrega el reconocimiento además de `clasificacion` (confianza OCR, fecha de vencimiento, lote) para llenar el panel y calcular FEFO. Implica ampliar el contrato. | Abierta | Bloquea **PC-11**. **Aclaración del lado PC (2026-10-26, propuesta):** los datos del reconocimiento no necesitan viajar por el cable a la Orange Pi, porque la PC ejecuta el módulo de IA en su propio proceso (`procesar_lote_detallado()` ya devuelve lote, vencimiento, nombre, gramaje y confianza). Así S-05 se reduce a la interfaz interna entre `pc/src/ocr_interface.py` e `IA/` y **no cambia `shared/protocol_constants.py`** ni nada de la Orange Pi. Falta que el equipo de IA lo confirme; ver **PC-23**, parte D. |
 | S-06 | PC → Orange Pi | ¿El botón "Iniciar recorrido" debe existir? Si sí, hace falta un mensaje PC → Orange Pi y un canal; el diseño tenía solo Orange Pi → PC. | Hecha | **Opción 1 decidida por ambos lados (D-10), implementada en los dos y probada de punta a punta.** Contrato en `shared/` (`CONSULTA_ORDEN_CICLO`, `CLAVE_ORDEN_CICLO_JSON`, `ORDEN_CICLO_ESPERANDO`/`ORDEN_CICLO_INICIAR`, `VIGENCIA_ORDEN_CICLO_S`; sección 4.7 del informe). Lado PC: **PC-10**; lado Orange Pi: commit `d7dfc06`, **OP-22**. Interpretación del usuario: el botón *inicia el ciclo de auditoría* (no mueve el carrito). Pausar/detener (opción 2) queda fuera. Opciones y respuestas, en "Consulta abierta — S-06". |
 | S-08 | Orange Pi → ESP32-S3 (+ equipo) | **Dispensador decidido:** lo controla la ESP32-S3 y `introducir_objeto` se **reemplaza** por `activar_dispensador` (`ACCION_ACTIVAR_DISPENSADOR`); se confirma igual con `objeto_en_posicion` y conserva los 5 reintentos. En `main.ino`: usar el nombre nuevo (el viejo queda como alias en desuso, mismo texto en el cable) e implementar el control real del servo en lugar del TODO. | Abierta | Ver CHANGELOG 2026-10-06. La PC no se ve afectada. |
 | S-09 | Orange Pi → ESP32-S3 | Manejar la acción nueva `desactivar_alarma_local` (`ACCION_DESACTIVAR_ALARMA_LOCAL`, sin campos y **sin evento de confirmación**, como `activar_alarma_local`): apagar el zumbador/LED. Sugerencia: alarma **continua** mientras esté encendida. Si la caja se retira a mano, el regente elige `DESCARTE` en el panel y llega un `clasificar` normal; la Orange Pi siempre ordena `clasificar` al final. | Abierta | Sin firmware aún: mientras tanto el mensaje se ignora y la alarma queda encendida. Ver CHANGELOG 2026-10-06 (2) y sección 4.6. |
@@ -444,7 +482,7 @@ estados a la misma consulta, sin otro canal.
 | D-02 | 2026-10-05 | El panel de control es una página web generada por la PC con la biblioteca estándar de Python; se migra a Flask solo si crece. | Usuario |
 | D-03 | 2026-10-05 | El panel muestra las fotos del lote, solo desde RAM (últimos 5 lotes), nunca a disco. | Usuario |
 | D-04 | 2026-10-05 | Timeout de inactividad 10 s, imagen máx. 10 MiB, máx. 5 imágenes por lote (valores iniciales, a calibrar). | Usuario aprobó los valores propuestos |
-| D-05 | 2026-10-05 | **No persistir** el historial ni la decisión en espera del panel por ahora (**PC-14**): la Orange Pi se recupera sola tras un reinicio de la PC (sección 4.6). Se reevalúa si hace falta auditoría. | Usuario |
+| D-05 | 2026-10-05 | **No persistir** el historial ni la decisión en espera del panel por ahora (**PC-14**): la Orange Pi se recupera sola tras un reinicio de la PC (sección 4.6). Se reevalúa si hace falta auditoría. **Revisada por D-13 (2026-10-26):** el registro de eventos, los usuarios y el inventario sí se persisten. | Usuario |
 | D-10 | 2026-10-06 | **Opción 1 de S-06:** el ciclo de auditoría espera una orden `iniciar` de la PC al arrancar; la da el regente con el botón "Iniciar recorrido". Solo iniciar (sin pausar/detener, que queda fuera). La orden es de un solo uso y vence a los 60 s. | Usuario (PC y Orange Pi) |
 | D-11 | 2026-10-13 | **Red de la demo:** router móvil propio D-Link DWR-932W, en lugar de la Wi-Fi de la universidad (que puede aislar clientes y bloquear mDNS). La PC no necesita cambios específicos para esa red (ver **PC-20**); la Orange Pi debe conectarse a ella (**S-10**). | Usuario |
 | D-09 | 2026-10-05 | El panel de la PC sigue escuchando solo en `127.0.0.1`: el regente trabaja frente a la PC (**PC-15**). | Usuario |
@@ -452,6 +490,8 @@ estados a la misma consulta, sin otro canal.
 | D-07 | 2026-10-05 | Tras un fallo de comunicación con la PC el ciclo **no se reanuda solo**: requiere la confirmación del regente en el panel (`TIPO_X`, o `DESCARTE` si retiró la caja a mano). Descarta la reanudación automática. | Usuario |
 | D-08 | 2026-10-06 | El servo del dispensador lo controla la **ESP32-S3**; `activar_dispensador` reemplaza a `introducir_objeto` (ver `docs/CHANGELOG_protocolo.md`, **S-08**). | Lado Orange Pi |
 | D-12 | 2026-10-23 | **Autoenfoque en la cámara del carrito y en la captura del conjunto de datos de entrenamiento** (Arducam): no se fija el enfoque a mano; lo que queda fijo es la distancia. La Orange Pi ya lo usa (OP-04, OP-27) y espera `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` (0,5 s) tras cada giro. La guía `IA/entrenamiento/FLUJO_ARDUCAM.md` se actualizó para decir lo mismo. | Usuario |
+| D-13 | 2026-10-26 | **Se persiste en disco el registro de eventos, los usuarios y el inventario** (revierte **D-05** solo para eso): a raíz de la realimentación del profesor, el registro debe conservarse y nadie puede editarlo, y el inventario pasa a ser una base de datos. Un solo archivo SQLite (`pc/data/smartpharma.db`, fuera de git). El **registro es de solo escritura** (triggers contra UPDATE y DELETE) y cada evento lleva el hash del anterior, de modo que ediciones o borrados a mano se detectan; no detecta que recorten el final del archivo (por eso el panel muestra el último sello). Las fotos siguen solo en RAM (**D-03**), y lo demás (alarmas activas, decisión en espera) también. La Orange Pi se sigue recuperando sola si la PC reinicia (sección 4.6). | Usuario (realimentación del profesor) |
+| D-14 | 2026-10-26 | **Control de acceso al panel** (**PC-23**, parte B). Mirar el panel y el registro es libre; **operar** (iniciar y detener el recorrido, resolver alarmas, confirmar acciones del asistente) y **editar el inventario** exigen un turno abierto; administrar usuarios, solo un administrador. Cada auxiliar entra con un **código personal de 6 dígitos** que genera el sistema y se muestra una sola vez; el administrador, con nombre y clave de al menos 10 caracteres, y el primero se crea por consola, nunca desde el panel. **Un solo turno a la vez**, que vence por inactividad (30 min, `PC_TURNO_MIN`); un administrador puede tomar el control. Un recorrido en marcha sigue a nombre de quien lo inició. Los nombres son únicos (sin distinguir mayúsculas ni tildes) y no se reutilizan; eliminar es lógico. Todo cambio y todo intento fallido o denegado queda en el registro con su responsable. | Usuario |
 
 ---
 
@@ -459,6 +499,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 nuevo `[~]`: registro de eventos de solo escritura, usuarios, turnos y permisos, e inventario como base de datos (partes A a C hechas; D, conectar el OCR, y E, cierre, pendientes). D-13 (se persiste el registro, los usuarios y el inventario; revierte D-05 solo para eso) y D-14 (control de acceso). PC-14, D-05 y PC-11 anotados; aclaración del lado PC en S-05. Sin cambios de contrato ni de la Orange Pi. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-21 `[x]`: en el router de la demo la PC y la Orange Pi se alcanzan sin el parche de ARP; se anota el requisito de red Privada en Windows y que la causa del fallo en la red anterior quedó sin explicar ni resolver. |
 | 2026-10-23 | Arlo-qexe (lado PC, con Claude Code) | PC-22 `[x]`: detener el ciclo y cantidad de cajas probados de punta a punta con la Orange Pi real (OP-26); el panel muestra siempre el lote más reciente y las fotos van 3 por fila. Sin cambios de contrato. |
 | 2026-10-23 | Arlo-qexe (lado Orange Pi, con Claude Code) | OP-23 `[x]` y S-10 `Hecha`: probado en el router de la demo (placa y PC en `192.168.0.x`, mDNS y puertos bien, ciclo completo con `--simular-esp`). |
