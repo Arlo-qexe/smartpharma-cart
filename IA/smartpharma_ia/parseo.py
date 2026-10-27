@@ -32,9 +32,10 @@ _SEP = r"[/\-. ]"
 _CLAVE_VENC = (
     r"(?:\bF\.?\s?V\.?|\bVENC(?:E|IMIENTO)?\.?|\bVTO\.?|\bEXP(?:IRA|IRY)?\.?(?:\s?DATE)?"
     r"|\bCAD(?:UCIDAD)?(?![A-Z])\.?|\bUSE\s+ANTES\s+DE|\bUSAR\s+ANTES\s+DE|\bBEST\s+BEFORE"
-    r"|\bUSE\s+BEFORE|\bUSE\s+BY)"
+    r"|\bUSE\s+BEFORE|\bUSE\s+BY"
+    r"|\b[VU]\s?:|\bV\.(?=\s*\d))"   # "V:07/28" (a veces el OCR lee la V como U); "V." solo si sigue un número
 )
-_CLAVE_LOTE = r"(?:\bLOTE|\bLOT|\bBATCH|\bB\.?\s?N\.?)"
+_CLAVE_LOTE = r"(?:\bLOTE|\bLOT|\bBATCH|\bB\.?\s?N\.?|\bL\s?:)"
 
 # Prefijo opcional tras LOTE: "NO." / "NO:" / "NO " / "N°" / "N." / "#". Como _normalizar pasa a
 # mayúsculas y NFKC convierte "º" y "№" en "O", "Nº 123" llega como "NO 123". "NO" solo cuenta como
@@ -48,7 +49,8 @@ _RE_LOTE = re.compile(
 # Patrones de fecha, de más específico a menos (el orden importa).
 _RE_DMA = re.compile(r"(\d{1,2})" + _SEP + r"(\d{1,2})" + _SEP + r"(\d{4}|\d{2})\b")
 _RE_AMD = re.compile(r"\b(\d{4})" + _SEP + r"(\d{1,2})\b")
-_RE_MA = re.compile(r"\b(\d{1,2})" + _SEP + r"(\d{4}|\d{2})\b")
+_RE_MA = re.compile(r"\b(\d{1,2})(?:\s*[/\-.]\s*|\s)(\d{4}|\d{2})\b")  # admite "05 - 2027"
+_RE_DMESA = re.compile(r"\b(\d{1,2})\s*[/\-. ]?\s*([A-Z]{3,10})\.?[/\-. ]*(\d{4}|\d{2})\b")  # "12 SEP 2027", "26 JUN 28"
 _RE_NOMBRE_A = re.compile(r"\b([A-Z]{3,10})\.?" + r"[/\-. ]*" + r"(\d{4}|\d{2})\b")
 
 
@@ -102,6 +104,8 @@ def _fecha_tolerante(t: str) -> date | None:
     d = re.sub(r"\D", "", t)
     if len(d) == 5:
         mes, anio = int(d[:2]), _anio(d[3:])
+    elif len(d) == 7 and d[3:5] == "20":  # "0672027": la barra de 06/2027 leída como un dígito
+        mes, anio = int(d[:2]), int(d[3:])
     elif len(d) == 4:
         mes, anio = int(d[:2]), _anio(d[2:])
     elif len(d) == 6 and d[2:4] == "20":
@@ -123,11 +127,21 @@ def parsear_fecha(texto: str, tolerante: bool = False) -> date | None:
         try:
             return date(a, mes, d)
         except ValueError:
-            return None
+            if d != 0:
+                return None  # "31/02/2027" es una fecha imposible: no se rescata un "02/2027" de adentro
+            # día 0 = ruido del OCR delante de un mes/año ("0.03-2028"): se prueban los otros patrones
+    for m in _RE_DMESA.finditer(t):  # con día y mes en letras: conserva el día
+        mes = _MESES.get(m[2])
+        if mes:
+            try:
+                return date(_anio(m[3]), mes, int(m[1]))
+            except ValueError:
+                return _fin_de_mes(_anio(m[3]), mes)
     if m := _RE_AMD.search(t):
         return _fin_de_mes(int(m[1]), int(m[2]))
-    if m := _RE_MA.search(t):
-        return _fin_de_mes(_anio(m[2]), int(m[1]))
+    for i in range(len(t)):  # mes/año: se prueba desde cada posición ("0.03-2028" empieza con un "0." sobrante)
+        if (m := _RE_MA.match(t, i)) and (f := _fin_de_mes(_anio(m[2]), int(m[1]))):
+            return f
     for m in _RE_NOMBRE_A.finditer(t):
         mes = _MESES.get(m[1])
         if mes:
@@ -155,6 +169,15 @@ def limpiar_lote(texto: str) -> str | None:
     t = re.sub(r"^[^A-Z0-9]+|[^A-Z0-9]+$", "", t)  # puntuación suelta en los bordes
     t = re.sub(r"\s+", "", t)
     return t or None
+
+
+def lote_de_region(texto: str) -> str | None:
+    """Lote de una región etiquetada 'lote'. Si el OCR devolvió varias líneas y ninguna lleva la palabra
+    LOTE, no se sabe cuál es el lote (podría ser una fecha de fabricación, un registro sanitario...):
+    mejor None (-> revisión manual) que unir las líneas y adivinar."""
+    if sum(bool(l.strip()) for l in texto.splitlines()) > 1:
+        return buscar_lote(texto)
+    return limpiar_lote(texto)
 
 
 def buscar_lote(texto: str) -> str | None:

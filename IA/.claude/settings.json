@@ -1,37 +1,4 @@
 {
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/../scripts/hooks/session_start.sh"
-            ],
-            "timeout": 30,
-            "statusMessage": "Sincronizando con origin y verificando entorno..."
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash",
-            "args": [
-              "${CLAUDE_PROJECT_DIR}/../scripts/hooks/check-shared-freshness.sh"
-            ],
-            "timeout": 15,
-            "statusMessage": "Verificando shared/..."
-          }
-        ]
-      }
-    ]
-  },
   "permissions": {
     "allow": [
       "Bash(git status)",

@@ -11,11 +11,11 @@
 
   "estrategia_consolidacion": "combinar",
   "campos_obligatorios": ["lote", "vencimiento"],
-  "confianza_minima": 0.6,
+  "confianza_minima": 0.75,
   "umbral_mayoria": 0.5,
 
   "_comentario_tiempo": "Tope de tiempo por caja en segundos (0 o null = sin tope). La Orange Pi espera 10 s (TIMEOUT_RESPUESTA_RECONOCIMIENTO_S) y luego reenvia el lote; 7 s deja margen para la transferencia de las 5 fotos y para terminar la llamada en curso. VALOR INICIAL: calibrar con cajas reales en la PC de la demo.",
-  "tiempo_maximo_s": 6.0,
+  "tiempo_maximo_s": 7,
 
   "patron_lote": "^(?=.*\\d)[A-Z0-9][A-Z0-9\\-/]{2,14}$",
   "anios_atras_plausible": 10,

@@ -2,7 +2,7 @@
 Agrupa las 5 caras de cada caja, corre Reconocedor y escribe un CSV para comparar con las cajas reales.
 
     python entrenamiento/probar.py --modelo ruta/best.onnx --fotos dataset_ia/crudo --csv resultados.csv
-Requiere la carpeta shared/ en la raíz del repo (ver IA/CLAUDE.md) y: pip install -r requirements.txt -r requirements-ocr.txt ultralytics onnxruntime
+Requiere la carpeta shared/ junto a ia/ (ver CLAUDE.md) y: pip install -r requirements.txt -r requirements-ocr.txt ultralytics onnxruntime
 """
 import argparse
 import csv
@@ -27,7 +27,13 @@ ap.add_argument("--csv", default="resultados.csv", type=Path)
 ap.add_argument("--debug", type=Path, help="carpeta donde guardar los recortes detectados y ver qué lee el OCR en cada uno")
 ap.add_argument("--referencia", type=Path,
                 help="CSV caja,lote,vencimiento con los valores REALES (vencimiento 2028-10-31 o 10/2028) para medir exactitud")
+ap.add_argument("--corte-temprano", action="store_true",
+                help="para de leer en cuanto hay lote y vencimiento válidos (más rápido, sin confirmar con otras caras)")
+ap.add_argument("--prefiltro", default=None,
+                help="variantes de reintento para lote/fecha, separadas por coma (contraste,relieve,nitidez). "
+                     "'' = ninguna. Si no se pasa, usa config/reconocimiento.json")
 a = ap.parse_args()
+META_EXACTITUD, META_SEGUNDOS = 0.90, 5.0
 
 cajas = defaultdict(list)
 for f in sorted(a.fotos.glob("caja*_cara*.jpg")):
@@ -68,11 +74,19 @@ def depurar(rec, fotos, carpeta):
                 print(f"     {r.etiqueta:8s} [{k}] {t!r}")
 
 
-rec = Reconocedor(ocr=crear_ocr("rapidocr"), detector=DetectorCNN(a.modelo, conf_minima=float(__import__("os").environ.get("IA_CONF", "0.25"))), config=cargar_config())
+import dataclasses  # noqa: E402
+
+config = cargar_config()
+if a.prefiltro is not None:
+    config = dataclasses.replace(config, prefiltro_variantes=tuple(v for v in a.prefiltro.split(",") if v))
+if a.corte_temprano:
+    config = dataclasses.replace(config, corte_temprano=True)
+print("prefiltro:", config.prefiltro_variantes or "desactivado", "| corte temprano:", config.corte_temprano)
+rec = Reconocedor(ocr=crear_ocr("rapidocr"), detector=DetectorCNN(a.modelo, conf_minima=float(__import__("os").environ.get("IA_CONF", "0.25"))), config=config)
 with open(a.csv, "w", newline="", encoding="utf-8-sig") as out:
     w = csv.writer(out)
     w.writerow(["caja", "clasificacion", "motivo", "lote", "vencimiento", "confianza", "segundos", "lote_ok", "venc_ok", "lecturas_por_cara"])
-    tiempos, aciertos = [], []
+    tiempos, aciertos, cats = [], [], []
     ref = cargar_referencia(a.referencia) if a.referencia else {}
     for caja, fotos in cajas.items():
         if a.debug:
@@ -88,15 +102,25 @@ with open(a.csv, "w", newline="", encoding="utf-8-sig") as out:
             lote_ok = int((r.lote or "").replace(" ", "").upper() == ref[caja][0])
             venc_ok = int(r.vencimiento == ref[caja][1])
             aciertos.append((lote_ok, venc_ok))
+            # "acertó" = clasificó con lote y fecha correctos; "manual" = pidió revisión (no cuenta como error);
+            # "se equivocó" = clasificó con algún dato incorrecto (esto es lo que NO debe pasar)
+            cats.append(("manual" if r.clasificacion == "ERROR_REVISION_MANUAL" else "acertó" if lote_ok and venc_ok else "se equivocó", caja))
         w.writerow([caja, r.clasificacion, r.motivo, r.lote, r.vencimiento, f"{r.confianza:.2f}", f"{tiempos[-1]:.2f}", lote_ok, venc_ok, caras])
         print(f"{caja}: {r.clasificacion} lote={r.lote} venc={r.vencimiento} motivo={r.motivo} ({tiempos[-1]:.1f} s)")
 if tiempos:
-    print(f"Tiempo por caja ({len(tiempos)} cajas): media {sum(tiempos) / len(tiempos):.1f} s, máximo {max(tiempos):.1f} s")
+    sobre = sum(1 for t in tiempos if t > META_SEGUNDOS)
+    print(f"Tiempo por caja ({len(tiempos)} cajas): media {sum(tiempos) / len(tiempos):.1f} s, máximo {max(tiempos):.1f} s, "
+          f"{sobre} caja(s) sobre {META_SEGUNDOS:.0f} s -> {'CUMPLE' if sobre == 0 else 'NO CUMPLE'} la meta de tiempo")
 if aciertos:
     n = len(aciertos)
     ambos = sum(1 for l, v in aciertos if l and v)
     print(f"Exactitud vs referencia ({n} cajas): lote {sum(l for l, _ in aciertos)}/{n}, vencimiento {sum(v for _, v in aciertos)}/{n}, "
-          f"ambos {ambos}/{n} ({100 * ambos / n:.0f} %)")
+          f"ambos {ambos}/{n} ({100 * ambos / n:.0f} %) -> "
+          f"{'CUMPLE' if ambos / n >= META_EXACTITUD else 'NO CUMPLE'} la meta de {META_EXACTITUD:.0%}")
+    if cats:
+        malas = [c for k, c in cats if k == "se equivocó"]
+        print(f"Desglose: acertó {sum(k == 'acertó' for k, _ in cats)} · pidió revisión manual {sum(k == 'manual' for k, _ in cats)} · "
+              f"SE EQUIVOCÓ {len(malas)} {malas or ''} -> sin errores = {100 * (n - len(malas)) / n:.0f} % de las {n} cajas")
 elif a.referencia:
     print("La referencia no coincide con ninguna caja de --fotos (revisa los números de caja)")
 print("CSV:", a.csv)

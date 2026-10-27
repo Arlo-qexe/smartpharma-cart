@@ -92,3 +92,49 @@ def listar(maximo: int = 6) -> None:
         e = estado(cam)
         print(f"indice {i}: abre, {e['ancho']}x{e['alto']}")
         cam.release()
+
+
+RESOLUCIONES_PRUEBA = ((1920, 1080), (2592, 1944), (3264, 2448), (3840, 2160), (4056, 3040))
+
+
+def probar_resoluciones(indice: int = 0, carpeta: Path | None = None, config: dict | None = None,
+                        resoluciones=RESOLUCIONES_PRUEBA) -> None:
+    """Para cada resolución pedida, imprime lo que la cámara REALMENTE entrega, los fps medidos con
+    lectura continua y la nitidez, y guarda una foto de muestra (carpeta) para comparar a ojo.
+    Pon una caja con lote bajo la cámara, en su posición real, antes de correrlo.
+    Los drivers UVC a veces aceptan el valor pedido y entregan otro, o interpolan: compara la
+    foto de muestra (el texto del lote debe verse más fino, no solo más grande)."""
+    import time
+
+    if carpeta:
+        carpeta.mkdir(parents=True, exist_ok=True)
+    print(f"{'pedida':>11} {'entrega':>11} {'fps':>5} {'nitidez':>8}  muestra")
+    for ancho, alto in resoluciones:
+        cam = abrir(indice, ancho, alto, config)
+        if cam is None:
+            print(f"{ancho}x{alto:<5} no abre la cámara")
+            continue
+        try:
+            for _ in range(15):  # deja converger autoenfoque/exposición
+                cam.read()
+            t0, n, frame = time.perf_counter(), 0, None
+            while n < 10:
+                ok, f = cam.read()
+                if ok:
+                    frame, n = f, n + 1
+                elif time.perf_counter() - t0 > 15:
+                    break
+            fps = n / (time.perf_counter() - t0) if n else 0.0
+            if frame is None:
+                print(f"{ancho}x{alto:<5} sin imagen")
+                continue
+            h, w = frame.shape[:2]
+            muestra = ""
+            if carpeta:
+                ruta = carpeta / f"prueba_{w}x{h}.jpg"
+                cv2.imwrite(str(ruta), frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                muestra = ruta.name
+            nota = "" if (w, h) == (ancho, alto) else "  <- el driver cambió la resolución pedida"
+            print(f"{ancho:>5}x{alto:<5} {w:>5}x{h:<5} {fps:5.1f} {nitidez(frame):8.0f}  {muestra}{nota}")
+        finally:
+            cam.release()

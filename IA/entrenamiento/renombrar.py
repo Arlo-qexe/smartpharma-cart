@@ -3,7 +3,7 @@
 Toma las fotos ordenadas por nombre (fecha/hora) en grupos de 5 = una caja.
 Requisito: tomar SIEMPRE 5 fotos por caja, en orden de caras; borrar las repetidas/falladas antes.
 
-    python entrenamiento/renombrar.py --entrada ../dataset_ia/celular --salida ../dataset_ia/crudo [--inicio 1]
+    python entrenamiento/renombrar.py --entrada dataset_ia/celular --salida dataset_ia/crudo [--inicio 1]
 """
 import argparse
 from pathlib import Path

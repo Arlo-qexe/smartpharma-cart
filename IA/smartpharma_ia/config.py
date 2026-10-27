@@ -37,6 +37,12 @@ class Config:
     # Tope de tiempo por caja (s): pasado ese tiempo se dejan de leer caras y se decide con lo
     # leído (normalmente -> revisión manual con motivo `tiempo_agotado`). None = sin tope.
     tiempo_maximo_s: float | None = None
+    # Reintento con prefiltro (smartpharma_ia/prefiltro.py) cuando un recorte de lote/fecha no da un valor válido.
+    # Lista de variantes a probar, en orden; vacía = desactivado.
+    prefiltro_variantes: tuple[str, ...] = ()
+    # True: se deja de leer en cuanto las lecturas hechas ya dan lote y vencimiento válidos (más rápido,
+    # pero sin confirmar con otras caras). False: se leen lote/fecha de todas las caras que los tengan.
+    corte_temprano: bool = False
 
 
 def cargar_config(ruta: str | Path | None = None) -> Config:
@@ -64,6 +70,12 @@ def cargar_config(ruta: str | Path | None = None) -> Config:
                                         or tiempo_maximo_s < 0):
         raise ValueError(f"tiempo_maximo_s inválido: {tiempo_maximo_s!r} (número >= 0, o null)")
 
+    variantes = tuple(datos.get("prefiltro_variantes", ()))
+    from .prefiltro import VARIANTES
+    for v in variantes:
+        if v not in VARIANTES:
+            raise ValueError(f"prefiltro_variantes: {v!r} desconocida (use {tuple(VARIANTES)})")
+
     return Config(
         rangos=rangos,
         estrategia=estrategia,
@@ -75,6 +87,8 @@ def cargar_config(ruta: str | Path | None = None) -> Config:
         anios_adelante_plausible=int(datos.get("anios_adelante_plausible", 15)),
         estado_rangos=datos.get("_estado_rangos", "DESCONOCIDO"),
         tiempo_maximo_s=float(tiempo_maximo_s) if tiempo_maximo_s else None,   # 0 / null = sin tope
+        prefiltro_variantes=variantes,
+        corte_temprano=bool(datos.get("corte_temprano", False)),
     )
 
 

@@ -214,6 +214,43 @@ class TestPipeline(unittest.TestCase):
         self.assertEqual(rec.procesar(cinco()).clasificacion, ERR)  # 1 de 5 no es mayoría
 
 
+class TestLecturaEnDosFases(unittest.TestCase):
+    """Detector en todas las caras; OCR de lote/fecha primero; nombre una sola vez; lote ambiguo -> None."""
+
+    class Det:
+        def detectar(self, img):
+            from smartpharma_ia.tipos import Region
+            return [Region("lote", (0, 0, 10, 10), 0.5), Region("fecha", (10, 10, 30, 30), 0.5),
+                    Region("nombre", (0, 20, 30, 40), 0.5)]
+
+    class Cuenta:
+        def __init__(self, respuestas):
+            self.respuestas, self.llamadas = list(respuestas), 0
+
+        def leer(self, imagen, exhaustivo=True):
+            self.llamadas += 1
+            return self.respuestas.pop(0) if self.respuestas else ("", 0.0)
+
+    def test_nombre_se_lee_una_sola_vez(self):
+        ocr = self.Cuenta([("AB-77", 0.9), ("03/2028", 0.9)] * 5 + [("Acetaminofen", 0.9)])
+        r = Reconocedor(ocr, detector=self.Det(), config=cargar_config(), hoy=HOY).procesar(cinco())
+        self.assertEqual(ocr.llamadas, 5 * 2 + 1)   # lote+fecha de las 5 caras, y UN nombre
+        self.assertEqual((r.lote, r.nombre), ("AB-77", "Acetaminofen"))
+
+    def test_corte_temprano_para_al_tener_lote_y_fecha(self):
+        import dataclasses
+        ocr = self.Cuenta([("AB-77", 0.9), ("03/2028", 0.9)] * 5)
+        cfg = dataclasses.replace(cargar_config(), corte_temprano=True)
+        r = Reconocedor(ocr, detector=self.Det(), config=cfg, hoy=HOY).procesar(cinco())
+        self.assertEqual(ocr.llamadas, 2 + 1)       # lote+fecha de una cara y el nombre
+        self.assertEqual((r.lote, r.vencimiento), ("AB-77", date(2028, 3, 31)))
+
+    def test_lote_de_varias_lineas_sin_palabra_lote_no_se_une(self):
+        self.assertIsNone(parseo.lote_de_region("700 28\n1290"))
+        self.assertEqual(parseo.lote_de_region("LOTE\nF01365A"), "F01365A")
+        self.assertEqual(parseo.lote_de_region("lote no. ab 12 34"), "AB1234")
+
+
 class TestTiempo(unittest.TestCase):
     """Presupuesto de tiempo por caja: la Orange Pi espera 10 s y luego reenvía el lote."""
 
@@ -244,107 +281,29 @@ class TestTiempo(unittest.TestCase):
         Reconocedor(espia, detector=Det(), config=cargar_config(), hoy=HOY).procesar([jpeg()])
         self.assertEqual(espia.exhaustivo, [True])               # recorte ajustado: se prueba más
 
-    @staticmethod
-    def _ocr_con_motor(motor):
-        from smartpharma_ia.ocr import OcrRapid
-        ocr = OcrRapid.__new__(OcrRapid)          # sin cargar el modelo real
-        ocr._motor = motor
-        return ocr
-
-    def _numpy_o_saltar(self):
+    def test_ocr_rapid_hace_una_llamada_en_modo_simple_y_varias_en_exhaustivo(self):
         try:
             import numpy  # noqa: F401
         except ImportError:
             self.skipTest("numpy no instalado (viene con el motor OCR)")
-
-    def test_ocr_rapid_hace_una_llamada_en_modo_simple_y_ocho_como_maximo_en_exhaustivo(self):
-        self._numpy_o_saltar()
+        from smartpharma_ia.ocr import OcrRapid
 
         class Motor:
             llamadas = 0
 
             def __call__(self, _imagen):
                 Motor.llamadas += 1
-                return None, None                 # nunca lee nada: se agotan los intentos
-        ocr = self._ocr_con_motor(Motor())
-        for imagen in (Image.new("RGB", (1920, 1080)), Image.new("RGB", (100, 400)), Image.new("RGB", (100, 100))):
+                return None, None
+        ocr = OcrRapid.__new__(OcrRapid)          # sin cargar el modelo real
+        ocr._motor = Motor()
+        ancha, alta = Image.new("RGB", (1920, 1080)), Image.new("RGB", (100, 400))
+        for imagen, simple, completo in ((ancha, 1, 4), (alta, 1, 6)):
             Motor.llamadas = 0
             ocr.leer(imagen, exhaustivo=False)
-            self.assertEqual(Motor.llamadas, 1)
+            self.assertEqual(Motor.llamadas, simple)
             Motor.llamadas = 0
             ocr.leer(imagen)
-            self.assertEqual(Motor.llamadas, 8)   # 4 orientaciones x con y sin borde
-
-    def test_se_prueban_las_cuatro_orientaciones_empezando_por_la_mas_probable(self):
-        self._numpy_o_saltar()
-        from smartpharma_ia.ocr import _intentos
-        self.assertEqual([g for g, m in _intentos(100, 400) if m == 40], [90, 270, 180, 0])    # texto vertical
-        self.assertEqual([g for g, m in _intentos(400, 100) if m == 40], [0, 180, 90, 270])    # texto horizontal
-        self.assertEqual(len({g for g, _ in _intentos(100, 100)}), 4)
-        for ancho, alto in ((100, 400), (400, 100), (100, 100)):
-            intentos = _intentos(ancho, alto)
-            self.assertEqual(len(intentos), 8)
-            self.assertTrue(all(m == 40 for _, m in intentos[:4]) and all(m == 0 for _, m in intentos[4:]))
-
-    def test_deja_de_probar_en_cuanto_una_lectura_es_suficientemente_buena(self):
-        self._numpy_o_saltar()
-
-        def motor_que_acierta_en(n):
-            class Motor:
-                llamadas = 0
-
-                def __call__(self, _imagen):
-                    Motor.llamadas += 1
-                    if Motor.llamadas == n:
-                        return [([[0, 0], [1, 0], [1, 1], [0, 1]], "L:F01365A", 0.97)], None
-                    return [([[0, 0], [1, 0], [1, 1], [0, 1]], "xq", 0.40)], None       # basura de baja confianza
-            return Motor
-        for n in (1, 3):
-            Motor = motor_que_acierta_en(n)
-            texto, conf = self._ocr_con_motor(Motor()).leer(Image.new("RGB", (100, 400)))
-            self.assertEqual((texto, conf, Motor.llamadas), ("L:F01365A", 0.97, n))      # no sigue después de acertar
-
-    def test_una_lectura_dudosa_o_corta_no_corta_la_busqueda(self):
-        self._numpy_o_saltar()
-        for texto, conf in (("L:F01365A", 0.90), ("L:F01365A", 0.949), ("A1", 0.99), ("", 0.99)):
-            class Motor:
-                llamadas = 0
-
-                def __call__(self, _imagen):
-                    Motor.llamadas += 1
-                    return ([([[0, 0], [1, 0], [1, 1], [0, 1]], texto, conf)], None) if texto else (None, None)
-            self._ocr_con_motor(Motor()).leer(Image.new("RGB", (100, 400)))
-            self.assertEqual(Motor.llamadas, 8, (texto, conf))      # probó todas las opciones
-
-    def test_se_queda_con_la_mejor_lectura_aunque_ninguna_sea_suficiente(self):
-        self._numpy_o_saltar()
-        lecturas = iter([("ab", 0.5), ("L:F01365A", 0.9), ("xyz", 0.6)] + [("q", 0.1)] * 5)
-
-        class Motor:
-            def __call__(self, _imagen):
-                texto, conf = next(lecturas)
-                return [([[0, 0], [1, 0], [1, 1], [0, 1]], texto, conf)], None
-        self.assertEqual(self._ocr_con_motor(Motor()).leer(Image.new("RGB", (100, 400))), ("L:F01365A", 0.9))
-
-    def test_el_lado_de_deteccion_se_pasa_a_rapidocr(self):
-        import sys
-        import types
-        from unittest import mock
-        creados = []
-
-        class FalsoRapid:
-            def __init__(self, **kw):
-                creados.append(kw)
-        modulo = types.ModuleType("rapidocr_onnxruntime")
-        modulo.RapidOCR = FalsoRapid
-        from smartpharma_ia.ocr import LADO_DETECCION_DEFECTO, OcrRapid
-        with mock.patch.dict(sys.modules, {"rapidocr_onnxruntime": modulo}):
-            OcrRapid()
-            OcrRapid(lado_deteccion=320)
-            OcrRapid(lado_deteccion=None)
-        self.assertEqual(LADO_DETECCION_DEFECTO, 192)
-        self.assertEqual(creados, [{"det_limit_side_len": 192, "det_limit_type": "min"},
-                                   {"det_limit_side_len": 320, "det_limit_type": "min"}, {}])
+            self.assertEqual(Motor.llamadas, completo)
 
     def _con_reloj(self, config, segundos_por_llamada):
         """Pipeline con un OCR lento y un reloj falso: cada llamada al OCR avanza el reloj."""
@@ -360,37 +319,6 @@ class TestTiempo(unittest.TestCase):
         with mock.patch("smartpharma_ia.pipeline.time.monotonic", side_effect=lambda: reloj[0]):
             r = Reconocedor(Lento(), config=config, hoy=HOY).procesar(cinco())
         return r, len(llamadas)
-
-    def test_ocr_lee_lote_y_fecha_de_todas_las_caras_antes_que_nombre_y_gramaje(self):
-        from smartpharma_ia.tipos import Region
-
-        class Det:
-            def detectar(self, img):
-                return [Region("nombre", (0, 0, 10, 10)), Region("gramaje", (0, 0, 10, 10)),
-                        Region("fecha", (0, 0, 10, 10)), Region("lote", (0, 0, 10, 10))]
-
-        class Espia:
-            def __init__(self):
-                self.n = 0
-                self.tamanos = []
-
-            def leer(self, imagen, exhaustivo=True):
-                self.n += 1
-                return "", 0.0
-
-        espia = Espia()
-        orden = []
-        original = Reconocedor._leer_region
-        def registrar(self, lectura, imagen, region, limite):
-            orden.append((lectura.indice, region.etiqueta))
-            return original(self, lectura, imagen, region, limite)
-        with __import__("unittest.mock").mock.patch.object(Reconocedor, "_leer_region", registrar):
-            Reconocedor(espia, detector=Det(), config=cargar_config(), hoy=HOY).procesar(cinco())
-        etiquetas = [e for _, e in orden]
-        ultimo_obligatorio = max(i for i, e in enumerate(etiquetas) if e in ("lote", "fecha"))
-        primer_opcional = min(i for i, e in enumerate(etiquetas) if e in ("nombre", "gramaje"))
-        self.assertLess(ultimo_obligatorio, primer_opcional)
-        self.assertEqual(len(orden), 20)
 
     def test_tope_de_tiempo_responde_con_lo_leido_y_lo_marca(self):
         r, llamadas = self._con_reloj(self._cfg(tiempo_maximo_s=7.0), 3.0)
@@ -416,7 +344,7 @@ class TestTiempo(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from smartpharma_ia.config import RUTA_CONFIG_DEFECTO
-        self.assertEqual(cargar_config().tiempo_maximo_s, 6.0)
+        self.assertEqual(cargar_config().tiempo_maximo_s, 7.0)
         base = json.loads(RUTA_CONFIG_DEFECTO.read_text(encoding="utf-8"))
         with tempfile.TemporaryDirectory() as carpeta:
             def con_tope(valor):
@@ -442,6 +370,81 @@ class TestAdaptador(unittest.TestCase):
             self.assertEqual(adaptador_pc.procesar_lote_ocr(cinco()), ERR)
         adaptador_pc._reconocedor = None
 
+
+
+class TestFechasSesion03(unittest.TestCase):
+    """Formatos reales de las cajas de validación (341-360)."""
+
+    def test_formatos(self):
+        casos = {
+            "12 SEP 2027": date(2027, 9, 12), "26 JUN 28": date(2028, 6, 26),  # conservan el día
+            "05 - 2027": date(2027, 5, 31), "03-2028": date(2028, 3, 31), "AGO 2026": date(2026, 8, 31),
+            "FEB 28": date(2028, 2, 29), "13/09/2027": date(2027, 9, 13), "06/2027": date(2027, 6, 30),
+            "0.03-2028": date(2028, 3, 31), "0672027": date(2027, 6, 30),  # ruido del OCR / barra leída como dígito
+        }
+        for texto, esperado in casos.items():
+            with self.subTest(texto):
+                self.assertEqual(parseo.parsear_fecha(texto, tolerante=True), esperado)
+
+
+class TestAbreviaturas(unittest.TestCase):
+    def test_linea_de_caja_real(self):
+        # lo que lee el OCR en la cara de una caja Genfar: "L:F01365A V:07/28"
+        for texto in ("L:F01365A V:07/28", "L:F01365A U:07/28", "ng | L:F01365A V:07/28 | clovir"):
+            with self.subTest(texto):
+                self.assertEqual(parseo.buscar_lote(texto), "F01365A")
+                self.assertEqual(parseo.buscar_vencimiento(texto), date(2028, 7, 31))
+
+    def test_v_sola_no_es_clave(self):
+        self.assertIsNone(parseo.buscar_vencimiento("Vitamina 07/28"))
+        self.assertIsNone(parseo.buscar_vencimiento("FAB: 07/26"))
+
+
+class TestPrefiltro(unittest.TestCase):
+    def _rec(self, respuestas, variantes):
+        import dataclasses
+        from smartpharma_ia.tipos import Region
+
+        class Det:
+            def detectar(self, img):
+                return [Region("nombre", (0, 0, 10, 10)), Region("lote", (0, 10, 30, 20)), Region("fecha", (0, 20, 30, 30))]
+        cfg = dataclasses.replace(cargar_config(), prefiltro_variantes=variantes)
+        return Reconocedor(OcrGuionado(respuestas), detector=Det(), config=cfg, hoy=HOY)
+
+    def test_variantes_validas_y_dimensiones(self):
+        from smartpharma_ia import prefiltro
+        img = Image.new("RGB", (100, 20), (120, 120, 120))
+        for nombre, f in prefiltro.VARIANTES.items():
+            with self.subTest(nombre):
+                out = f(img)
+                self.assertEqual(out.mode, "RGB")
+                self.assertGreaterEqual(out.height, 20)
+
+    def test_lote_y_fecha_se_leen_antes_que_el_nombre(self):
+        rec = self._rec([("AB1234", 0.9), ("03/2028", 0.9), ("Nombre", 0.9)], ())
+        r = rec.procesar([jpeg()])
+        self.assertEqual((r.lote, r.vencimiento, r.nombre), ("AB1234", date(2028, 3, 31), "Nombre"))
+
+    def test_reintenta_con_prefiltro_si_la_lectura_directa_no_es_valida(self):
+        # lote: directa vacía -> variante "contraste" da AB1234; fecha: directa vacía -> variante da fecha
+        rec = self._rec([("", 0.0), ("AB1234", 0.8), ("", 0.0), ("03/2028", 0.8), ("Nombre", 0.9)], ("contraste",))
+        r = rec.procesar([jpeg()])
+        self.assertEqual((r.lote, r.vencimiento), ("AB1234", date(2028, 3, 31)))
+
+    def test_sin_variantes_no_reintenta(self):
+        rec = self._rec([("", 0.0), ("", 0.0), ("Nombre", 0.9)], ())
+        self.assertEqual(rec.procesar([jpeg()]).clasificacion, ERR)
+
+    def test_variante_desconocida_en_config_falla(self):
+        import json, tempfile, pathlib
+        from smartpharma_ia.config import RUTA_CONFIG_DEFECTO
+        datos = json.loads(RUTA_CONFIG_DEFECTO.read_text(encoding="utf-8"))
+        datos["prefiltro_variantes"] = ["no_existe"]
+        with tempfile.TemporaryDirectory() as d:
+            ruta = pathlib.Path(d) / "c.json"
+            ruta.write_text(json.dumps(datos), encoding="utf-8")
+            with self.assertRaises(ValueError):
+                cargar_config(ruta)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,13 @@
+﻿caja,clasificacion,motivo,lote,vencimiento,confianza,segundos,lote_ok,venc_ok,lecturas_por_cara
+caja206,ERROR_REVISION_MANUAL,lote:confianza_baja,,,0.00,17.18,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=LOE0092E venc=2027-08-31 | c4: lote=None venc=None | c5: lote=None venc=None
+caja208,TIPO_C,,02126,2028-02-29,0.65,23.08,0,1,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=02126 venc=2028-02-29
+caja213,TIPO_C,,A60242,2028-02-29,0.85,31.60,1,1,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=A60242 venc=2028-02-29
+caja230,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,25.03,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja234,ERROR_REVISION_MANUAL,vencimiento:ausente,,,0.00,16.48,0,0,c1: lote=None venc=None | c2: lote=NASIS venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=12601101 venc=None
+caja237,TIPO_C,,G00775A,2028-04-30,0.82,40.43,0,1,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=FOSFATO venc=None | c4: lote=G00775A venc=2028-04-30 | c5: lote=None venc=None
+caja243,TIPO_C,,072027,2027-07-31,0.76,15.10,0,1,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=072027 venc=2027-07-31 | c4: lote=None venc=None | c5: lote=None venc=None
+caja245,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,23.49,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja248,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,20.50,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja251,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,18.49,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja256,ERROR_REVISION_MANUAL,vencimiento:ausente,,,0.00,19.03,0,0,c1: lote=None venc=None | c2: lote=067002A venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja259,ERROR_REVISION_MANUAL,vencimiento:ausente,,,0.00,19.45,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=F00745A venc=None | c5: lote=None venc=None

@@ -1,13 +1,13 @@
 """Captura del dataset con la Arducam (UVC, 1080p MJPG) montada en soporte fijo.
 
     python entrenamiento/capturar.py --listar                                   # qué índice es la Arducam
-    python entrenamiento/capturar.py --ajustar --camara 1 --config ../dataset_ia/arducam/camara.json
-    python entrenamiento/capturar.py --camara 1 --config ../dataset_ia/arducam/camara.json --salida ../dataset_ia/arducam/sesion01
+    python entrenamiento/capturar.py --ajustar --camara 1 --config dataset_ia/arducam/camara.json
+    python entrenamiento/capturar.py --camara 1 --config dataset_ia/arducam/camara.json --salida dataset_ia/arducam/sesion01
 
 --ajustar: vista en vivo para fijar enfoque y exposición (A autofoco, +/- enfoque, E/D exposición,
 R exposición automática, S guarda camara.json, Q sale). Se hace UNA vez por montaje y luz.
 
-Captura (cada caja = 5 caras, como CARAS_POR_OBJETO):
+Captura (cada caja = 5 caras, como CARAS_POR_OBJETO; --caras N lo cambia):
     ESPACIO guarda la cara actual   R guarda la misma cara con luz rasante (carpeta rasante/)
     U deshace la última foto        N salta a la caja siguiente        Q sale
 Archivos: cajaNNN_caraK.jpg (numeración desde --primera-caja, 101 por defecto, para no chocar con
@@ -110,8 +110,9 @@ def capturar(cam, a) -> None:
             return
         n = camara.nitidez(frame)
         nitida = n >= a.nitidez_min
-        vista = cv2.resize(frame, (960, 540))
-        texto(vista, [f"caja{caja:03d} cara {cara}/{CARAS}   nitidez={n:.0f} {'OK' if nitida else 'BORROSA'}",
+        fh, fw = frame.shape[:2]
+        vista = cv2.resize(frame, (960, round(960 * fh / fw)))  # conserva la proporción: lo que ves es lo que se guarda
+        texto(vista, [f"caja{caja:03d} cara {cara}/{a.caras}   nitidez={n:.0f} {'OK' if nitida else 'BORROSA'}",
                       "ESPACIO guardar | R rasante | U deshacer | N caja nueva | Q salir", msg],
               (0, 255, 0) if nitida else (0, 0, 255))
         cv2.imshow("captura", vista)
@@ -134,7 +135,7 @@ def capturar(cam, a) -> None:
             ultimo, msg = (caja, cara), f"guardada {ruta.name}"
             print(msg)
             cara += 1
-            if cara > CARAS:
+            if cara > a.caras:
                 caja, cara = caja + 1, 1
         elif k == ord("r"):
             if ultimo is None:
@@ -162,12 +163,15 @@ def capturar(cam, a) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--listar", action="store_true", help="prueba los índices de cámara y sale")
+    ap.add_argument("--resoluciones", action="store_true",
+                    help="prueba qué resoluciones entrega la cámara (guarda fotos de muestra en --salida o ./prueba_resolucion)")
     ap.add_argument("--ajustar", action="store_true", help="vista para fijar enfoque/exposición y guardar --config")
     ap.add_argument("--salida", type=Path, help="carpeta de la sesión, p. ej. dataset_ia/arducam/sesion01")
     ap.add_argument("--camara", type=int, default=0, help="índice de la Arducam (ver --listar)")
     ap.add_argument("--config", type=Path, default=Path("camara.json"))
     ap.add_argument("--ancho", type=int, default=1920)
     ap.add_argument("--alto", type=int, default=1080)
+    ap.add_argument("--caras", type=int, default=CARAS, help="fotos por caja (5 = 4 laterales + superior)")
     ap.add_argument("--primera-caja", type=int, default=101, help="número de la primera caja de la carpeta vacía")
     ap.add_argument("--nitidez-min", type=float, default=0.0,
                     help="no guarda fotos con nitidez menor (0 = solo informa; calíbrala con --ajustar)")
@@ -175,6 +179,9 @@ def main() -> int:
 
     if a.listar:
         camara.listar()
+        return 0
+    if a.resoluciones:
+        camara.probar_resoluciones(a.camara, a.salida or Path("prueba_resolucion"), camara.cargar_config(a.config))
         return 0
     if not a.ajustar and a.salida is None:
         ap.error("falta --salida (o usa --listar / --ajustar)")

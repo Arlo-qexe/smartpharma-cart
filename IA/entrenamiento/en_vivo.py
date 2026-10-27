@@ -1,11 +1,11 @@
 """Prueba de punta a punta EN VIVO con la Arducam: captura las caras de una caja y corre el reconocedor.
 
-    python entrenamiento/en_vivo.py --modelo modelos/best.onnx --camara 1 --config ../dataset_ia/arducam/camara.json
+    python entrenamiento/en_vivo.py --modelo modelos/best.onnx --camara 1 --config dataset_ia/arducam/camara.json
 
 ESPACIO captura una cara · P procesa con las caras que haya · N caja nueva (descarta lo capturado) · Q sale.
 Cada cara se codifica a JPEG en memoria y se entrega a Reconocedor.procesar(list[bytes]), igual que
 haría la Orange Pi. No guarda nada a disco salvo que uses --guardar (para revisar después qué falló).
-Requiere la carpeta shared/ en la raíz del repo (ver IA/CLAUDE.md).
+Requiere la carpeta shared/ junto a ia/ (ver CLAUDE.md).
 """
 import argparse
 import os

@@ -1,0 +1,13 @@
+﻿caja,clasificacion,motivo,lote,vencimiento,confianza,segundos,lote_ok,venc_ok,lecturas_por_cara
+caja206,ERROR_REVISION_MANUAL,lote:ausente,,,0.00,32.93,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=2027-08-31 | c4: lote=None venc=None | c5: lote=None venc=None
+caja208,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,12.73,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja213,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,14.20,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja230,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,2.34,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja234,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,2.21,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja237,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,12.44,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja243,ERROR_REVISION_MANUAL,lote:ausente,,,0.00,8.19,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=2027-07-31 | c4: lote=None venc=None | c5: lote=None venc=None
+caja245,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,21.81,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja248,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,21.60,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja251,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,28.93,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja256,ERROR_REVISION_MANUAL,lote:ausente;vencimiento:ausente,,,0.00,3.73,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=None venc=None | c5: lote=None venc=None
+caja259,ERROR_REVISION_MANUAL,vencimiento:ausente,,,0.00,33.71,0,0,c1: lote=None venc=None | c2: lote=None venc=None | c3: lote=None venc=None | c4: lote=9246914 venc=None | c5: lote=None venc=None
