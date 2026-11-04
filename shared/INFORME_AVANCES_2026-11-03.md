@@ -119,6 +119,37 @@ y no menciona las ruedas: conviene completarlo cuando se defina el firmware de l
 campo `enc` de la telemetría, qué posiciones son del SPM y cuáles de las ruedas (el contrato solo dice `[e1..e5]`; se puede fijar, por ejemplo,
 `e1..e3` = SPM y `e4..e5` = ruedas, pero no se ha decidido).
 
+### 5.1 Mapa de pines de la ESP32-S3 (compartido por el usuario el 2026-11-03)
+
+*Tomado del mapa que aportó el usuario; **no está verificado contra la placa ni contra el firmware** (todavía no hay firmware que lo use).*
+
+| Periférico | Pines GPIO | Notas |
+|---|---|---|
+| Motor 1 | encoder 11, 12 · PWM 9, 10 | |
+| Motor 2 | encoder 15, 16 · PWM 17, 18 | |
+| Motor 3 | encoder 4, 5 · PWM 6, 7 | |
+| Motor 4 | encoder 41, 42 · PWM 1, 2 | |
+| Motor 5 | encoder 38, 21 · PWM 40, 39 | encoder asignado por software |
+| Servomotor (dispensador) | 8 | PWM por hardware (LEDC) |
+| UART secundaria (enlace con la Orange Pi) | 13 y 14 | puerto libre de conflictos |
+| Bus I2C (ADC externo de corriente) | SDA 47 · SCL 48 | |
+| UART principal / USB nativo | 43, 44 / 19, 20 | reservados (monitor serie, USB) |
+| Flash / PSRAM octal | 26 a 34 / 35, 36, 37 | excluidos |
+| Pines de arranque | 0, 3, 45, 46 | solo si hacen falta entradas digitales |
+
+**Lo que cuadra con el contrato:** 5 motores = 5 encoders de cuadratura, y **11 PWM = 5 motores × 2 (dos PWM por motor, p. ej. un puente H) + 1 servo**, tal como
+dice la telemetría (`enc` de 5 y `pwm` de 11).
+
+**Lo que hay que resolver con quien lleve el firmware**
+- **Qué UART usa el enlace con la Orange Pi.** `esp32-firmware/src/main.ino` usa `Serial` (el UART0, GPIO 43/44, reservado al monitor USB); según este mapa el
+  enlace va por la **UART secundaria en GPIO 13 y 14**, así que el esqueleto debe abrir ese puerto (p. ej. `Serial1`) con los pines correctos. La nota original del mapa
+  dice "13 (TX/RX) y 14 (RX/TX)": **confirmar cuál es TX y cuál RX** y cruzarlos con el cableado a los pines 8 (TX) y 10 (RX) de la Orange Pi.
+- **Qué motores son del SPM y cuáles de las ruedas** (para fijar el orden de `enc` y de `pwm` en la telemetría; el contrato no lo define todavía). Sugerencia: `enc[i]` = motor `i+1`
+  y `pwm` = `[m1a, m1b, m2a, m2b, m3a, m3b, m4a, m4b, m5a, m5b, servo]`.
+- **El giroscopio (I2C):** el mapa solo lista el ADC de corriente en el bus I2C (47/48). Si el giroscopio comparte ese bus, hay que confirmar que las direcciones no choquen; si usa otro, falta en el mapa.
+- **Encoder del motor 5 "por software":** la ESP32-S3 tiene un número limitado de contadores por hardware; un encoder contado por interrupciones puede perder cuentas a alta velocidad, y eso afectaría a la lectura que viaja en la telemetría.
+- **Pines JTAG:** los GPIO 39 a 42 (motores 4 y 5) son los del JTAG por defecto: sirven como GPIO, pero se pierde la depuración JTAG mientras estén en uso.
+
 ---
 
 ## 6. Módulo de IA (equipo de IA) — conectado, con hallazgos
@@ -172,7 +203,8 @@ Los cambios 2026-10-23 y 2026-10-26 siguen el flujo acordado: primero `shared/`,
 | 6 | El panel solo escucha en `127.0.0.1` (D-09) | El regente debe trabajar frente a la PC | Reevaluar si cambia el uso |
 | 7 | Caja duplicada si llega un lote vacío de sondeo tras perder la conexión (caso F2) | Una fila de más en el inventario | Se elimina a mano; documentado en la guía del regente |
 | 8 | Los turnos viven en RAM | Reiniciar el servidor cierra el turno | Aceptado; documentado |
-| 9 | La base tiene ruedas con encoder, pero el contrato **no define ninguna orden para moverlas** (solo viajan sus encoders en la telemetría) | Hoy el botón "Iniciar recorrido" inicia el ciclo de auditoría y no desplaza el carrito (aclaración del usuario, 2026-10-05) | Si el carrito debe avanzar entre cajas, definir el mensaje en `shared/` antes de implementarlo |
+| 9 | La base tiene ruedas con encoder (motores de la base), pero el contrato **no define ninguna orden para moverlas** (solo viajan sus encoders en la telemetría). **El avance entre cajas aún no está completamente definido** (usuario, 2026-11-03) | Hoy el botón "Iniciar recorrido" inicia el ciclo de auditoría y no desplaza el carrito (aclaración del usuario, 2026-10-05) | Cuando se defina cómo avanza el carrito, acordar primero el mensaje en `shared/` (y quién decide cuándo avanzar: Orange Pi, ESP32-S3 o el regente) antes de implementarlo |
+| 10 | El esqueleto del firmware abre `Serial` (UART0, GPIO 43/44, monitor USB) pero el enlace con la Orange Pi va por GPIO 13 y 14 (§5.1) | El enlace con la Orange Pi no funcionaría tal cual cuando se cargue el firmware real | Quien lleve el firmware abre la UART secundaria con los pines y el sentido (TX/RX) confirmados |
 
 ---
 
