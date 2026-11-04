@@ -6,7 +6,8 @@
 > `docs/CHANGELOG_protocolo.md`: complementa a ambos con el "quién hace qué y
 > en qué punto está".
 
-**Última actualización:** 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-24, contrato de telemetría; S-12 y S-13).
+**Última actualización:** 2026-11-03 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: informe general de avances `shared/INFORME_AVANCES_2026-11-03.md`).
+Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-24, contrato de telemetría; S-12 y S-13).
 Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte E, exportación a CSV).
 Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 parte D, OCR de la IA conectado al inventario).
 Anterior: 2026-10-26 (reloj de la PC) — Arlo-qexe (con Claude Code, lado PC: PC-23 partes A a C; D-13 y D-14).
@@ -518,6 +519,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-11-03 | Arlo-qexe (lado PC, con Claude Code) | Informe general de avances (PC, Orange Pi, ESP32-S3 e IA): `shared/INFORME_AVANCES_2026-11-03.md`. Anota el retroceso de la versión de IA del 27/10 (8 de 27 cajas y 10,7 s frente a 16 de 27 y 3,7 s con la del 26/10). Sin cambios de contrato. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-24 nuevo `[~]`: contrato de la telemetría ESP32-S3 / Orange Pi → PC definido en `shared/` (informe 4.9 y 5.6); S-12 (Orange Pi) y S-13 (ESP32-S3) abiertas. Lado PC pendiente. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | Guía de uso para el regente (`docs/GUIA_REGENTE.md`), cierre de PC-23 parte E. |
 | 2026-10-26 | Arlo-qexe (lado PC, con Claude Code) | PC-23 parte E `[x]`: exportación a CSV del inventario y del registro; respaldo y retención descartados por el usuario. Sin cambios de contrato. |
