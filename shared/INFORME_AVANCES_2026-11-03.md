@@ -113,8 +113,11 @@ sección):** ciclo de punta a punta contra la PC real con cámara real y ESP32-S
 | S-13 | Responder `solicitar_telemetria` con los campos acordados en menos de 0,5 s, sin interrumpir un movimiento. |
 
 **Datos del hardware dichos por el equipo (para el firmware y la telemetría):** giroscopio por I2C, ADC por I2C con 2 sensores de corriente,
-5 encoders de cuadratura (A y B) y 11 salidas PWM. **Ojo:** `esp32-firmware/CLAUDE.md` menciona "3 motores DC con encoder"; conviene
-alinear ese documento con los 5 encoders y 11 PWM reales.
+5 encoders de cuadratura (A y B) y 11 salidas PWM. Los **5 encoders** se reparten así: **3 son de los motores del mecanismo SPM** (manipulador
+esférico paralelo del clasificador) y **2 de las ruedas de la base** del carrito. `esp32-firmware/CLAUDE.md` solo habla de los 3 motores del SPM
+y no menciona las ruedas: conviene completarlo cuando se defina el firmware de la base. *Punto por confirmar con quien lleve el firmware:* en el
+campo `enc` de la telemetría, qué posiciones son del SPM y cuáles de las ruedas (el contrato solo dice `[e1..e5]`; se puede fijar, por ejemplo,
+`e1..e3` = SPM y `e4..e5` = ruedas, pero no se ha decidido).
 
 ---
 
@@ -169,6 +172,7 @@ Los cambios 2026-10-23 y 2026-10-26 siguen el flujo acordado: primero `shared/`,
 | 6 | El panel solo escucha en `127.0.0.1` (D-09) | El regente debe trabajar frente a la PC | Reevaluar si cambia el uso |
 | 7 | Caja duplicada si llega un lote vacío de sondeo tras perder la conexión (caso F2) | Una fila de más en el inventario | Se elimina a mano; documentado en la guía del regente |
 | 8 | Los turnos viven en RAM | Reiniciar el servidor cierra el turno | Aceptado; documentado |
+| 9 | La base tiene ruedas con encoder, pero el contrato **no define ninguna orden para moverlas** (solo viajan sus encoders en la telemetría) | Hoy el botón "Iniciar recorrido" inicia el ciclo de auditoría y no desplaza el carrito (aclaración del usuario, 2026-10-05) | Si el carrito debe avanzar entre cajas, definir el mensaje en `shared/` antes de implementarlo |
 
 ---
 
