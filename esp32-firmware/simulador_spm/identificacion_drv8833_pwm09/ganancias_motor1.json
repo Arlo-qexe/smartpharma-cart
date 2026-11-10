@@ -1,0 +1,146 @@
+{
+ "motor": 1,
+ "ganancias": {
+  "ctrl": "casc",
+  "kp": 0.02,
+  "ki": 0.006,
+  "kd": 0.0,
+  "kff": 0.003981895719956433,
+  "kpp": 12.0,
+  "kpv": 0.0024660002410987016,
+  "kiv": 0.20789452163238925,
+  "kffv": 0.003981895719956433,
+  "pwm_min": 0.15,
+  "pwm_max": 0.7,
+  "band": 0.24,
+  "vmax": 600.0
+ },
+ "comandos": [
+  {
+   "cfg": "ctrl",
+   "motor": 1,
+   "val": "casc"
+  },
+  {
+   "cfg": "kpp",
+   "motor": 1,
+   "val": 12.0
+  },
+  {
+   "cfg": "kpv",
+   "motor": 1,
+   "val": 0.002466
+  },
+  {
+   "cfg": "kiv",
+   "motor": 1,
+   "val": 0.207895
+  },
+  {
+   "cfg": "kffv",
+   "motor": 1,
+   "val": 0.003982
+  },
+  {
+   "cfg": "pwm_min",
+   "motor": 1,
+   "val": 0.15
+  },
+  {
+   "cfg": "band",
+   "motor": 1,
+   "val": 0.24
+  },
+  {
+   "cfg": "fault_ms",
+   "val": 1000
+  },
+  {
+   "cfg": "pwm_max",
+   "motor": 1,
+   "val": 0.9
+  }
+ ],
+ "planta": {
+  "K_pos": 349.8820374513607,
+  "K_neg": 241.02775576048472,
+  "u0_pos": 0.2967017913861719,
+  "u0_neg": 0.1450700680533358,
+  "tau": 0.01921388358712204,
+  "ppr": 4532.0
+ },
+ "metricas_simuladas": {
+  "error_max_mov_deg": 0.3810264558867402,
+  "error_rms_deg": 0.048831588878904784,
+  "error_max_deg": 0.3810264558867402,
+  "inestable": false,
+  "pausa_error_max_deg": 0.056444097260651915,
+  "pausa_vibracion_pp_deg": 0.0,
+  "pausa_duty_medio": 0.0,
+  "pausa_cambios_signo_por_s": 0.0,
+  "duty_saturado_pct": 1.5107465476066868
+ },
+ "ganancias_optimizadas": {
+  "ctrl": "casc",
+  "kp": 0.02,
+  "ki": 0.006,
+  "kd": 0.0,
+  "kff": 0.003981895719956433,
+  "kpp": 19.75029477909217,
+  "kpv": 0.0024660002410987016,
+  "kiv": 0.20789452163238925,
+  "kffv": 0.003981895719956433,
+  "pwm_min": 0.15,
+  "pwm_max": 0.7,
+  "band": 0.24,
+  "vmax": 600.0
+ },
+ "comandos_optimizadas": [
+  {
+   "cfg": "ctrl",
+   "motor": 1,
+   "val": "casc"
+  },
+  {
+   "cfg": "kpp",
+   "motor": 1,
+   "val": 19.750295
+  },
+  {
+   "cfg": "kpv",
+   "motor": 1,
+   "val": 0.002466
+  },
+  {
+   "cfg": "kiv",
+   "motor": 1,
+   "val": 0.207895
+  },
+  {
+   "cfg": "kffv",
+   "motor": 1,
+   "val": 0.003982
+  },
+  {
+   "cfg": "pwm_min",
+   "motor": 1,
+   "val": 0.15
+  },
+  {
+   "cfg": "band",
+   "motor": 1,
+   "val": 0.24
+  }
+ ],
+ "metricas_optimizadas": {
+  "error_max_mov_deg": 0.31729681652780073,
+  "error_rms_deg": 0.048583676924747375,
+  "error_max_deg": 0.31729681652780073,
+  "inestable": false,
+  "pausa_error_max_deg": 0.04200728956607236,
+  "pausa_vibracion_pp_deg": 0.0,
+  "pausa_duty_medio": 0.0,
+  "pausa_cambios_signo_por_s": 0.0,
+  "duty_saturado_pct": 1.5938116498805939
+ }
+}

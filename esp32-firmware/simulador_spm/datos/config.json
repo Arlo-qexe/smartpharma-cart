@@ -1,0 +1,23 @@
+{
+ "transmision": {
+  "cuentas_por_vuelta_salida": 4532.0,
+  "signos": [
+   -1,
+   -1,
+   1
+  ]
+ },
+ "limites": {
+  "motor_min_deg": [
+   -85.0,
+   null,
+   null
+  ],
+  "motor_max_deg": [
+   null,
+   null,
+   null
+  ],
+  "motor_margen_deg": 5.0
+ }
+}
