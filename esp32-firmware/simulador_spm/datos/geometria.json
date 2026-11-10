@@ -1,0 +1,81 @@
+{
+ "descripcion": "Geometría cinemática del manipulador esférico paralelo (SPM) extraída del CAD (Ensamblaje2510_trabajo.FCStd, pose de ensamblaje = orientación de referencia R=I, theta=0).",
+ "unidades": "mm (solo el punto O); los ejes son vectores unitarios en el marco del ensamblaje (z = eje central de los engranes)",
+ "origen_O": [
+  7.977928912803426,
+  3.673813054633182,
+  1174.27462875392
+ ],
+ "convencion": "a1: eje de la unión Brasop-Brazov (gira con el engrane NNR de su pata). a2: eje de la unión Brazov-platosupv (fijo en la plataforma). Los signos de los ejes son arbitrarios pero consistentes entre a1 y a2 de la misma pata. Pose inicial (R=I, theta=0 en la API): disco de la plataforma horizontal; 'disco_normal_ensamblaje' es la normal del disco en la pose de ensamblaje del CAD (16.0° de la vertical).",
+ "patas": [
+  {
+   "nnr": 1,
+   "brasop": "Brasop002",
+   "brazov": "Brazov2",
+   "plato": "platosupv001",
+   "a1": [
+    -0.09630068742335324,
+    0.7598433504725544,
+    0.6429341026453899
+   ],
+   "a2": [
+    0.9791647184243913,
+    0.05977535794068687,
+    -0.1940705046521629
+   ],
+   "rodamiento_brasop": "rodamiento 628ZZ (Brasop 3)",
+   "rodamiento_plato": "rodamiento 628ZZ (platosupv 2)"
+  },
+  {
+   "nnr": 2,
+   "brasop": "Brasop001",
+   "brazov": "Brazov001",
+   "plato": "platosupv2",
+   "a1": [
+    0.5439633902204077,
+    0.5392027167542291,
+    -0.6429341026456593
+   ],
+   "a2": [
+    -0.5748492053662727,
+    0.8150021559645808,
+    -0.07293748599211507
+   ],
+   "rodamiento_brasop": "rodamiento 628ZZ (Brasop 2)",
+   "rodamiento_plato": "rodamiento 628ZZ (platosupv 1)"
+  },
+  {
+   "nnr": 3,
+   "brasop": "Brasop",
+   "brazov": "Brazov002",
+   "plato": "platosupv002",
+   "a1": [
+    0.7650851384796328,
+    0.035783663273805735,
+    0.6429341026266286
+   ],
+   "a2": [
+    0.4110171933154441,
+    0.8714909017476455,
+    -0.26752284943565224
+   ],
+   "rodamiento_brasop": "rodamiento 628ZZ (Brasop 1)",
+   "rodamiento_plato": "rodamiento 628ZZ (platosupv 3)"
+  }
+ ],
+ "fijas": [
+  "Ensamblaje1v1",
+  "Thrust roller Bearing - Outer Ring_mod",
+  "stopper",
+  "anillo_mitad_1",
+  "anillo_mitad_2"
+ ],
+ "plataforma_extra": [
+  "platov3"
+ ],
+ "disco_normal_ensamblaje": [
+  0.17760192293697297,
+  0.2112855215295525,
+  0.9611534660818086
+ ]
+}

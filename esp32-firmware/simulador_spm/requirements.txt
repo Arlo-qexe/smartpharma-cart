@@ -1,0 +1,7 @@
+# Dependencias mínimas (multiplataforma). Tkinter viene con Python (en Linux: paquete del sistema python-tk / python3-tk).
+numpy>=1.26
+matplotlib>=3.8
+pillow>=10
+pyserial>=3.5      # pestaña Serial / ESP32 (opcional)
+PyOpenGL>=3.1.7    # render por GPU del CAD (opcional; sin él se usa el render por software)
+glfw>=2.7        # contexto OpenGL en Windows/macOS (opcional; en Linux se usa EGL)

@@ -1,0 +1,56 @@
+{
+  // Firmware del SPM (ESP32-S3 N16R8) desde VS Code, sin Arduino IDE ni PlatformIO. Usa arduino-cli (C:\Users\<tú>\arduino-cli) con el core esp32 3.3.12.
+  // Ejecutar: Terminal > Ejecutar tarea... (o Ctrl+Shift+P > "Tasks: Run Task"). Abre ESTA carpeta (simulador_spm) en VS Code.
+  // "UART" = puerto USB-C marcado UART/COM (CH340/CP210x). "USB nativo" = el puerto marcado USB. Antes de SUBIR cierra el monitor serie (el puerto no se comparte).
+  "version": "2.0.0",
+  "inputs": [
+    { "id": "puerto", "type": "promptString", "description": "Puerto COM de la ESP32 (Administrador de dispositivos > Puertos)", "default": "COM5" }
+  ],
+  "tasks": [
+    {
+      "label": "SPM: Compilar (puerto UART)",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\arduino-cli\\arduino-cli.exe",
+      "args": ["--config-file", "${env:USERPROFILE}\\arduino-cli\\arduino-cli.yaml", "compile","--fqbn", "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=default", "${workspaceFolder}\\firmware\\spm_esp32s3"],
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "SPM: Compilar (USB nativo)",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\arduino-cli\\arduino-cli.exe",
+      "args": ["--config-file", "${env:USERPROFILE}\\arduino-cli\\arduino-cli.yaml", "compile","--fqbn", "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc", "${workspaceFolder}\\firmware\\spm_esp32s3"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "SPM: Compilar y SUBIR (puerto UART)",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\arduino-cli\\arduino-cli.exe",
+      "args": ["--config-file", "${env:USERPROFILE}\\arduino-cli\\arduino-cli.yaml", "compile","--upload", "-p", "${input:puerto}", "--fqbn", "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=default", "${workspaceFolder}\\firmware\\spm_esp32s3"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "SPM: Compilar y SUBIR (USB nativo)",
+      "type": "process",
+      "command": "${env:USERPROFILE}\\arduino-cli\\arduino-cli.exe",
+      "args": ["--config-file", "${env:USERPROFILE}\\arduino-cli\\arduino-cli.yaml", "compile","--upload", "-p", "${input:puerto}", "--fqbn", "esp32:esp32:esp32s3:FlashSize=16M,PSRAM=opi,PartitionScheme=app3M_fat9M_16MB,CDCOnBoot=cdc", "${workspaceFolder}\\firmware\\spm_esp32s3"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "SPM: Interfaz de diagnóstico e identificación",
+      "type": "process",
+      "command": "python",
+      "args": ["${workspaceFolder}/herramientas/interfaz_identificacion.py"],
+      "presentation": { "reveal": "silent", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "SPM: Monitor serie (115200)",
+      "type": "process",
+      "command": "python",
+      "args": ["-m", "serial.tools.miniterm", "${input:puerto}", "115200", "--eol", "LF", "--echo"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "focus": true, "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

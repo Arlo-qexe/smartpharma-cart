@@ -1,0 +1,3 @@
+# Entorno virtual y cache de Python
+.venv/
+__pycache__/
