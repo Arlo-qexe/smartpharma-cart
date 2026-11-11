@@ -360,9 +360,16 @@ retrasar ni alterar el ciclo de auditoría.
 
 ## 6. Proceso de captura de imágenes
 
-### 6.1 Ráfaga de 5 fotos por objeto
+### 6.1 Ráfaga de 5 fotos por objeto (o 4, opcional)
 
-Por cada una de las `CARAS_POR_OBJETO` (5) caras:
+Por defecto son `CARAS_POR_OBJETO` (5) caras. **Alternativa de 4 caras** (`CARAS_POR_OBJETO_REDUCIDO`,
+pensada en reunión para acortar el ciclo): la elige **solo la Orange Pi**, con una opción local (p. ej.
+`--caras 4`), porque es quien comanda giros y fotos. Pide las caras 1 a 4 (`girar_posicion`, `"cara": 1..N`) y
+envía un lote de 4 imágenes; la PC acepta de 1 a `MAX_IMAGENES_POR_LOTE` imágenes y no necesita que se le avise
+cuántas vendrán, y la ESP32-S3 sigue entendiendo `cara` de 1 a 5. **No cambia ningún mensaje ni el framing.** Qué cara
+se omite depende de la posición física de cada una en el mecanismo y de cuál aporta menos al reconocimiento (a medir).
+
+Por cada una de las caras pedidas:
 
 1. Orange Pi ordena girar → ESP32-S3 mueve el motor y confirma posición.
 2. Pausa de estabilización (`PAUSA_ESTABILIZACION_MECANICA_S`, 0.3 s inicial) — mitiga vibración mecánica residual.
@@ -432,7 +439,7 @@ no la copies a mano en otro lugar.
 | Límite total de transacción con la PC | 30 s | `TIMEOUT_TOTAL_TRANSACCION_S` |
 | Pausa de estabilización mecánica | 0.3 s | `PAUSA_ESTABILIZACION_MECANICA_S` |
 | Tiempo de convergencia de autoenfoque | 0.5 s | `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` |
-| Caras fotografiadas por objeto | 5 | `CARAS_POR_OBJETO` |
+| Caras fotografiadas por objeto | 5 (4 con la opción de la Orange Pi) | `CARAS_POR_OBJETO`, `CARAS_POR_OBJETO_REDUCIDO` |
 | Umbral de votación del reconocimiento | Mayoría simple (>50%) | `UMBRAL_VOTACION_MAYORIA` |
 | Puerto de consulta de decisión del regente | 5001 | `TCP_PUERTO_DECISION_DEFECTO` |
 | Intervalo de consulta de decisión | 2 s | `INTERVALO_CONSULTA_DECISION_S` |

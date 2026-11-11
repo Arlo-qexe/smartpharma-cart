@@ -74,7 +74,8 @@
 // ---------------------------------------------------------------------------
 // Parámetros de captura
 // ---------------------------------------------------------------------------
-#define CARAS_POR_OBJETO 5
+#define CARAS_POR_OBJETO 5             // por defecto y máximo (posiciones del mecanismo)
+#define CARAS_POR_OBJETO_REDUCIDO 4    // alternativa: la Orange Pi pide solo las caras 1 a 4
 #define PAUSA_ESTABILIZACION_MECANICA_MS 300
 #define TIEMPO_CONVERGENCIA_AUTOENFOQUE_MS 500
 

@@ -111,3 +111,12 @@ def test_el_placeholder_clasifica_al_azar_entre_varios_tipos():
     vistos = {procesar_lote_ocr([b"x"] * 5) for _ in range(200)}
     assert vistos == set(TIPOS_PLACEHOLDER)
     assert procesar_lote_ocr([]) == "ERROR_REVISION_MANUAL"      # el vacío no es aleatorio
+
+
+def test_lote_de_cuatro_fotos_se_acepta(puerto, capsys):
+    """Opción `--caras 4` de la Orange Pi (informe 6.1): la PC no exige exactamente 5 imágenes."""
+    from protocol_constants import CARAS_POR_OBJETO, CARAS_POR_OBJETO_REDUCIDO, CARAS_POR_OBJETO_VALIDAS
+    assert (CARAS_POR_OBJETO_REDUCIDO, CARAS_POR_OBJETO) == CARAS_POR_OBJETO_VALIDAS == (4, 5)
+    enviar_lote_de_prueba(puerto=puerto, num_imagenes=CARAS_POR_OBJETO_REDUCIDO, tamano_bytes=100)
+    ultimo = server.estado.snapshot()["lotes"][0]
+    assert ultimo["n_imagenes"] == 4 and ultimo["resultado"] in TIPOS_PLACEHOLDER

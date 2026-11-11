@@ -62,7 +62,7 @@ TIMEOUT_INACTIVIDAD_RECEPCION_S = 10.0         # valor inicial; calibrar con har
 # de 0.2-2 MB; 10 MB deja >5x de margen sin permitir reservas absurdas.
 TAMANO_MAX_IMAGEN_BYTES = 10 * 1024 * 1024
 # MAX_IMAGENES_POR_LOTE se define junto a CARAS_POR_OBJETO (más abajo): un lote
-# válido tiene exactamente CARAS_POR_OBJETO imágenes, o 0 si falló la captura.
+# válido tiene CARAS_POR_OBJETO_VALIDAS imágenes (4 o 5), o 0 si falló la captura.
 
 # ---------------------------------------------------------------------------
 # Decisión del regente (Orange Pi -> PC) — opción A de
@@ -319,7 +319,14 @@ LIMITE_REINTENTOS_INTRODUCIR_OBJETO = 5   # reintentos de ACCION_ACTIVAR_DISPENS
 # ---------------------------------------------------------------------------
 # Captura de imágenes
 # ---------------------------------------------------------------------------
-CARAS_POR_OBJETO = 5
+CARAS_POR_OBJETO = 5                       # valor por defecto y máximo: posiciones del mecanismo
+# Alternativa aprobada en reunión: fotografiar solo 4 caras. La elige la Orange Pi (que comanda giros
+# y fotos) con una opción local, p. ej. `--caras 4`; sin ella se usan CARAS_POR_OBJETO. Las caras se
+# piden siempre de la 1 a la N (`girar_posicion`, "cara": 1..N), así que 4 caras = caras 1 a 4.
+# La PC acepta un lote de 1 a MAX_IMAGENES_POR_LOTE imágenes (o 0 si falló la captura) y no necesita
+# que se le avise cuántas vendrán; la ESP32-S3 sigue entendiendo "cara" de 1 a CARAS_POR_OBJETO.
+CARAS_POR_OBJETO_REDUCIDO = 4
+CARAS_POR_OBJETO_VALIDAS = (CARAS_POR_OBJETO_REDUCIDO, CARAS_POR_OBJETO)
 MAX_IMAGENES_POR_LOTE = CARAS_POR_OBJETO   # ver "Límites de validación del framing"
 PAUSA_ESTABILIZACION_MECANICA_S = 0.3      # valor inicial; calibrar con hardware real
 TIEMPO_CONVERGENCIA_AUTOENFOQUE_S = 0.5    # valor inicial; calibrar con hardware real

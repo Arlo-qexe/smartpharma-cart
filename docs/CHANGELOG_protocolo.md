@@ -14,6 +14,19 @@ Formato de cada entrada:
 
 ---
 
+## 2026-11-11 — Arlo-qexe (con Claude Code, lado PC)
+- **Opción de fotografiar 4 caras en vez de 5** (idea de la reunión: ciclo más corto). La decide la **Orange Pi**, que
+  comanda giros y fotos, con una opción local (`--caras 4`); por defecto sigue en 5. Detalle en
+  `arquitectura_comunicacion.md`, sección 6.1.
+- **No cambia ningún mensaje ni el framing.** La Orange Pi pide las caras 1 a N y envía un lote de N imágenes; la PC ya
+  aceptaba cualquier cantidad de 1 a `MAX_IMAGENES_POR_LOTE` (o 0 si falló la captura), y `cara` ya admitía de 1 a 5.
+- Constantes nuevas: `CARAS_POR_OBJETO_REDUCIDO` (4) y `CARAS_POR_OBJETO_VALIDAS` (`(4, 5)`) en `shared/protocol_constants.py`;
+  `CARAS_POR_OBJETO_REDUCIDO` en `protocol_constants.h`. `CARAS_POR_OBJETO` y `MAX_IMAGENES_POR_LOTE` no cambian.
+- **Impacto para orange-pi (S-14):** opción `--caras` (4 o 5) en `main.py` y `start_Opi.sh`; el resto del ciclo ya sale de la
+  constante. **Impacto para esp32-firmware:** ninguno, salvo definir qué posiciones físicas son las caras 1 a 4.
+  **Impacto para pc:** ninguno (el simulador gana `--caras` para medir el reconocimiento con 4 fotos).
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`, `docs/arquitectura_comunicacion.md`.
+
 ## 2026-10-26 — Arlo-qexe (con Claude Code, lado PC)
 - **Nueva telemetría ESP32-S3 → Orange Pi → PC** (el profesor pidió ver la telemetría de la ESP32-S3 y de la Orange Pi;
   la del terminal de la Orange Pi tiene prioridad sobre la del panel). Detalle en `arquitectura_comunicacion.md`,
