@@ -1438,11 +1438,165 @@ $("chat-nuevo").addEventListener("click", async () => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Telemetría (PC-24): se pide aparte de /api/estado, y solo con la pestaña abierta.
+const tel = { datos: null, cargando: false, error: false, ultima: 0 };
+
+const sinDato = (x) => x === null || x === undefined;
+const num = (x, dec = 0) => (sinDato(x) ? null : Number(x).toFixed(dec));
+const conUnidad = (x, unidad, dec = 0) => (sinDato(x) ? null : num(x, dec) + " " + unidad);
+const lista = (xs, dec = 0) => (Array.isArray(xs) ? xs.map((x) => (sinDato(x) ? "—" : num(x, dec))).join("  ·  ") : null);
+const dur = (s) => {
+  if (sinDato(s)) return null;
+  s = Math.round(s);
+  return s >= 3600 ? `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min` : s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`;
+};
+
+async function tickTelemetria() {
+  if (tel.cargando || Date.now() - tel.ultima < INTERVALO_MS - 200) return;
+  tel.cargando = true;
+  try {
+    const r = await fetch("/api/telemetria", { cache: "no-store" });
+    if (!r.ok) throw new Error(r.status);
+    tel.datos = await r.json();
+    tel.error = false;
+  } catch (e) {
+    tel.error = true;
+  } finally {
+    tel.cargando = false;
+    tel.ultima = Date.now();
+    if (vista === "telemetria") renderTelemetria();
+  }
+}
+
+function filasTel(tabla, filas) {
+  const cuerpo = tabla.tBodies[0];
+  vaciar(cuerpo);
+  for (const [etiqueta, valor, mal] of filas) {
+    const tr = crear("tr");
+    tr.appendChild(crear("th", "", etiqueta));
+    const td = crear("td", mal ? "mal" : sinDato(valor) ? "nulo" : "", sinDato(valor) ? "—" : valor);
+    tr.appendChild(td);
+    cuerpo.appendChild(tr);
+  }
+}
+
+function graficoTel(titulo, puntos, unidad, dec = 0) {
+  const caja = crear("div", "tel-grafico");
+  const cab = crear("div", "tel-grafico-cab");
+  cab.appendChild(crear("span", "", titulo));
+  const ult = puntos && puntos.length ? puntos[puntos.length - 1][1] : null;
+  cab.appendChild(crear("strong", "", sinDato(ult) ? "—" : `${num(ult, dec)} ${unidad}`));
+  caja.appendChild(cab);
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("viewBox", "0 0 100 40");
+  svg.setAttribute("preserveAspectRatio", "none");
+  if (!puntos || puntos.length < 2) {
+    const tx = document.createElementNS(NS, "text");
+    tx.setAttribute("x", "2"); tx.setAttribute("y", "22"); tx.setAttribute("class", "sin-puntos");
+    tx.textContent = "sin datos suficientes";
+    svg.appendChild(tx);
+  } else {
+    const t0 = puntos[0][0], t1 = puntos[puntos.length - 1][0];
+    const ys = puntos.map((p) => p[1]);
+    let lo = Math.min(...ys), hi = Math.max(...ys);
+    if (hi - lo < 1e-9) { lo -= 1; hi += 1; }          // línea plana: se centra en lugar de pegarla al borde
+    const pol = document.createElementNS(NS, "polyline");
+    pol.setAttribute("points", puntos.map(([t, y]) =>
+      `${(100 * (t - t0) / Math.max(t1 - t0, 1e-9)).toFixed(1)},${(38 - 36 * (y - lo) / (hi - lo)).toFixed(1)}`).join(" "));
+    svg.appendChild(pol);
+  }
+  caja.appendChild(svg);
+  caja.title = "Últimos minutos (mínimo y máximo ajustados al gráfico)";
+  return caja;
+}
+
+function renderTelemetria() {
+  const d = tel.datos;
+  const caja = $("tel-estado");
+  caja.classList.remove("buena", "mala");
+  if (tel.error && !d) { caja.textContent = "No se pudo leer la telemetría."; return; }
+  if (!d) { caja.textContent = "Cargando…"; return; }
+  if (!d.hay_datos) {
+    caja.textContent = "Sin datos: la Orange Pi todavía no ha enviado telemetría desde que arrancó este servidor.";
+  } else if (d.viejos) {
+    caja.classList.add("mala");
+    caja.textContent = `⚠ Datos viejos: el último mensaje llegó hace ${dur(d.edad_s)} (la Orange Pi envía cada ${d.intervalo_s} s). Lo que se ve es lo último que se recibió.`;
+  } else {
+    caja.classList.add("buena");
+    caja.textContent = `En vivo · último mensaje hace ${dur(d.edad_s)} desde ${d.ip}`;
+  }
+
+  const o = d.orange_pi || {};
+  filasTel($("tel-opi-tabla"), [
+    ["Fase del ciclo", o.fase ? o.fase.replace(/_/g, " ") : null],
+    ["Encendida hace", dur(o.t_s)],
+    ["CPU", conUnidad(o.cpu_pct, "%")],
+    ["Temperatura CPU", conUnidad(o.cpu_temp_c, "°C", 1)],
+    ["Memoria usada", conUnidad(o.ram_pct, "%")],
+    ["Disco usado", conUnidad(o.disco_pct, "%")],
+    ["Wi-Fi", conUnidad(o.wifi_dbm, "dBm")],
+    ["Latencia a la PC", conUnidad(o.rtt_pc_ms, "ms")],
+    ["Cámara", o.camara, o.camara === "ausente"],
+    ["Enlace con la ESP32-S3", o.uart === "ok" ? "ok" : o.uart === "sin_respuesta" ? "sin respuesta" : o.uart, o.uart === "sin_respuesta"],
+    ["Objetos procesados", sinDato(o.ciclos) ? null : String(o.ciclos)],
+    ["Lotes vacíos enviados", sinDato(o.lotes_vacios) ? null : String(o.lotes_vacios)],
+    ["Último ciclo", conUnidad(o.ultimo_ciclo_s, "s", 1)],
+  ]);
+
+  const e = d.esp32;
+  const pastilla = $("tel-esp-pastilla");
+  pastilla.hidden = !(d.hay_datos && (d.esp32_vieja || !e));
+  pastilla.textContent = !e ? "sin datos" : `lectura de hace ${dur(d.esp32_edad_s)}`;
+  const ee = e || {};
+  filasTel($("tel-esp-tabla"), [
+    ["Estado", ee.estado],
+    ["Alarma local", sinDato(ee.alarma) ? null : ee.alarma ? "ENCENDIDA" : "apagada", ee.alarma === true],
+    ["Encendida hace", sinDato(ee.t_ms) ? null : dur(ee.t_ms / 1000)],
+    ["Giroscopio x · y · z (°/s)", lista(ee.giro_dps, 1)],
+    ["Corriente 1 · 2 (mA)", lista(ee.corriente_ma)],
+    ["Encoders 1 a 5 (cuentas)", lista(ee.enc)],
+    ["Mensajes UART válidos", sinDato(ee.uart_ok) ? null : String(ee.uart_ok)],
+    ["Mensajes UART descartados", sinDato(ee.uart_err) ? null : String(ee.uart_err), ee.uart_err > 0],
+    ["Memoria libre", conUnidad(sinDato(ee.heap) ? null : ee.heap / 1024, "KB")],
+    ["Temperatura del chip", conUnidad(ee.temp_c, "°C", 1)],
+  ]);
+
+  const pwm = $("tel-pwm");
+  vaciar(pwm);
+  const valores = Array.isArray(ee.pwm) ? ee.pwm : new Array(11).fill(null);
+  valores.forEach((p, i) => {
+    const barra = crear("div", "tel-pwm-barra" + (sinDato(p) ? " nulo" : ""));
+    barra.title = `PWM ${i + 1}: ${sinDato(p) ? "sin dato" : (p / 10).toFixed(1) + " %"}`;
+    if (!sinDato(p)) {
+      const relleno = document.createElement("i");
+      relleno.style.height = Math.max(0, Math.min(100, p / 10)) + "%";
+      barra.appendChild(relleno);
+    }
+    pwm.appendChild(barra);
+  });
+
+  const s = d.series || {};
+  const ge = $("tel-esp-graficos"), go = $("tel-opi-graficos");
+  vaciar(ge); vaciar(go);
+  ge.appendChild(graficoTel("Corriente 1", s.esp_corriente_1, "mA"));
+  ge.appendChild(graficoTel("Corriente 2", s.esp_corriente_2, "mA"));
+  ge.appendChild(graficoTel("Temperatura", s.esp_temp_c, "°C", 1));
+  ge.appendChild(graficoTel("Memoria libre", (s.esp_heap || []).map(([t, y]) => [t, y / 1024]), "KB"));
+  go.appendChild(graficoTel("CPU", s.opi_cpu_pct, "%"));
+  go.appendChild(graficoTel("Temperatura CPU", s.opi_cpu_temp_c, "°C", 1));
+  go.appendChild(graficoTel("Memoria", s.opi_ram_pct, "%"));
+  go.appendChild(graficoTel("Latencia a la PC", s.opi_rtt_pc_ms, "ms"));
+  go.appendChild(graficoTel("Wi-Fi", s.opi_wifi_dbm, "dBm"));
+}
+
 const RENDERS = {
   inicio: () => { renderInicio(); renderAsistente(); },
   inventario: () => { tickInventario(); renderInventario(); },
   alertas: renderAlertas,
   registro: () => { tickRegistro(); renderRegistro(); },
+  telemetria: () => { tickTelemetria(); renderTelemetria(); },
   usuarios: () => { if (!usuariosCargados) cargarUsuarios(); renderUsuarios(); },
   config: renderConfig,
 };
@@ -1460,7 +1614,7 @@ function cambiarVista(nueva) {
   for (const b of document.querySelectorAll("#pestanas button")) {
     b.classList.toggle("activa", b.dataset.vista === nueva);
   }
-  for (const v of ["inicio", "inventario", "alertas", "registro", "usuarios", "config"]) {
+  for (const v of ["inicio", "inventario", "alertas", "registro", "telemetria", "usuarios", "config"]) {
     $("vista-" + v).hidden = v !== nueva;
   }
   if (nueva === "usuarios") usuariosCargados = false;

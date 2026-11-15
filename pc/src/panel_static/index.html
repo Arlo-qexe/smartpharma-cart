@@ -41,6 +41,10 @@
       <svg viewBox="0 0 24 24"><path d="M5 3h10l4 4v14H5zM15 3v4h4M8 12h8M8 16h8"/></svg>
       REGISTRO
     </button>
+    <button data-vista="telemetria">
+      <svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>
+      TELEMETRÍA
+    </button>
     <button data-vista="usuarios" id="pestana-usuarios" hidden>
       <svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 5a3.5 3.5 0 010 7M18 14c2.4.5 3.5 2.4 3.5 6"/></svg>
       USUARIOS
@@ -225,6 +229,28 @@
         <button type="submit" class="btn-chico">Cambiar mi clave</button>
       </form>
       <p id="clave-mensaje" class="aviso"></p>
+    </section>
+
+    <section id="vista-telemetria" class="vista" hidden>
+      <h2>Telemetría</h2>
+      <p class="aviso">Estado de la ESP32-S3 y de la Orange Pi, solo para observar: la Orange Pi la envía cada 5 s y la PC la guarda <strong>solo en memoria</strong> (los últimos 10 minutos); no queda en el registro de eventos y se pierde al reiniciar el servidor. Si no llega, el recorrido no se ve afectado.</p>
+      <p id="tel-estado" class="integridad">Cargando…</p>
+      <div class="tel-tarjetas">
+        <article class="tel-tarjeta">
+          <h3>ESP32-S3 <span id="tel-esp-pastilla" class="pastilla" hidden></span></h3>
+          <table class="tel-tabla" id="tel-esp-tabla"><tbody></tbody></table>
+          <div class="tel-pwm-envoltura">
+            <span class="tel-pwm-titulo">Salidas PWM (0–100 %)</span>
+            <div id="tel-pwm" class="tel-pwm"></div>
+          </div>
+          <div id="tel-esp-graficos" class="tel-graficos"></div>
+        </article>
+        <article class="tel-tarjeta">
+          <h3>Orange Pi</h3>
+          <table class="tel-tabla" id="tel-opi-tabla"><tbody></tbody></table>
+          <div id="tel-opi-graficos" class="tel-graficos"></div>
+        </article>
+      </div>
     </section>
 
     <section id="vista-config" class="vista" hidden>

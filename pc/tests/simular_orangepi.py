@@ -20,6 +20,7 @@ import re
 import socket
 import struct
 import sys
+import threading
 import time
 import zipfile
 from collections import defaultdict
@@ -27,14 +28,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mock_orangepi_client import (  # noqa: E402
-    _leer_respuesta, consultar_decision, consultar_estado_ciclo, consultar_orden_ciclo,
+    _leer_respuesta, consultar_decision, consultar_estado_ciclo, consultar_orden_ciclo, enviar_telemetria,
+    telemetria_de_ejemplo,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CARAS_POR_OBJETO, CARAS_POR_OBJETO_VALIDAS, CICLO_DETENER, CLAVE_CICLO_JSON, CLAVE_DESTINO_JSON, CLAVE_ESTADO_DECISION_JSON,
     CLAVE_ORDEN_CICLO_JSON, CLAVE_RESULTADO_JSON, ESTADO_DECISION_NINGUNA, ESTADO_DECISION_RESUELTA,
-    FRAMING_STRUCT_FORMAT, INTERVALO_CONSULTA_DECISION_S, ORDEN_CICLO_INICIAR,
+    FRAMING_STRUCT_FORMAT, INTERVALO_CONSULTA_DECISION_S, INTERVALO_ENVIO_TELEMETRIA_PC_S, ORDEN_CICLO_INICIAR,
     RESULTADO_ERROR_REVISION_MANUAL, TCP_PUERTO_DEFECTO,
 )
 
@@ -97,6 +99,19 @@ def esperar_regente(ip):
         time.sleep(INTERVALO_CONSULTA_DECISION_S)
 
 
+def telemetria_de_fondo(ip):
+    """Como la Orange Pi real: cada INTERVALO_ENVIO_TELEMETRIA_PC_S envía una telemetría (valores inventados)
+    en segundo plano; si la PC no contesta, se descarta en silencio."""
+    t = 0
+    while True:
+        try:
+            enviar_telemetria(telemetria_de_ejemplo(t), ip)
+        except OSError:
+            pass
+        t += 1
+        time.sleep(INTERVALO_ENVIO_TELEMETRIA_PC_S)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--ip", default="127.0.0.1", help="IP de la PC (por defecto, esta misma)")
@@ -108,6 +123,8 @@ def main():
                    help="cada N.ª caja envía un lote vacío (simula un fallo de captura)")
     p.add_argument("--caras", type=int, default=CARAS_POR_OBJETO, choices=CARAS_POR_OBJETO_VALIDAS,
                    help="fotos por caja (las primeras N caras); 4 simula la opción `--caras 4` de la Orange Pi")
+    p.add_argument("--sin-telemetria", action="store_true",
+                   help="no enviar la telemetría inventada de la Orange Pi y la ESP32-S3 (por defecto, cada 5 s)")
     p.add_argument("--pausa", type=float, default=2.0, help="segundos entre cajas (movimiento del carrito)")
     a = p.parse_args()
 
@@ -118,6 +135,8 @@ def main():
     if not cajas:
         sys.exit(f"No encontré fotos cajaNNN_caraK.jpg en {a.fotos}")
     print(f"Orange Pi simulada: {len(cajas)} cajas de {a.fotos.name} → PC {a.ip}", flush=True)
+    if not a.sin_telemetria:
+        threading.Thread(target=telemetria_de_fondo, args=(a.ip,), daemon=True).start()
 
     while True:
         if not a.sin_orden:

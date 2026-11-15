@@ -34,6 +34,8 @@ from protocol_constants import (  # noqa: E402
     VIGENCIA_ORDEN_CICLO_S,
 )
 
+from telemetria import HistorialTelemetria
+
 log_auditoria = logging.getLogger("auditoria")
 
 # Quién queda anotado en el registro de eventos. Los eventos automáticos (lote recibido,
@@ -119,6 +121,7 @@ class EstadoPanel:
                        "motivo_fin": None, "ts_fin": None,
                        "iniciado_por": None, "detencion_ordenada_por": None}
         self._contacto = {"ip": None, "ts": None}   # último mensaje válido de la Orange Pi
+        self.telemetria = HistorialTelemetria()     # ESP32-S3 y Orange Pi, solo en RAM (PC-24); no va al registro
         self._auditoria = None                      # registro de eventos (auditoria.py), opcional
         self._inventario = None                     # inventario de cajas (inventario.py), opcional
         self._arranque = None                       # id del evento "sistema_iniciado" de esta ejecución

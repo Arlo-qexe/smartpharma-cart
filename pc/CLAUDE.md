@@ -125,6 +125,7 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
 - `src/inventario.py` — inventario de cajas (Parte C): una fila por caja auditada. Ver abajo.
 - `src/exportar.py` — exportación a CSV del inventario y del registro (Parte E).
+- `src/telemetria.py` — historial en RAM de la telemetría de la ESP32-S3 y de la Orange Pi (PC-24). Ver abajo.
 - `src/usuarios.py` — usuarios, turnos y permisos (Parte B); `src/usuarios_cli.py` + `scripts/usuarios.sh` — consola para crear el primer administrador. Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
 - `tests/test_server.py`, `tests/test_panel.py`, `tests/test_decision.py`, `tests/test_assistant.py`, `tests/test_asistente_panel.py`, `tests/test_orden_ciclo.py`, `tests/test_detener_ciclo.py`, `tests/test_auditoria.py`, `tests/test_usuarios.py`, `tests/test_sesion_panel.py`, `tests/test_inventario.py`, `tests/test_inventario_panel.py`, `tests/test_exportar.py` — pruebas con pytest (ver el comando en `tests/test_server.py`; en máquinas con ROS usar `env -u PYTHONPATH PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`).
@@ -179,8 +180,7 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   `src/servidor_decision.py` (puerto `TCP_PUERTO_DECISION_DEFECTO`). Ver
   sección 4.5 de @../docs/arquitectura_comunicacion.md. Cliente de referencia
   de una consulta: `consultar_decision()` en `tests/mock_orangepi_client.py`.
-- **Pendiente del equipo:** que el lado Orange Pi consulte `estado_ciclo` (S-11) y los campos
-  OCR/FEFO que debe entregar el reconocimiento.
+- **Pendiente del equipo:** los campos OCR/FEFO que debe entregar el reconocimiento (la Orange Pi ya consulta `estado_ciclo`, S-11).
 - `src/ocr_interface.py` es un placeholder que clasifica **al azar** entre `TIPOS_PLACEHOLDER`
   (`TIPO_A/B/C`) hasta que el equipo de IA entregue el módulo real.
 - **Registro de eventos (Parte A del plan de inventario/usuarios; revierte D-05 solo para el log):**
@@ -234,5 +234,13 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   registro como `exportacion` (quién, cuál, cuántas filas, con qué filtros). UTF-8 con BOM y `;` como separador
   (Excel en español); las celdas que empiezan por `= + - @` se prefijan con `'` para que un dato leído por el OCR
   no se ejecute como fórmula. Decidido NO hacer respaldo de la base ni política de retención (proyecto de clase).
+- **Telemetría (PC-24, informe 4.9 y 5.6):** la Orange Pi envía cada 5 s `{"consulta": "telemetria", "orange_pi": {...},
+  "esp32": {...}|null, "esp32_edad_s": ...}` al puerto 5001; `servidor_decision.py` la valida y la guarda en
+  `EstadoPanel.telemetria` (`HistorialTelemetria`, ~10 min **solo en RAM**) y responde `{"ok": true}`, o `consulta_invalida` si
+  no cumple el formato. Cuenta como contacto de la Orange Pi. **No va al registro de eventos** (es de solo escritura y encadenado) ni
+  toca el ciclo: es de mejor esfuerzo. Los valores con otro tipo o un sensor caído (`null`) se muestran como «—», nunca como un 0.
+  Panel: pestaña TELEMETRÍA (`GET /api/telemetria`, libre, se pide solo con la pestaña abierta): tarjetas ESP32-S3 / Orange Pi,
+  barras PWM, gráficos de los últimos minutos y aviso de «datos viejos» (tres envíos sin llegar) o de lectura vieja de la
+  ESP32-S3. `bash scripts/simular_orangepi.sh` envía telemetría inventada cada 5 s (`--sin-telemetria` la omite).
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

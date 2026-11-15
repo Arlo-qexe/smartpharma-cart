@@ -244,3 +244,27 @@ dialog.login input { padding: 10px; border: 1px solid var(--tinta); border-radiu
 .marca { font-size: 12px; color: var(--suave); margin-left: 4px; }
 .paginacion { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
 dialog.login textarea { padding: 10px; border: 1px solid var(--tinta); border-radius: 6px; font: 16px system-ui, sans-serif; background: #fff; resize: vertical; }
+
+/* Telemetría (PC-24) */
+.tel-tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin-top: 12px; align-items: start; }
+.tel-tarjeta { padding: 12px 14px; background: #fff; border: 1px solid #b9c9c5; border-radius: 8px; min-width: 0; }
+.tel-tarjeta h3 { margin: 0 0 8px; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+.pastilla { font: 700 12px system-ui, sans-serif; padding: 2px 8px; border-radius: 10px; background: var(--amarillo); color: var(--tinta); }
+.tel-tabla { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tel-tabla th { text-align: left; font-weight: 600; color: var(--suave); padding: 3px 8px 3px 0; width: 42%; white-space: nowrap; }
+.tel-tabla td { padding: 3px 0; font-variant-numeric: tabular-nums; word-break: break-word; }
+.tel-tabla td.nulo { color: var(--gris); }
+.tel-tabla td.mal { color: var(--rojo); font-weight: 700; }
+.tel-pwm-envoltura { margin-top: 10px; }
+.tel-pwm-titulo { font-size: 13px; font-weight: 600; color: var(--suave); }
+.tel-pwm { display: flex; align-items: flex-end; gap: 4px; height: 56px; margin-top: 4px; }
+.tel-pwm-barra { flex: 1; height: 100%; display: flex; align-items: flex-end; background: var(--menta); border-radius: 2px; position: relative; }
+.tel-pwm-barra i { display: block; width: 100%; background: var(--teal); border-radius: 2px; min-height: 1px; }
+.tel-pwm-barra.nulo { background: repeating-linear-gradient(45deg, #fff, #fff 3px, var(--menta) 3px, var(--menta) 6px); }
+.tel-graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+.tel-grafico { border: 1px solid #d5e0dd; border-radius: 6px; padding: 6px 8px; }
+.tel-grafico-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12px; color: var(--suave); }
+.tel-grafico-cab strong { color: var(--tinta); font-size: 14px; font-variant-numeric: tabular-nums; }
+.tel-grafico svg { width: 100%; height: 44px; display: block; margin-top: 2px; }
+.tel-grafico polyline { fill: none; stroke: var(--teal); stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.tel-grafico .sin-puntos { fill: var(--gris); font-size: 11px; }

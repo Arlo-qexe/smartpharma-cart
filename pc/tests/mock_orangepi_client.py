@@ -22,6 +22,7 @@ from protocol_constants import (  # noqa: E402
     CONSULTA_DECISION_REGENTE,
     CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
+    CONSULTA_TELEMETRIA,
     FRAMING_STRUCT_FORMAT,
     TCP_PUERTO_DECISION_DEFECTO,
     TCP_PUERTO_DEFECTO,
@@ -68,6 +69,28 @@ def consultar_estado_ciclo(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
     consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_ESTADO_CICLO}).encode("utf-8")
     with socket.create_connection((ip, puerto), timeout=3) as sock:
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
+        return _leer_respuesta(sock)
+
+
+def telemetria_de_ejemplo(t=0):
+    """Una telemetría con la forma del contrato (informe 4.9 y 5.6), con valores inventados que varían con `t`."""
+    esp32 = {"t_ms": 123456 + 1000 * t, "estado": "reposo" if t % 6 < 4 else "moviendo", "alarma": False,
+             "giro_dps": [0.1, -0.2, 0.0], "corriente_ma": [120 + t % 7, 95 + t % 5],
+             "enc": [1200 + 10 * t, -300, 0, 55, 900], "pwm": [0] * 11, "uart_ok": 120 + t, "uart_err": 0,
+             "heap": 210000 - 100 * t, "temp_c": 41.5 + (t % 10) / 10}
+    orange_pi = {"t_s": 600 + 5 * t, "fase": "esperando_orden", "cpu_temp_c": 48.0 + (t % 8) / 2,
+                 "cpu_pct": 12.0 + t % 20, "ram_pct": 38.0, "disco_pct": 41.0, "wifi_dbm": -52,
+                 "rtt_pc_ms": 14, "camara": "disponible", "uart": "ok", "ciclos": t, "lotes_vacios": 0,
+                 "ultimo_ciclo_s": 21.4}
+    return {"orange_pi": orange_pi, "esp32": esp32, "esp32_edad_s": 0.8}
+
+
+def enviar_telemetria(mensaje=None, ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
+    """Imita UNA telemetría de la Orange Pi (informe 4.9): devuelve {"ok": true}, o {"error": ...} si la
+    PC no la aceptó. `mensaje` lleva `orange_pi`, `esp32` y `esp32_edad_s` (sin `consulta`)."""
+    cuerpo = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_TELEMETRIA, **(mensaje or telemetria_de_ejemplo())}).encode("utf-8")
+    with socket.create_connection((ip, puerto), timeout=3) as sock:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(cuerpo)) + cuerpo)
         return _leer_respuesta(sock)
 
 

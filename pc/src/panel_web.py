@@ -10,6 +10,7 @@ Rutas:
     GET  /                                  página (panel_static/index.html)
     GET  /static/<panel.css|panel.js>       recursos de la página
     GET  /api/estado                        JSON: lotes, alarmas, configuración
+    GET  /api/telemetria                    JSON: última telemetría de la ESP32-S3 y de la Orange Pi + series (solo RAM)
     GET  /foto/<lote_id>/<indice>           JPEG de una cara (solo desde RAM)
     POST /api/alarmas/<id>/resolver         cuerpo {"destino": "TIPO_X|DESCARTE"}: el regente
                                             resuelve la alarma y la Orange Pi recibe el destino
@@ -189,6 +190,8 @@ class _Handler(BaseHTTPRequestHandler):
             usuarios = self.server.usuarios
             datos["acceso"] = usuarios.estado_publico(self._token()) if usuarios else None
             self._json(200, datos)
+        elif ruta == "/api/telemetria":
+            self._json(200, estado.telemetria.snapshot())
         elif ruta == "/api/inventario/exportar.csv":
             self._exportar_inventario(urlsplit(self.path).query)
         elif ruta == "/api/log/exportar.csv":
