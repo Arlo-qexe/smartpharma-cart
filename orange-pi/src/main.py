@@ -9,7 +9,7 @@ Pendiente (ver shared/checklist.md): la prueba con la ESP32-S3 real (OP-16).
 
 Flujo por objeto:
   1. activar_dispensador (con límite de reintentos)
-  2. ráfaga de 5 fotos (girar_posicion / en_posicion por cada cara)
+  2. ráfaga de 5 fotos, o 4 con --caras 4 (girar_posicion / en_posicion por cada cara)
   3. envío del lote a la PC (o lote vacío si la captura falló)
   4. si falló la red: activar_alarma_local y sondear con lote vacío hasta que la
      PC responda (4.6); si respondió ERROR_REVISION_MANUAL: consultar la
@@ -28,6 +28,7 @@ from protocol_constants import (  # noqa: E402
     ACCION_CLASIFICAR,
     ACCION_GIRAR_POSICION,
     CARAS_POR_OBJETO,
+    CARAS_POR_OBJETO_VALIDAS,
     EVENTO_EN_POSICION,
     EVENTO_OBJETO_EN_POSICION,
     LIMITE_REINTENTOS_INTRODUCIR_OBJETO,
@@ -44,6 +45,7 @@ from network.decision_client import (
 )
 from network.recuperacion import recuperar_comunicacion
 from network.tcp_client import enviar_lote
+from telemetria import EstadoOrangePi, ServicioTelemetria
 from uart.esp_simulada import RETRASO_POR_DEFECTO_S, EnlaceSimulado
 from uart.uart_link import EnlaceUART
 from capture.camera import (
@@ -77,8 +79,8 @@ def introducir_objeto(enlace: EnlaceUART) -> bool:
     return False
 
 
-def capturar_lote_completo(enlace: EnlaceUART, camaras) -> list:
-    """Ejecuta la ráfaga de 5 caras. Devuelve la lista de bytes JPEG, o una
+def capturar_lote_completo(enlace: EnlaceUART, camaras, caras: int = CARAS_POR_OBJETO) -> list:
+    """Ejecuta la ráfaga de `caras` caras (5, o 4 con --caras 4: se piden las caras 1 a N). Devuelve la lista de bytes JPEG, o una
     lista vacía si el lote debe abortarse (ver sección 6.2): cualquier fallo
     durante la captura (giro sin confirmar, cámara o puerto serie) aborta el
     lote completo, para que se envíe un lote vacío a la PC y no se caiga el
@@ -89,7 +91,7 @@ def capturar_lote_completo(enlace: EnlaceUART, camaras) -> list:
     imagenes = []
     try:
         with camaras as camara:
-            for cara in range(1, CARAS_POR_OBJETO + 1):
+            for cara in range(1, caras + 1):
                 enlace.enviar({"accion": ACCION_GIRAR_POSICION, "cara": cara})
                 respuesta = enlace.recibir(timeout=5.0)
                 if (not respuesta or respuesta.get("evento") != EVENTO_EN_POSICION
@@ -118,12 +120,23 @@ def esperar_regente(enlace: EnlaceUART, descubridor: DescubridorPC) -> str:
             recuperar_comunicacion(descubridor, activar, desactivar)
 
 
-def ciclo_de_un_objeto(enlace: EnlaceUART, camaras, descubridor: DescubridorPC) -> bool:
+def ciclo_de_un_objeto(enlace: EnlaceUART, camaras, descubridor: DescubridorPC,
+                       estado: EstadoOrangePi = None, caras: int = CARAS_POR_OBJETO) -> bool:
     """Ejecuta el ciclo de un objeto. Devuelve True cuando el objeto quedó
-    clasificado y se puede autorizar el siguiente."""
+    clasificado y se puede autorizar el siguiente. `estado` solo alimenta la telemetría."""
+    estado = estado or EstadoOrangePi()
+    inicio = time.monotonic()
     # Si activar_dispensador agota los reintentos igual se envía un lote vacío a
     # la PC (informe 5.4): así abre la alarma y la decisión del regente.
-    imagenes = capturar_lote_completo(enlace, camaras) if introducir_objeto(enlace) else []
+    estado.fase = "introduciendo"
+    if introducir_objeto(enlace):
+        estado.fase = "capturando"
+        imagenes = capturar_lote_completo(enlace, camaras, caras)
+    else:
+        imagenes = []
+    if not imagenes:
+        estado.lotes_vacios += 1
+    estado.fase = "enviando"
     resultado, fallo_de_red = enviar_lote(descubridor, imagenes)  # lote vacío si imagenes == []
     destino = resultado.get("clasificacion", RESULTADO_ERROR_REVISION_MANUAL)
 
@@ -131,6 +144,7 @@ def ciclo_de_un_objeto(enlace: EnlaceUART, camaras, descubridor: DescubridorPC) 
         # F1 (4.4 y 4.6): alarma física local y sondeo con lote vacío hasta que la
         # PC responda; luego el regente decide en el panel. El ciclo no se reanuda solo.
         enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+        estado.fase = "recuperando_pc"
         recuperar_comunicacion(
             descubridor,
             lambda: enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL}),
@@ -142,9 +156,12 @@ def ciclo_de_un_objeto(enlace: EnlaceUART, camaras, descubridor: DescubridorPC) 
         # La PC ya activó su alarma (8.1 puntos 1 y 2): se espera al regente
         # consultando su decisión, sin tope (sección 4.5).
         print("[main] Revisión manual: esperando la decisión del regente...")
+        estado.fase = "esperando_regente"
         destino = esperar_regente(enlace, descubridor)
 
     enlace.enviar({"accion": ACCION_CLASIFICAR, "destino": destino})
+    estado.ciclos += 1
+    estado.ultimo_ciclo_s = round(time.monotonic() - inicio, 1)
     return True
 
 
@@ -159,6 +176,9 @@ def main(argv=None):
     ap.add_argument("--retraso-esp", type=float, default=RETRASO_POR_DEFECTO_S,
                     help="con --simular-esp: segundos que tarda cada movimiento en confirmarse "
                          "(def. %(default)s; mayor que 5 simula un fallo mecánico)")
+    ap.add_argument("--caras", type=int, choices=CARAS_POR_OBJETO_VALIDAS, default=CARAS_POR_OBJETO,
+                    help="fotos por objeto: %(choices)s (def. %(default)s). Con 4 se piden las caras "
+                         "1 a 4 y el lote lleva 4 imágenes (informe 6.1)")
     args = ap.parse_args(argv)
 
     # Puerto confirmado en hardware real (Orange Pi Zero 2W, Armbian Trixie):
@@ -178,8 +198,14 @@ def main(argv=None):
         raise
     camaras = CamaraPorLote()
     descubridor = DescubridorPC()
+    estado = EstadoOrangePi()
+    # Telemetría (informe 4.9 y 5.6): de mejor esfuerzo, en hilos de fondo; no toca el ciclo.
+    telemetria = ServicioTelemetria(enlace, descubridor, estado)
+    telemetria.iniciar()
 
     try:
+        if args.caras != CARAS_POR_OBJETO:
+            print(f"[main] Se fotografían {args.caras} caras por objeto (--caras)")
         if args.sin_orden:
             print("[main] --sin-orden: no se espera la orden de inicio de la PC")
         else:
@@ -193,13 +219,15 @@ def main(argv=None):
             # la orden de inicio, como al arrancar. Con --sin-orden no hay control de la PC.
             if not args.sin_orden and not debe_continuar(descubridor):
                 print("[main] La PC ordenó detener el ciclo: se espera una nueva orden de inicio")
+                estado.fase = "detenido"
                 esperar_orden_inicio(descubridor)
                 print("[main] Orden de inicio recibida: se reanuda el ciclo")
                 continue
-            ciclo_de_un_objeto(enlace, camaras, descubridor)
+            ciclo_de_un_objeto(enlace, camaras, descubridor, estado, args.caras)
     except KeyboardInterrupt:
         print("[main] Detenido por el usuario.")
     finally:
+        telemetria.detener()
         enlace.close()   # la cámara ya la libera CamaraPorLote al salir de cada lote
 
 

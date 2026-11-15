@@ -6,7 +6,7 @@ nueva por consulta, hasta que el regente resuelva.
 
 También contiene la espera de la orden de inicio del ciclo (sección 4.7) y la consulta
 de continuar/detener entre objetos (sección 4.8): misma conexión corta, mismo puerto y
-mismo framing.
+mismo framing; y el envío de la telemetría (sección 4.9).
 
 La espera del regente es indefinida (decisión del equipo). Lo único que sí
 tiene límite es la caída de la PC: si las consultas fallan de forma continua
@@ -28,6 +28,11 @@ from protocol_constants import (  # noqa: E402
     CLAVE_DESTINO_JSON,
     CLAVE_ORDEN_CICLO_JSON,
     CLAVE_ERROR_JSON,
+    CLAVE_OK_JSON,
+    CLAVE_TELEMETRIA_ESP_EDAD_S_JSON,
+    CLAVE_TELEMETRIA_ESP_JSON,
+    CLAVE_TELEMETRIA_OPI_JSON,
+    CONSULTA_TELEMETRIA,
     CLAVE_ESTADO_DECISION_JSON,
     CONSULTA_DECISION_REGENTE,
     CONSULTA_ESTADO_CICLO,
@@ -65,10 +70,11 @@ def _recv_exacto(sock, n):
     return datos
 
 
-def _consultar(ip: str, tipo_consulta: str, puerto: int) -> dict:
+def _consultar(ip: str, tipo_consulta: str, puerto: int, extra: dict = None) -> dict:
     """UNA consulta: conexión nueva, consulta con framing, lee la respuesta y
-    cierra. Lanza OSError si la conexión o la lectura fallan."""
-    consulta = json.dumps({CLAVE_CONSULTA_JSON: tipo_consulta}).encode("utf-8")
+    cierra. `extra` agrega campos al mensaje (solo la telemetría los lleva).
+    Lanza OSError si la conexión o la lectura fallan."""
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: tipo_consulta, **(extra or {})}).encode("utf-8")
     with socket.create_connection((ip, puerto), timeout=TIMEOUT_CONEXION_TCP_S) as sock:
         sock.settimeout(TIMEOUT_RESPUESTA_RECONOCIMIENTO_S)
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
@@ -89,6 +95,20 @@ def consultar_orden_ciclo(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) ->
 def consultar_estado_ciclo(ip: str, puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> dict:
     """UNA consulta de continuar/detener el ciclo, antes de cada objeto (sección 4.8)."""
     return _consultar(ip, CONSULTA_ESTADO_CICLO, puerto)
+
+
+def enviar_telemetria(ip: str, orange_pi: dict, esp32, esp32_edad_s,
+                      puerto: int = TCP_PUERTO_DECISION_DEFECTO) -> bool:
+    """UN envío de la telemetría a la PC (informe 4.9). Devuelve True si la PC respondió
+    `{"ok": true}`. Mejor esfuerzo: la respuesta `consulta_invalida` (p. ej. una PC que aún
+    no atiende la telemetría) devuelve False; si la conexión falla lanza OSError y el
+    llamador lo descarta en silencio."""
+    respuesta = _consultar(ip, CONSULTA_TELEMETRIA, puerto, {
+        CLAVE_TELEMETRIA_OPI_JSON: orange_pi,
+        CLAVE_TELEMETRIA_ESP_JSON: esp32,
+        CLAVE_TELEMETRIA_ESP_EDAD_S_JSON: esp32_edad_s,
+    })
+    return respuesta.get(CLAVE_OK_JSON) is True
 
 
 def debe_continuar(descubridor, consultar=consultar_estado_ciclo) -> bool:

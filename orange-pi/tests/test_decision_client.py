@@ -379,7 +379,7 @@ class CicloMain(unittest.TestCase):
                       main.enviar_lote, main.esperar_decision)
         enviados_a_pc = []
         main.introducir_objeto = lambda e: enlace.confirmar
-        main.capturar_lote_completo = lambda e, c: imagenes or [b"j"] * 5
+        main.capturar_lote_completo = lambda e, c, caras=5: imagenes or [b"j"] * 5
 
         def fake_enviar(d, imgs):
             enviados_a_pc.append(len(imgs))
@@ -624,27 +624,40 @@ class CamaraPorLoteTests(unittest.TestCase):
 
 
 class EnlaceUARTBuffer(unittest.TestCase):
-    def test_enviar_descarta_el_buffer_de_entrada_antes_de_escribir(self):
+    def test_enviar_descarta_los_eventos_sin_leer_antes_de_escribir(self):
         from uart.uart_link import EnlaceUART
-        llamadas = []
+        escrito = []
 
         class SerieFalso:
-            def reset_input_buffer(self):
-                llamadas.append("limpiar")
+            timeout = 0.2
+
+            def readline(self):
+                import time
+                time.sleep(0.05)
+                return b""
 
             def write(self, datos):
-                llamadas.append("escribir")
-        enlace = object.__new__(EnlaceUART)
-        enlace._ser = SerieFalso()
-        enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
-        self.assertEqual(llamadas, ["limpiar", "escribir"])
+                escrito.append(datos)
+
+            def close(self):
+                pass
+        with mock.patch("uart.uart_link.serial") as serial:
+            serial.Serial.return_value = SerieFalso()
+            enlace = EnlaceUART("/dev/null")
+        try:
+            enlace._eventos.append({"evento": "tardio"})
+            enlace.enviar({"accion": ACCION_ACTIVAR_ALARMA_LOCAL})
+            self.assertIsNone(enlace.recibir(timeout=0.05))   # el evento tardío ya no está
+            self.assertEqual(len(escrito), 1)
+        finally:
+            enlace.close()
 
 
 class MainCompleto(unittest.TestCase):
     def correr_main(self, argv, ciclos_hasta_ctrl_c=3, espera=None, continuar=None):
         enlace, eventos = mock.Mock(), []
 
-        def ciclo(e, camaras, d):
+        def ciclo(e, camaras, d, estado=None, caras=5):
             eventos.append("ciclo")
             if eventos.count("ciclo") == ciclos_hasta_ctrl_c:
                 raise KeyboardInterrupt

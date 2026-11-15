@@ -50,6 +50,8 @@ from protocol_constants import (  # noqa: E402
     CONSULTA_DECISION_REGENTE,
     CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
+    CONSULTA_TELEMETRIA,
+    CLAVE_OK_JSON,
     ERROR_CONSULTA_INVALIDA,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
@@ -127,6 +129,9 @@ class DecisionEnEspera:
                     CLAVE_DESTINO_JSON: self.destino}
 
 
+TELEMETRIAS_RECIBIDAS = []   # mensajes `telemetria` recibidos (para las pruebas)
+
+
 def _recv_exacto(sock, n):
     datos = b""
     while len(datos) < n:
@@ -193,6 +198,9 @@ def _manejar_consulta(conn, addr, decision, orden):
         elif tipo == CONSULTA_ESTADO_CICLO:
             respuesta = orden.consultar_estado()
             print(f"[mock_pc] Consulta de estado del ciclo de {addr}: {respuesta}")
+        elif tipo == CONSULTA_TELEMETRIA:
+            TELEMETRIAS_RECIBIDAS.append(consulta)   # solo para las pruebas; la PC real la muestra en su panel
+            respuesta = {CLAVE_OK_JSON: True}
         elif tipo == CONSULTA_DECISION_REGENTE:
             respuesta = decision.consultar()
             print(f"[mock_pc] Consulta de decisión de {addr}: {respuesta}")

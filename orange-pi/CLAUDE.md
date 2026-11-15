@@ -42,6 +42,8 @@ source .venv/bin/activate      # en cada terminal nueva
 bash scripts/start_Opi.sh              # verifica UART, cámara y red; espera "Iniciar recorrido" de la PC
 bash scripts/start_Opi.sh --verificar  # solo comprueba y sale (no lanza main.py)
 bash scripts/start_Opi.sh --sin-orden  # sin orden de inicio ni control de continuar/detener de la PC (pruebas sueltas, fuera del contrato)
+bash scripts/start_Opi.sh --caras 4    # 4 fotos por objeto en vez de 5 (informe 6.1; por defecto 5)
+bash scripts/telemetria.sh             # en OTRA terminal: telemetría de la Orange Pi y la última de la ESP32-S3 (local, sin PC)
 bash scripts/start_Opi.sh --simular-esp  # sin la ESP32-S3: la simula (cámara y PC reales); --retraso-esp SEG (def. 2.5; >5 simula un fallo)
 ```
 
@@ -74,7 +76,8 @@ espera sin límite si aún no aparece.
 - `src/network/tcp_client.py` — envío de lotes por TCP con reintentos.
 - `src/network/decision_client.py` — consulta de la decisión del regente (puerto 5001, cada 2 s, espera sin tope).
 - `src/network/recuperacion.py` — tras un fallo de comunicación con la PC: sondeo con lote vacío cada 10 s hasta que responda (sección 4.6).
-- `src/uart/uart_link.py` — enlace serie con la ESP32-S3 (framing, checksum).
+- `src/uart/uart_link.py` — enlace serie con la ESP32-S3 (framing, checksum). Un hilo lector despacha por nombre de evento: la telemetría va a su almacén (`uart/telemetria_esp.py`) y el resto a la cola de `recibir()`.
+- `src/telemetria.py` — telemetría (informe 4.9 y 5.6), de mejor esfuerzo y en hilos de fondo: pide la de la ESP32-S3 cada 2 s, envía la propia a la PC cada 5 s y deja una instantánea en RAM (`/dev/shm`) para `src/monitor_telemetria.py` (`scripts/telemetria.sh`, fuera del contrato).
 - `src/uart/esp_simulada.py` — ESP32-S3 simulada para probar el ciclo sin el hardware (`--simular-esp`; no es contrato).
 - `src/capture/camera.py` — control de cámara, ráfaga de 5 fotos, compresión JPEG en memoria.
 - `scripts/start_Opi.sh` — arranque en un comando (venv, verificación de UART/cámara/PC y `main.py`).
@@ -207,6 +210,7 @@ no se toca para nada de lo siguiente).
 - La cámara usa **AUTOENFOQUE** (decisión D-12, también para capturar el conjunto de datos de
   entrenamiento): no fijes el enfoque a mano. Tras cada giro se espera
   `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` descartando frames antes de capturar.
+- La telemetría nunca puede frenar el ciclo ni activar alarma: si la ESP32-S3 o la PC no responden, se anota (`sin_respuesta`) o se descarta en silencio; no invalida la caché mDNS.
 - Un socket TCP nuevo por lote, no uno persistente (ver arquitectura, sección 4.1).
 - Si la captura falla antes de completarse, igual se envía el framing con
   cantidad de imágenes = 0 — no inventes un mensaje nuevo para reportar el fallo.
