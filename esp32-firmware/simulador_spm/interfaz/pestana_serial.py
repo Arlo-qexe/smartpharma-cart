@@ -80,7 +80,19 @@ class PestanaSerial:
         self.bloquear = tk.BooleanVar(value=True); self.espejo = tk.BooleanVar(value=True)
         for v, t in ((self.bloquear, "bloquear comandos fuera de límites (CAD)"), (self.espejo, "espejo en vivo: telemetría → modelo CAD")):
             tk.Checkbutton(izq, text=t, variable=v, bg=PANEL, fg=TEXT, selectcolor=tema.BTN_BG, activebackground=PANEL, font=tema.FUENTE).pack(anchor="w", padx=10)
-        tema.boton(izq, "Aplicar pulsos/vuelta", self._aplicar_ppr).pack(fill="x", padx=10, pady=(6, 8))
+        tema.boton(izq, "Aplicar pulsos/vuelta", self._aplicar_ppr).pack(fill="x", padx=10, pady=(6, 4))
+
+        tema.etiqueta(izq, "SMARTPHARMA (tablas del firmware, paso a paso)", MUTED).pack(anchor="w", padx=10, pady=(6, 2))
+        r = tk.Frame(izq, bg=PANEL); r.pack(fill="x", padx=10)
+        for k in range(1, 5):
+            tema.boton(r, "Cara %d" % k, lambda k=k: self._json({"cmd": "cam", "cara": k}), tema.BTN_HOV).pack(side="left", padx=2)
+        tema.boton(r, "Home", lambda: self._json({"cmd": "home"})).pack(side="left", padx=2)
+        r = tk.Frame(izq, bg=PANEL); r.pack(fill="x", padx=10, pady=(3, 0))
+        self.cb_dest = ttk.Combobox(r, values=["TIPO_A", "TIPO_B", "TIPO_C", "DESCARTE"], state="readonly", width=10, font=tema.FUENTE); self.cb_dest.set("TIPO_A"); self.cb_dest.pack(side="left")
+        tema.boton(r, "Clasificar", lambda: self._json({"cmd": "clas", "destino": self.cb_dest.get()}), tema.BTN_PLAY).pack(side="left", padx=4)
+        self.cb_desc = ttk.Combobox(r, values=["DESCARTE_1 (= TIPO_A)", "DESCARTE_2 (espera y home)"], state="readonly", width=22, font=tema.FUENTE); self.cb_desc.set("DESCARTE_1 (= TIPO_A)"); self.cb_desc.pack(side="left")
+        tema.boton(r, "Fijar", lambda: self._json({"cfg": "descarte", "val": 2 if self.cb_desc.get().startswith("DESCARTE_2") else 1})).pack(side="left", padx=2)
+        tema.etiqueta(izq, "Cada orden mueve motores REALES si hay una placa conectada: con la mano en la fuente.", MUTED).pack(anchor="w", padx=10, pady=(2, 6))
 
         der = tk.Frame(cuerpo, bg=tema.BG); der.pack(side="left", fill="both", expand=True, padx=(6, 0))
         self.fig = Figure(figsize=(8, 4.6), facecolor=tema.BG)

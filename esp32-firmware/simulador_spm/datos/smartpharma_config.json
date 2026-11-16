@@ -1,0 +1,39 @@
+{
+ "_nota": "Configuracion editable de las trayectorias SmartPharma. Valores iniciales; calibrar con hardware real. Lo marcado 'por confirmar' lo debe confirmar Arlo.",
+ "entorno": {
+  "_nota": "Azimuts MEDIDOS en el CAD (DisenoGeneral_SPMv2/entorno_plato.json), marco del simulador (0 = +X, positivo antihorario visto desde arriba), con la base girada -56.36 grados al integrar (por confirmar).",
+  "offset_azimut_base_deg": 0.0,
+  "azimut_salida_deg": -12.71,
+  "azimut_camara_deg": 70.27,
+  "slots": {"slot_1": 115.61, "slot_2": -178.64, "slot_3": -94.51}
+ },
+ "tipos": {
+  "_nota": "TIPO_A es el slot mas a la izquierda viendo desde el dispensador hacia el plato; el orden se calcula (no se escribe a mano).",
+  "izquierda_a_derecha": ["TIPO_A", "TIPO_B", "TIPO_C"]
+ },
+ "tiempos": {
+  "t_mov_s": 2.5,
+  "t_estab_s": 0.5,
+  "t_mantener_volcado_s": 1.0,
+  "espera_descarte2_s": 60.0
+ },
+ "camara": {
+  "n_caras": 4,
+  "inclinacion_deg": 0.0,
+  "torsion_offset_caja_deg": 0.0
+ },
+ "clasificacion": {
+  "inclinacion_volcado_deg": 28.0,
+  "inclinacion_aproximacion_deg": 8.0,
+  "torsion_volcado_deg": "auto",
+  "reparto_giro_aproximacion": 0.5
+ },
+ "descarte": {"variante_por_defecto": 1},
+ "limites": {
+  "vel_motor_max_dps": 150.0,
+  "holgura_min_mm": 1.5,
+  "max_giro_por_tramo_deg": 150.0
+ },
+ "perfil": "quintico",
+ "ppr": 4532
+}

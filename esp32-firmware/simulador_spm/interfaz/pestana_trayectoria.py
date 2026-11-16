@@ -9,6 +9,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 from spm import (desde_inclinacion, FueraDeEspacioDeTrabajo, CaminoSlerp, planificar, planificar_con_paradas, planificar_articular,
                  planificar_jacobiano, a_csv, desde_csv, expandir_esperas, programa_caja, programa_caja_reducida, programa_oscilacion_motores)
+from spm import smartpharma as sp
 from . import tema
 from .tema import PANEL, TEXT, MUTED, ACCENT, C_M
 from .vista_cad import crear_vista
@@ -26,6 +27,15 @@ CAJAS_REDUCIDAS = {          # nombre: (separación entre caras [°], inclinaci�
     "Caja reducida 3: caras cada 15°, volcado 8°": (15.0, 8.0),
     "Caja reducida 4: caras cada 30°, volcado 10°": (30.0, 10.0),
 }
+# Programas SmartPharma (generados por spm.smartpharma desde datos/smartpharma_config.json; ver README, sección «Trayectorias SmartPharma»)
+SP = "SmartPharma · "
+SMARTPHARMA = {
+    SP + "Cámara: cara 1 (home→1)": ("CAM_1",), SP + "Cámara: cara 2 (1→2)": ("CAM_2",), SP + "Cámara: cara 3 (2→3)": ("CAM_3",), SP + "Cámara: cara 4 (3→4)": ("CAM_4",),
+    SP + "Cámara: 4 caras paso a paso (botón «Siguiente paso»)": ("CAM_1", "CAM_2", "CAM_3", "CAM_4"),
+    SP + "Clasificar TIPO_A (desde la cara 4)": ("TIPO_A",), SP + "Clasificar TIPO_B (desde la cara 4)": ("TIPO_B",), SP + "Clasificar TIPO_C (desde la cara 4)": ("TIPO_C",),
+    SP + "DESCARTE_1 (= TIPO_A)": ("DESCARTE_1",), SP + "DESCARTE_2 (espera y home)": ("DESCARTE_2",),
+    SP + "Ciclo completo: 4 caras + TIPO_A": ("CICLO", "TIPO_A"), SP + "Ciclo completo: 4 caras + TIPO_B": ("CICLO", "TIPO_B"), SP + "Ciclo completo: 4 caras + TIPO_C": ("CICLO", "TIPO_C"),
+}
 PRESETS = {
     "Precesión 12° (1 vuelta)": [[0, 0, 0, 1.0]] + [[12, a, 0, 1.2 if a == 0 else 0.9] for a in range(0, 361, 45)] + [[0, 0, 0, 1.2]],
     "Torsión ±20°": [[0, 0, 0, 1.0], [0, 0, 20, 1.5], [0, 0, -20, 3.0], [0, 0, 0, 1.5]],
@@ -42,6 +52,7 @@ class PestanaTrayectoria:
         self.app = app
         self.frame = tk.Frame(parent, bg=tema.BG)
         self.wps = [self._pad(w) for w in PRESETS["Precesión 12° (1 vuelta)"]]
+        self.thetas_prog = None; self.paso = 0                       # thetas_prog: ángulos de NNR del programa SmartPharma cargado (None = programa editado a mano)
         self.tray = None; self._anim = False; self._t_anim = 0.0; self._t0 = 0.0; self._cursores = []
 
         arriba = tk.Frame(self.frame, bg=tema.BG); arriba.pack(fill="both", expand=True, padx=8, pady=(8, 4))
@@ -73,7 +84,7 @@ class PestanaTrayectoria:
             tema.boton(fb, t, c).pack(side="left", padx=2)
         fp = tk.Frame(ed, bg=PANEL); fp.pack(anchor="w", pady=(6, 0))
         tema.etiqueta(fp, "Ejemplo:", MUTED).pack(side="left")
-        self.cb_preset = ttk.Combobox(fp, values=list(PRESETS) + [CAJA] + list(CAJAS_REDUCIDAS) + list(OSCILACIONES), state="readonly", width=48, font=tema.FUENTE); self.cb_preset.set(list(PRESETS)[0]); self.cb_preset.pack(side="left", padx=4)
+        self.cb_preset = ttk.Combobox(fp, values=list(PRESETS) + [CAJA] + list(CAJAS_REDUCIDAS) + list(OSCILACIONES) + list(SMARTPHARMA), state="readonly", width=48, font=tema.FUENTE); self.cb_preset.set(list(PRESETS)[0]); self.cb_preset.pack(side="left", padx=4)
         tema.boton(fp, "Cargar", self._cargar_preset).pack(side="left")
 
         op = tk.Frame(bajo, bg=PANEL); op.pack(side="left", padx=14, pady=6)
@@ -100,6 +111,9 @@ class PestanaTrayectoria:
         tema.boton(r2, "Importar CSV", self.importar).pack(side="left", padx=2)
         tema.boton(r2, "Exportar CSV", self.exportar).pack(side="left", padx=2)
         tema.boton(r2, "Transmitir al robot →", self.transmitir, tema.BTN_PLAY).pack(side="left", padx=2)
+        r2b = tk.Frame(ac, bg=PANEL); r2b.pack(anchor="w")
+        tema.boton(r2b, "Siguiente paso ▶ (transmitir)", self.siguiente_paso, tema.BTN_PLAY).pack(side="left", padx=2)
+        tema.boton(r2b, "Paso 1", self.reiniciar_pasos).pack(side="left", padx=2)
         r3 = tk.Frame(ac, bg=PANEL); r3.pack(anchor="w")
         f, self.vel_anim = tema.campo(r3, "velocidad anim ×", 1.0, 4); f.pack(side="left")
         self.info = tk.Label(ac, text="Sin planificar. Elige puntos de paso y pulsa Planificar.", bg=PANEL, fg=MUTED, font=tema.FUENTE, justify="left", anchor="w", wraplength=430)
@@ -147,27 +161,49 @@ class PestanaTrayectoria:
 
     def _añadir(self):
         w = self._leer()
-        if w: self.wps.append(w); self._llenar_tabla()
+        if w: self.wps.append(w); self.thetas_prog = None; self._llenar_tabla()
 
     def _actualizar(self):
         i = self._sel(); w = self._leer()
-        if i is not None and w: self.wps[i] = w; self._llenar_tabla(); self.tv.selection_set(str(i))
+        if i is not None and w: self.wps[i] = w; self.thetas_prog = None; self._llenar_tabla(); self.tv.selection_set(str(i))
 
     def _quitar(self):
         i = self._sel()
-        if i is not None and len(self.wps) > 2: self.wps.pop(i); self._llenar_tabla()
+        if i is not None and len(self.wps) > 2: self.wps.pop(i); self.thetas_prog = None; self._llenar_tabla()
 
     def _mover(self, d):
         i = self._sel()
         if i is None or not 0 <= i + d < len(self.wps): return
-        self.wps[i], self.wps[i + d] = self.wps[i + d], self.wps[i]; self._llenar_tabla(); self.tv.selection_set(str(i + d))
+        self.wps[i], self.wps[i + d] = self.wps[i + d], self.wps[i]; self.thetas_prog = None; self._llenar_tabla(); self.tv.selection_set(str(i + d))
 
     def _limpiar(self):
-        self.wps = [[0, 0, 0, 1.0, 0.0], [0, 0, 0, 1.0, 0.0]]; self._llenar_tabla()
+        self.wps = [[0, 0, 0, 1.0, 0.0], [0, 0, 0, 1.0, 0.0]]; self.thetas_prog = None; self._llenar_tabla()
+
+    def _generador_sp(self):
+        return sp.generador_compartido(self.app.spm, self.app.trans, self.app.lim)
+
+    def _cargar_smartpharma(self, nombre):
+        clave = SMARTPHARMA[nombre]; gen = self._generador_sp()
+        if clave[0] == "CAM_1" and len(clave) > 1:                   # las 4 caras, un paso por orden
+            plan = sp.Plan("CAMARA", "Cámara 4 caras", "home", [gen.planes[c].tramos[0] for c in clave])
+        elif clave[0] == "CICLO":
+            plan = gen.ciclo_completo(clave[1])
+        elif clave[0].startswith("CAM_"):
+            plan = gen.planes[clave[0]]
+        else:
+            plan = gen.tipo_destino(clave[0])
+        filas, exp = sp.programa_interfaz(gen, plan)
+        self.wps = [self._pad(w) for w in filas]; self.thetas_prog = exp; self.paso = 0
+        self.modo.set("art"); self.paradas.set(True)
+        self.info.config(text="%s: %s · %.1f s en total (%d puntos de paso; T = movimiento, espera = estabilización/mantener). Modo articular = lo que ejecuta el firmware. "
+                              "«Siguiente paso» transmite un punto de paso por clic (la cámara va así: una orden de la Orange Pi por cara)." % (nombre, plan.descripcion, plan.duracion, len(filas)), fg=tema.OK)
 
     def _cargar_preset(self):
         nombre = self.cb_preset.get()
-        if nombre == CAJA:
+        self.thetas_prog = None; self.paso = 0
+        if nombre in SMARTPHARMA:
+            self._cargar_smartpharma(nombre)
+        elif nombre == CAJA:
             filas, tmax = programa_caja(self.app.spm, self.app.lim)
             self.wps = [self._pad(w) for w in filas]
             self.modo.set("slerp"); self.paradas.set(True)
@@ -200,6 +236,7 @@ class PestanaTrayectoria:
             Rs, Ts = expandir_esperas(Rs, esperas, Ts)                       # cada espera es un tramo de duración 'espera' entre dos copias del punto
         elif any(e > 0 for e in esperas):
             self.info.config(text="Las esperas solo se aplican con «parar en cada punto» o en modo articular.", fg=tema.WARN)
+        thetas = self.thetas_prog if (self.thetas_prog is not None and modo == "art" and len(self.thetas_prog) == len(Rs)) else None
         try:
             K = float(self.k_gain.get())
         except ValueError:
@@ -213,7 +250,7 @@ class PestanaTrayectoria:
                 else:
                     tr = planificar(app.spm, app.trans, app.lim, CaminoSlerp(Rs), sum(Ts), 0.02, perfil, ajustar_tiempo=ajustar)
             elif modo == "art":
-                tr = planificar_articular(app.spm, app.trans, app.lim, Rs, Ts, 0.02, perfil, ajustar_tiempo=ajustar)
+                tr = planificar_articular(app.spm, app.trans, app.lim, Rs, Ts, 0.02, perfil, ajustar_tiempo=ajustar, thetas=thetas)
             else:
                 tr = planificar_jacobiano(app.spm, app.trans, app.lim, CaminoSlerp(Rs), sum(Ts), 0.02, perfil, K)
         except FueraDeEspacioDeTrabajo as ex:
@@ -340,6 +377,27 @@ class PestanaTrayectoria:
         f = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV", "*.csv")], initialfile="trayectoria_spm.csv")
         if f:
             a_csv(self.tray, f); self.info.config(text="Exportado: %s" % f, fg=tema.OK)
+
+    def _cortes(self):
+        """Tiempos (s) en que termina cada punto de paso (incluida su espera): límites de los pasos de «Siguiente paso»."""
+        c = [max(0.0, self.wps[0][4])]
+        for w in self.wps[1:]:
+            c.append(c[-1] + max(0.2, w[3]) + max(0.0, w[4]))
+        return c
+
+    def siguiente_paso(self):
+        """Transmite al robot SOLO el siguiente tramo (de un punto de paso al siguiente): la cámara avanza una cara por orden, como la Orange Pi."""
+        if self.tray is None and self.planificar() is None: return
+        c = self._cortes()
+        if self.paso >= len(c) - 1:
+            self.info.config(text="Ya se enviaron todos los pasos. Pulsa «Paso 1» para empezar de nuevo.", fg=tema.WARN); return
+        sub = sp.recortar(self.tray, c[self.paso], c[self.paso + 1])
+        self.paso += 1
+        self.info.config(text="Paso %d/%d (%.2f s): punto de paso %d → %d" % (self.paso, len(c) - 1, sub.duracion, self.paso, self.paso + 1), fg=tema.OK)
+        self.app.pestanas["serial"].transmitir(sub)
+
+    def reiniciar_pasos(self):
+        self.paso = 0; self.info.config(text="Pasos reiniciados: el siguiente envío es el primero.", fg=tema.MUTED)
 
     def transmitir(self):
         if self.tray is None and self.planificar() is None: return

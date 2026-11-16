@@ -1,0 +1,9 @@
+{
+ "_nota": "Cache de la torsi\u00f3n de volcado elegida en modo auto (se invalida sola si cambia la configuraci\u00f3n). Generada por el generador.",
+ "huella": "680a8a14238b",
+ "torsion": {
+  "TIPO_A": 20.0,
+  "TIPO_B": -50.0,
+  "TIPO_C": -10.0
+ }
+}

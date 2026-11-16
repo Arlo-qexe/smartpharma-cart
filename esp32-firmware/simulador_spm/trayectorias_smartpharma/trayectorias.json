@@ -1,0 +1,3608 @@
+{
+ "configuracion": {
+  "_nota": "Configuracion editable de las trayectorias SmartPharma. Valores iniciales; calibrar con hardware real. Lo marcado 'por confirmar' lo debe confirmar Arlo.",
+  "entorno": {
+   "_nota": "Azimuts MEDIDOS en el CAD (DisenoGeneral_SPMv2/entorno_plato.json), marco del simulador (0 = +X, positivo antihorario visto desde arriba), con la base girada -56.36 grados al integrar (por confirmar).",
+   "offset_azimut_base_deg": 0.0,
+   "azimut_salida_deg": -12.71,
+   "azimut_camara_deg": 70.27,
+   "slots": {
+    "slot_1": 115.61,
+    "slot_2": -178.64,
+    "slot_3": -94.51
+   }
+  },
+  "tipos": {
+   "_nota": "TIPO_A es el slot mas a la izquierda viendo desde el dispensador hacia el plato; el orden se calcula (no se escribe a mano).",
+   "izquierda_a_derecha": [
+    "TIPO_A",
+    "TIPO_B",
+    "TIPO_C"
+   ]
+  },
+  "tiempos": {
+   "t_mov_s": 2.5,
+   "t_estab_s": 0.5,
+   "t_mantener_volcado_s": 1.0,
+   "espera_descarte2_s": 60.0
+  },
+  "camara": {
+   "n_caras": 4,
+   "inclinacion_deg": 0.0,
+   "torsion_offset_caja_deg": 0.0
+  },
+  "clasificacion": {
+   "inclinacion_volcado_deg": 28.0,
+   "inclinacion_aproximacion_deg": 8.0,
+   "torsion_volcado_deg": "auto",
+   "reparto_giro_aproximacion": 0.5
+  },
+  "descarte": {
+   "variante_por_defecto": 1
+  },
+  "limites": {
+   "vel_motor_max_dps": 150.0,
+   "holgura_min_mm": 1.5,
+   "max_giro_por_tramo_deg": 150.0
+  },
+  "perfil": "quintico",
+  "ppr": 4532
+ },
+ "huella_config": "707f809a9797",
+ "slots_izquierda_a_derecha": [
+  {
+   "slot": "slot_3",
+   "az_deg": -94.51,
+   "ang_vista_deg": 98.2,
+   "tipo": "TIPO_A"
+  },
+  {
+   "slot": "slot_2",
+   "az_deg": -178.64,
+   "ang_vista_deg": 14.07,
+   "tipo": "TIPO_B"
+  },
+  {
+   "slot": "slot_1",
+   "az_deg": 115.61,
+   "ang_vista_deg": -51.68,
+   "tipo": "TIPO_C"
+  }
+ ],
+ "torsion_volcado_deg": {
+  "TIPO_A": 20.0,
+  "TIPO_B": -50.0,
+  "TIPO_C": -10.0
+ },
+ "poses": {
+  "home": {
+   "incl_deg": 0.0,
+   "az_deg": 0.0,
+   "torsion_deg": 0.0,
+   "motor_deg": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "motor_pulsos": [
+    0,
+    0,
+    0
+   ],
+   "holgura_mm": 23.44,
+   "sigma_min": 0.785,
+   "B_min": 0.746,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "cara1": {
+   "incl_deg": 0.0,
+   "az_deg": 0.0,
+   "torsion_deg": -7.02,
+   "motor_deg": [
+    15.279,
+    15.279,
+    -15.279
+   ],
+   "motor_pulsos": [
+    192,
+    192,
+    -192
+   ],
+   "holgura_mm": 23.42,
+   "sigma_min": 0.785,
+   "B_min": 0.746,
+   "normal_caja_hacia_camara_deg": 77.29
+  },
+  "cara2": {
+   "incl_deg": 0.0,
+   "az_deg": 0.0,
+   "torsion_deg": -97.02,
+   "motor_deg": [
+    211.161,
+    211.161,
+    -211.161
+   ],
+   "motor_pulsos": [
+    2658,
+    2658,
+    -2658
+   ],
+   "holgura_mm": 22.42,
+   "sigma_min": 0.785,
+   "B_min": 0.746,
+   "normal_caja_hacia_camara_deg": 167.29
+  },
+  "cara3": {
+   "incl_deg": 0.0,
+   "az_deg": 0.0,
+   "torsion_deg": -187.02,
+   "motor_deg": [
+    407.044,
+    407.044,
+    -407.044
+   ],
+   "motor_pulsos": [
+    5124,
+    5124,
+    -5124
+   ],
+   "holgura_mm": 22.29,
+   "sigma_min": 0.785,
+   "B_min": 0.746,
+   "normal_caja_hacia_camara_deg": -102.71
+  },
+  "cara4": {
+   "incl_deg": 0.0,
+   "az_deg": 0.0,
+   "torsion_deg": -277.02,
+   "motor_deg": [
+    602.926,
+    602.926,
+    -602.926
+   ],
+   "motor_pulsos": [
+    7590,
+    7590,
+    -7590
+   ],
+   "holgura_mm": 22.33,
+   "sigma_min": 0.785,
+   "B_min": 0.746,
+   "normal_caja_hacia_camara_deg": -12.71
+  },
+  "aprox_TIPO_A": {
+   "incl_deg": 8.0,
+   "az_deg": -94.51,
+   "torsion_deg": -128.51,
+   "motor_deg": [
+    293.007,
+    279.548,
+    -265.738
+   ],
+   "motor_pulsos": [
+    3689,
+    3519,
+    -3345
+   ],
+   "holgura_mm": 18.05,
+   "sigma_min": 0.722,
+   "B_min": 0.718,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "volcado_TIPO_A": {
+   "incl_deg": 28.0,
+   "az_deg": -94.51,
+   "torsion_deg": 20.0,
+   "motor_deg": [
+    -64.057,
+    -78.71,
+    -9.129
+   ],
+   "motor_pulsos": [
+    -806,
+    -991,
+    -115
+   ],
+   "holgura_mm": 9.75,
+   "sigma_min": 0.604,
+   "B_min": 0.664,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "aprox_TIPO_B": {
+   "incl_deg": 8.0,
+   "az_deg": -178.64,
+   "torsion_deg": -163.51,
+   "motor_deg": [
+    369.283,
+    344.681,
+    -352.866
+   ],
+   "motor_pulsos": [
+    4649,
+    4339,
+    -4442
+   ],
+   "holgura_mm": 18.4,
+   "sigma_min": 0.726,
+   "B_min": 0.722,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "volcado_TIPO_B": {
+   "incl_deg": 28.0,
+   "az_deg": -178.64,
+   "torsion_deg": -50.0,
+   "motor_deg": [
+    76.156,
+    89.579,
+    -155.996
+   ],
+   "motor_pulsos": [
+    959,
+    1128,
+    -1964
+   ],
+   "holgura_mm": 9.75,
+   "sigma_min": 0.61,
+   "B_min": 0.617,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "aprox_TIPO_C": {
+   "incl_deg": 8.0,
+   "az_deg": 115.61,
+   "torsion_deg": -143.51,
+   "motor_deg": [
+    308.62,
+    300.942,
+    -326.813
+   ],
+   "motor_pulsos": [
+    3885,
+    3789,
+    -4114
+   ],
+   "holgura_mm": 18.85,
+   "sigma_min": 0.726,
+   "B_min": 0.725,
+   "normal_caja_hacia_camara_deg": null
+  },
+  "volcado_TIPO_C": {
+   "incl_deg": 28.0,
+   "az_deg": 115.61,
+   "torsion_deg": -10.0,
+   "motor_deg": [
+    -13.547,
+    74.341,
+    -1.678
+   ],
+   "motor_pulsos": [
+    -171,
+    936,
+    -21
+   ],
+   "holgura_mm": 9.92,
+   "sigma_min": 0.597,
+   "B_min": 0.664,
+   "normal_caja_hacia_camara_deg": null
+  }
+ },
+ "planes": {
+  "CAM_1": {
+   "descripcion": "Cámara: cara 1 (home -> cara1)",
+   "inicio": "home",
+   "duracion_s": 3.0,
+   "tramos": [
+    {
+     "nombre": "home->cara1",
+     "desde": "home",
+     "hasta": "cara1",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q1_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q0_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "q1_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "holgura_min_mm": 23.19,
+     "vel_pico_dps": 11.5,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CAM_2": {
+   "descripcion": "Cámara: cara 2 (cara1 -> cara2)",
+   "inicio": "cara1",
+   "duracion_s": 3.0,
+   "tramos": [
+    {
+     "nombre": "cara1->cara2",
+     "desde": "cara1",
+     "hasta": "cara2",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "holgura_min_mm": 22.42,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CAM_3": {
+   "descripcion": "Cámara: cara 3 (cara2 -> cara3)",
+   "inicio": "cara2",
+   "duracion_s": 3.0,
+   "tramos": [
+    {
+     "nombre": "cara2->cara3",
+     "desde": "cara2",
+     "hasta": "cara3",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "holgura_min_mm": 22.19,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CAM_4": {
+   "descripcion": "Cámara: cara 4 (cara3 -> cara4)",
+   "inicio": "cara3",
+   "duracion_s": 3.0,
+   "tramos": [
+    {
+     "nombre": "cara3->cara4",
+     "desde": "cara3",
+     "hasta": "cara4",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "holgura_min_mm": 22.19,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_A_E0": {
+   "descripcion": "Clasificar TIPO_A desde home",
+   "inicio": "home",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "home",
+     "hasta": "aprox_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q1_deg": [
+      -26.352,
+      -32.421,
+      7.157
+     ],
+     "q0_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "q1_pulsos": [
+      -332,
+      -408,
+      90
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "orientacion_fin": [
+      8.0,
+      -94.51,
+      10.0
+     ],
+     "holgura_min_mm": 21.4,
+     "vel_pico_dps": 24.3,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -26.352,
+      -32.421,
+      7.157
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -332,
+      -408,
+      90
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      8.0,
+      -94.51,
+      10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 34.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_A",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_A_E1": {
+   "descripcion": "Clasificar TIPO_A desde cara1",
+   "inicio": "cara1",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara1",
+     "hasta": "aprox_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      -17.879,
+      -25.505,
+      -0.348
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      -225,
+      -321,
+      -4
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -94.51,
+      6.49
+     ],
+     "holgura_min_mm": 21.4,
+     "vel_pico_dps": 30.6,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -17.879,
+      -25.505,
+      -0.348
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -225,
+      -321,
+      -4
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      8.0,
+      -94.51,
+      6.49
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 39.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_A",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_A_E2": {
+   "descripcion": "Clasificar TIPO_A desde cara2",
+   "inicio": "cara2",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara2",
+     "hasta": "aprox_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      90.537,
+      68.144,
+      -91.769
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      1140,
+      858,
+      -1155
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -94.51,
+      -38.51
+     ],
+     "holgura_min_mm": 20.49,
+     "vel_pico_dps": 107.2,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      90.537,
+      68.144,
+      -91.769
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      1140,
+      858,
+      -1155
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      8.0,
+      -94.51,
+      -38.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.48,
+     "vel_pico_dps": 115.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_A",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_A_E3": {
+   "descripcion": "Clasificar TIPO_A desde cara3",
+   "inicio": "cara3",
+   "duracion_s": 11.32,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara3",
+     "hasta": "aprox_TIPO_A",
+     "t_mov_s": 3.01,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.204,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      195.556,
+      171.349,
+      -177.601
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      2462,
+      2157,
+      -2236
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -94.51,
+      -83.51
+     ],
+     "holgura_min_mm": 19.14,
+     "vel_pico_dps": 146.8,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 3.31,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.324,
+     "q0_deg": [
+      195.556,
+      171.349,
+      -177.601
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      2462,
+      2157,
+      -2236
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      8.0,
+      -94.51,
+      -83.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 8.04,
+     "vel_pico_dps": 147.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_A",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_A_E4": {
+   "descripcion": "Clasificar TIPO_A desde cara4",
+   "inicio": "cara4",
+   "duracion_s": 13.87,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara4",
+     "hasta": "aprox_TIPO_A",
+     "t_mov_s": 4.3,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.72,
+     "q0_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q1_deg": [
+      293.007,
+      279.548,
+      -265.738
+     ],
+     "q0_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "q1_pulsos": [
+      3689,
+      3519,
+      -3345
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -94.51,
+      -128.51
+     ],
+     "holgura_min_mm": 18.05,
+     "vel_pico_dps": 147.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 4.57,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.828,
+     "q0_deg": [
+      293.007,
+      279.548,
+      -265.738
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      3689,
+      3519,
+      -3345
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      8.0,
+      -94.51,
+      -128.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 8.04,
+     "vel_pico_dps": 147.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_A",
+     "hasta": "volcado_TIPO_A",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_A",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -64.057,
+      -78.71,
+      -9.129
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -806,
+      -991,
+      -115
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -94.51,
+      20.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_B_E0": {
+   "descripcion": "Clasificar TIPO_B desde home",
+   "inicio": "home",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "home",
+     "hasta": "aprox_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q1_deg": [
+      40.346,
+      56.726,
+      -65.419
+     ],
+     "q0_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "q1_pulsos": [
+      508,
+      714,
+      -824
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "orientacion_fin": [
+      8.0,
+      -178.64,
+      -25.0
+     ],
+     "holgura_min_mm": 20.53,
+     "vel_pico_dps": 49.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      40.346,
+      56.726,
+      -65.419
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      508,
+      714,
+      -824
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      8.0,
+      -178.64,
+      -25.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 67.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_B",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 117.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_B_E1": {
+   "descripcion": "Clasificar TIPO_B desde cara1",
+   "inicio": "cara1",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara1",
+     "hasta": "aprox_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      48.437,
+      63.389,
+      -73.605
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      610,
+      798,
+      -927
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -178.64,
+      -28.51
+     ],
+     "holgura_min_mm": 20.53,
+     "vel_pico_dps": 43.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      48.437,
+      63.389,
+      -73.605
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      610,
+      798,
+      -927
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      8.0,
+      -178.64,
+      -28.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 61.8,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_B",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 117.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_B_E2": {
+   "descripcion": "Clasificar TIPO_B desde cara2",
+   "inicio": "cara2",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara2",
+     "hasta": "aprox_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      155.259,
+      149.469,
+      -174.617
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      1955,
+      1882,
+      -2198
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -178.64,
+      -73.51
+     ],
+     "holgura_min_mm": 21.4,
+     "vel_pico_dps": 46.3,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      155.259,
+      149.469,
+      -174.617
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      1955,
+      1882,
+      -2198
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      8.0,
+      -178.64,
+      -73.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 59.3,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_B",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 117.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_B_E3": {
+   "descripcion": "Clasificar TIPO_B desde cara3",
+   "inicio": "cara3",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara3",
+     "hasta": "aprox_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      263.769,
+      242.229,
+      -266.814
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      3321,
+      3049,
+      -3359
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -178.64,
+      -118.51
+     ],
+     "holgura_min_mm": 17.87,
+     "vel_pico_dps": 123.6,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      263.769,
+      242.229,
+      -266.814
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      3321,
+      3049,
+      -3359
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      8.0,
+      -178.64,
+      -118.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 140.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_B",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 117.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_B_E4": {
+   "descripcion": "Clasificar TIPO_B desde cara4",
+   "inicio": "cara4",
+   "duracion_s": 12.04,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara4",
+     "hasta": "aprox_TIPO_B",
+     "t_mov_s": 3.3,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.32,
+     "q0_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q1_deg": [
+      369.283,
+      344.681,
+      -352.866
+     ],
+     "q0_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "q1_pulsos": [
+      4649,
+      4339,
+      -4442
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      -178.64,
+      -163.51
+     ],
+     "holgura_min_mm": 18.37,
+     "vel_pico_dps": 146.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 3.74,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.496,
+     "q0_deg": [
+      369.283,
+      344.681,
+      -352.866
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      4649,
+      4339,
+      -4442
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      8.0,
+      -178.64,
+      -163.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_B",
+     "hasta": "volcado_TIPO_B",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_B",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      76.156,
+      89.579,
+      -155.996
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      959,
+      1128,
+      -1964
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      -178.64,
+      -50.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.75,
+     "vel_pico_dps": 117.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_C_E0": {
+   "descripcion": "Clasificar TIPO_C desde home",
+   "inicio": "home",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "home",
+     "hasta": "aprox_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q1_deg": [
+      3.74,
+      25.414,
+      -2.984
+     ],
+     "q0_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "q1_pulsos": [
+      47,
+      320,
+      -38
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "orientacion_fin": [
+      8.0,
+      115.61,
+      -5.0
+     ],
+     "holgura_min_mm": 22.0,
+     "vel_pico_dps": 19.1,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      3.74,
+      25.414,
+      -2.984
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      47,
+      320,
+      -38
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      8.0,
+      115.61,
+      -5.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 36.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_C",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 55.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_C_E1": {
+   "descripcion": "Clasificar TIPO_C desde cara1",
+   "inicio": "cara1",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara1",
+     "hasta": "aprox_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      10.494,
+      33.164,
+      -11.404
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      132,
+      417,
+      -144
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      115.61,
+      -8.51
+     ],
+     "holgura_min_mm": 22.0,
+     "vel_pico_dps": 13.4,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      10.494,
+      33.164,
+      -11.404
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      132,
+      417,
+      -144
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      8.0,
+      115.61,
+      -8.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 30.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_C",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 55.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_C_E2": {
+   "descripcion": "Clasificar TIPO_C desde cara2",
+   "inicio": "cara2",
+   "duracion_s": 10.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara2",
+     "hasta": "aprox_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      101.09,
+      127.561,
+      -119.983
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      1273,
+      1606,
+      -1510
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      115.61,
+      -53.51
+     ],
+     "holgura_min_mm": 20.63,
+     "vel_pico_dps": 82.5,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      101.09,
+      127.561,
+      -119.983
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      1273,
+      1606,
+      -1510
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      8.0,
+      115.61,
+      -53.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 88.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_C",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 55.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_C_E3": {
+   "descripcion": "Clasificar TIPO_C desde cara3",
+   "inicio": "cara3",
+   "duracion_s": 10.5,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara3",
+     "hasta": "aprox_TIPO_C",
+     "t_mov_s": 2.63,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.052,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      201.399,
+      214.547,
+      -226.571
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      2535,
+      2701,
+      -2852
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      115.61,
+      -98.51
+     ],
+     "holgura_min_mm": 18.49,
+     "vel_pico_dps": 146.6,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 2.87,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.148,
+     "q0_deg": [
+      201.399,
+      214.547,
+      -226.571
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      2535,
+      2701,
+      -2852
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      8.0,
+      115.61,
+      -98.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 8.38,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_C",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 55.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "CLAS_TIPO_C_E4": {
+   "descripcion": "Clasificar TIPO_C desde cara4",
+   "inicio": "cara4",
+   "duracion_s": 13.0,
+   "tramos": [
+    {
+     "nombre": "aproximacion",
+     "desde": "cara4",
+     "hasta": "aprox_TIPO_C",
+     "t_mov_s": 3.85,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.54,
+     "q0_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q1_deg": [
+      308.62,
+      300.942,
+      -326.813
+     ],
+     "q0_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "q1_pulsos": [
+      3885,
+      3789,
+      -4114
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "orientacion_fin": [
+      8.0,
+      115.61,
+      -143.51
+     ],
+     "holgura_min_mm": 18.85,
+     "vel_pico_dps": 147.1,
+     "violaciones": 0
+    },
+    {
+     "nombre": "volcado",
+     "desde": "aprox_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 4.15,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.66,
+     "q0_deg": [
+      308.62,
+      300.942,
+      -326.813
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      3885,
+      3789,
+      -4114
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      8.0,
+      115.61,
+      -143.51
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 8.38,
+     "vel_pico_dps": 146.9,
+     "violaciones": 0
+    },
+    {
+     "nombre": "mantener",
+     "desde": "volcado_TIPO_C",
+     "hasta": "volcado_TIPO_C",
+     "t_mov_s": 0.0,
+     "t_hold_s": 1.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "volcado_TIPO_C",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      -13.547,
+      74.341,
+      -1.678
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      -171,
+      936,
+      -21
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      28.0,
+      115.61,
+      -10.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 9.92,
+     "vel_pico_dps": 55.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "DESC2_E0": {
+   "descripcion": "DESCARTE_2 desde home: espera 60 s y home",
+   "inicio": "home",
+   "duracion_s": 60.0,
+   "tramos": [
+    {
+     "nombre": "espera",
+     "desde": "home",
+     "hasta": "home",
+     "t_mov_s": 0.0,
+     "t_hold_s": 60.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 23.44,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    }
+   ]
+  },
+  "DESC2_E1": {
+   "descripcion": "DESCARTE_2 desde cara1: espera 60 s y home",
+   "inicio": "cara1",
+   "duracion_s": 63.0,
+   "tramos": [
+    {
+     "nombre": "espera",
+     "desde": "cara1",
+     "hasta": "cara1",
+     "t_mov_s": 0.0,
+     "t_hold_s": 60.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "holgura_min_mm": 23.42,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "cara1",
+     "hasta": "home",
+     "t_mov_s": 2.5,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      15.279,
+      15.279,
+      -15.279
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      192,
+      192,
+      -192
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -7.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 23.19,
+     "vel_pico_dps": 11.5,
+     "violaciones": 0
+    }
+   ]
+  },
+  "DESC2_E2": {
+   "descripcion": "DESCARTE_2 desde cara2: espera 60 s y home",
+   "inicio": "cara2",
+   "duracion_s": 63.2,
+   "tramos": [
+    {
+     "nombre": "espera",
+     "desde": "cara2",
+     "hasta": "cara2",
+     "t_mov_s": 0.0,
+     "t_hold_s": 60.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "holgura_min_mm": 22.42,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "cara2",
+     "hasta": "home",
+     "t_mov_s": 2.7,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.08,
+     "q0_deg": [
+      211.161,
+      211.161,
+      -211.161
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      2658,
+      2658,
+      -2658
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -97.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 22.41,
+     "vel_pico_dps": 146.6,
+     "violaciones": 0
+    }
+   ]
+  },
+  "DESC2_E3": {
+   "descripcion": "DESCARTE_2 desde cara3: espera 60 s y home",
+   "inicio": "cara3",
+   "duracion_s": 66.2,
+   "tramos": [
+    {
+     "nombre": "espera",
+     "desde": "cara3",
+     "hasta": "cara3",
+     "t_mov_s": 0.0,
+     "t_hold_s": 60.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "holgura_min_mm": 22.29,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "cara3",
+     "hasta": "home~1",
+     "t_mov_s": 2.6,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.04,
+     "q0_deg": [
+      407.044,
+      407.044,
+      -407.044
+     ],
+     "q1_deg": [
+      203.522,
+      203.522,
+      -203.522
+     ],
+     "q0_pulsos": [
+      5124,
+      5124,
+      -5124
+     ],
+     "q1_pulsos": [
+      2562,
+      2562,
+      -2562
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -187.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -93.51
+     ],
+     "holgura_min_mm": 22.19,
+     "vel_pico_dps": 146.7,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "home~1",
+     "hasta": "home",
+     "t_mov_s": 2.6,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.04,
+     "q0_deg": [
+      203.522,
+      203.522,
+      -203.522
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      2562,
+      2562,
+      -2562
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -93.51
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 22.41,
+     "vel_pico_dps": 146.7,
+     "violaciones": 0
+    }
+   ]
+  },
+  "DESC2_E4": {
+   "descripcion": "DESCARTE_2 desde cara4: espera 60 s y home",
+   "inicio": "cara4",
+   "duracion_s": 68.7,
+   "tramos": [
+    {
+     "nombre": "espera",
+     "desde": "cara4",
+     "hasta": "cara4",
+     "t_mov_s": 0.0,
+     "t_hold_s": 60.0,
+     "t_mov_nominal_s": 0.0,
+     "factor_tiempo": 1.0,
+     "q0_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q1_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q0_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "q1_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "holgura_min_mm": 22.33,
+     "vel_pico_dps": 0.0,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "cara4",
+     "hasta": "home~1",
+     "t_mov_s": 3.85,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.54,
+     "q0_deg": [
+      602.926,
+      602.926,
+      -602.926
+     ],
+     "q1_deg": [
+      301.463,
+      301.463,
+      -301.463
+     ],
+     "q0_pulsos": [
+      7590,
+      7590,
+      -7590
+     ],
+     "q1_pulsos": [
+      3795,
+      3795,
+      -3795
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -277.02
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      -138.51
+     ],
+     "holgura_min_mm": 22.19,
+     "vel_pico_dps": 146.8,
+     "violaciones": 0
+    },
+    {
+     "nombre": "home",
+     "desde": "home~1",
+     "hasta": "home",
+     "t_mov_s": 3.85,
+     "t_hold_s": 0.5,
+     "t_mov_nominal_s": 2.5,
+     "factor_tiempo": 1.54,
+     "q0_deg": [
+      301.463,
+      301.463,
+      -301.463
+     ],
+     "q1_deg": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "q0_pulsos": [
+      3795,
+      3795,
+      -3795
+     ],
+     "q1_pulsos": [
+      0,
+      0,
+      0
+     ],
+     "orientacion_ini": [
+      0.0,
+      0.0,
+      -138.51
+     ],
+     "orientacion_fin": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "holgura_min_mm": 22.19,
+     "vel_pico_dps": 146.8,
+     "violaciones": 0
+    }
+   ]
+  }
+ }
+}

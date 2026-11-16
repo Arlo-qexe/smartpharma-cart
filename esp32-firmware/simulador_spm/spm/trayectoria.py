@@ -184,11 +184,14 @@ def _construir(spm, trans, lim, t, theta, R=None, R0=None):
     return Trayectoria(t, np.asarray(R), theta, motor, vel, acc, ang[:, 0], ang[:, 1], np.unwrap(ang[:, 2]), float(t[-1]), 1.0, viol)
 
 
-def planificar_articular(spm, trans, lim, orientaciones, T_tramo=2.0, dt=0.01, perfil="quintico", ajustar_tiempo=True):
+def planificar_articular(spm, trans, lim, orientaciones, T_tramo=2.0, dt=0.01, perfil="quintico", ajustar_tiempo=True, thetas=None):
     """Interpolación en el espacio de los motores: IK en cada punto de paso y perfil temporal entre ellos (con paradas).
     La plataforma NO sigue una geodésica: el camino de orientación sale curvo, como la 'interpolación articular' del brazo 3DOF."""
     th_w, prev = [], np.zeros(3)
-    for k, R in enumerate(orientaciones):
+    if thetas is not None:                                             # ángulos de NNR ya resueltos (rama y vueltas acumuladas exactas), uno por punto de paso
+        th_w = [np.asarray(t, float) for t in thetas]
+        assert len(th_w) == len(orientaciones)
+    for k, R in enumerate(orientaciones if thetas is None else []):
         try:
             th = spm.ik(R, prev)
         except FueraDeEspacioDeTrabajo as e:

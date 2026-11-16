@@ -45,6 +45,8 @@ int32_t hwReadRaw(int i) { return P[i].cnt16; }
 void hwWritePwm(int i, int16_t duty) { P[i].duty = duty; }
 void hwSend(const char *s, int n) { g_out.emplace_back(s, n); }
 int64_t hwNowUs() { return g_now_us; }
+static std::vector<std::string> g_uart_out;          // líneas enviadas a la Orange Pi (canal UART)
+void hwSendUart(const char *s, int n) { g_uart_out.emplace_back(s, n); }
 
 static int g_fail = 0, g_n = 0;
 #define CHECK(cond, ...) do { g_n++; if (!(cond)) { g_fail++; printf("  FALLA: "); printf(__VA_ARGS__); printf("  [%s:%d]\n", __FILE__, __LINE__); } } while (0)
@@ -64,6 +66,7 @@ static void run(double secs, double jitter = 0.0, void (*each)(double) = nullptr
         for (int i = 0; i < N_MOT; i++) P[i].step(dt);
         g_now_us += (int64_t)(dt * 1e6);
         controlCycle((float)dt, g_now_us);
+        trajService();                       // en la placa lo hace la tarea de comandos
         t += dt;
         if (each) each(t);
     }
@@ -337,8 +340,115 @@ static void testCapture() {
     fclose(f);
 }
 
+
+// ---------------------------------------------------------------- SmartPharma: trayectorias, canal UART de la Orange Pi
+static void uartSend(const char *payload) {            // «<json>|<XOR>» con la función de shared/protocol_constants.h
+    char line[240]; snprintf(line, sizeof(line), "%s|%02X", payload, calcularChecksumXor(String(payload))); handleUartLine(line);
+}
+static int nUart(const char *sub) { int n = 0; for (auto &s : g_uart_out) if (s.find(sub) != std::string::npos) n++; return n; }
+static bool uartChecksumsOk() { for (auto &s : g_uart_out) { size_t b = s.rfind('|'); if (b == std::string::npos) return false; char h[4]; snprintf(h, sizeof(h), "%02X", calcularChecksumXor(String(s.substr(0, b).c_str()))); if (s.substr(b + 1, 2) != h || s.back() != '\n') return false; } return true; }
+static void smartReset() {
+    resetAll(); g_uart_out.clear();
+    send("{\"cfg\":\"ppr\",\"val\":4532}"); send("{\"cfg\":\"pwm_max\",\"val\":1}");
+    for (int i = 0; i < N_MOT; i++) P[i].ppr = 4532;
+    run(0.05); g_out.clear();
+}
+static double maxDevPose(int e) { double d = 0; for (int i = 0; i < N_MOT; i++) d = std::max(d, fabs(SPM_POSE_Q[e][i] - posDeg(i))); return d; }
+
+static void testSmartPharma() {
+    printf("SmartPharma: protocolo UART, cámara paso a paso, clasificación, descarte\n");
+    CHECK(SPM_N_CARAS == CARAS_POR_OBJETO_REDUCIDO, "el firmware implementa las caras de CARAS_POR_OBJETO_REDUCIDO (%d)", SPM_N_CARAS);
+    CHECK(calcularChecksumXor(String("{\"accion\": \"girar_posicion\", \"cara\": 1}")) == 0x1D && calcularChecksumXor(String("{\"evento\":\"en_posicion\",\"cara\":2}")) == 0x50, "XOR igual que shared/protocol_constants.py");
+    // 1) cámara: un tramo por orden, confirma con en_posicion y NO avanza sola
+    smartReset();
+    CHECK(trajPoseEtapa() == 0, "al arrancar el plato se da por en home");
+    double maxerr = 0;;
+    for (int cara = 1; cara <= SPM_N_CARAS; cara++) {
+        char b[80]; snprintf(b, sizeof(b), "{\"accion\": \"girar_posicion\", \"cara\": %d}", cara);
+        g_uart_out.clear(); uartSend(b);
+        double t = 0; bool done = false;
+        while (t < 8) { run(0.01); t += 0.01; for (int i = 0; i < N_MOT; i++) maxerr = std::max(maxerr, fabs(g_rt[i].r * g_rt[i].dpc - posDeg(i))); if (nUart("en_posicion")) { done = true; break; } }
+        char ev[64]; snprintf(ev, sizeof(ev), "\"cara\":%d}|", cara);
+        CHECK(done && nUart(ev) == 1 && uartChecksumsOk(), "cara %d: en_posicion con checksum válido a los %.2f s", cara, t);
+        CHECK(fabs(t - 3.0) < 0.35, "cara %d tarda ~3 s (2,5 de movimiento + 0,5 de estabilización): %.2f s", cara, t);
+        CHECK(maxDevPose(cara) < 1.0, "cara %d: pose alcanzada (desvío %.2f°)", cara, maxDevPose(cara));
+        double p0[3] = { posDeg(0), posDeg(1), posDeg(2) }; g_uart_out.clear(); run(2.0);
+        CHECK(fabs(posDeg(0) - p0[0]) < 0.3 && fabs(posDeg(2) - p0[2]) < 0.3 && g_uart_out.empty(), "cara %d: no avanza sola ni emite nada más", cara);
+    }
+    CHECK(maxerr < 8.0, "error de seguimiento máximo durante la cámara %.2f° (planta simulada)", maxerr);
+    // 2) clasificar desde la cara 4 (el caso normal): TIPO_B pasa por la pose de volcado, vuelve a home, y NO emite evento (la Orange Pi actual no lo espera)
+    g_uart_out.clear(); g_out.clear();
+    uartSend("{\"accion\": \"clasificar\", \"destino\": \"TIPO_B\"}");
+    const SpmPlan &pb = SPM_CLAS[1][SPM_N_CARAS]; double dur = 0; for (int k = 0; k < pb.n; k++) dur += pb.legs[k].t_mov + pb.legs[k].t_hold;
+    const double t_volcado = pb.legs[0].t_mov + pb.legs[0].t_hold + pb.legs[1].t_mov;       // fin del movimiento de volcado
+    run(t_volcado);
+    double dv = 0; for (int i = 0; i < N_MOT; i++) dv = std::max(dv, fabs(pb.legs[1].q1[i] - posDeg(i)));
+    CHECK(dv < 2.0, "TIPO_B: a los %.2f s el plato está en la pose de volcado (desvío %.2f°)", t_volcado, dv);
+    double t = t_volcado; while (t < dur + 3 && g_tr_active) { run(0.01); t += 0.01; }
+    CHECK(!g_tr_active && fabs(t - dur) < 0.4, "TIPO_B termina a los %.2f s (plan %.2f s)", t, dur);
+    CHECK(maxDevPose(0) < 1.0, "TIPO_B: vuelve a home (desvío %.2f°)", maxDevPose(0));
+    CHECK(g_uart_out.empty() && outHas("\"ack\":\"traj_done\",\"kind\":\"clas\",\"destino\":\"TIPO_B\""), "TIPO_B: sin evento UART de fin (no existe en shared/); ack por USB");
+    // 3) los tres TIPO y DESCARTE (variante 1 = TIPO_A): cada uno alcanza SU pose de volcado y regresa a home
+    for (int k = 0; k < 4; k++) {
+        smartReset(); for (int c = 1; c <= SPM_N_CARAS; c++) { char b[80]; snprintf(b, sizeof(b), "{\"cmd\":\"cam\",\"cara\":%d}", c); send(b); run(3.4); }
+        const char *dest = k == 0 ? "TIPO_A" : k == 1 ? "TIPO_C" : k == 2 ? "DESCARTE" : "DESCARTE_1"; int tipo = (k == 1) ? 2 : 0;
+        const SpmPlan &p = SPM_CLAS[tipo][SPM_N_CARAS]; char b[80]; snprintf(b, sizeof(b), "{\"accion\":\"clasificar\",\"destino\":\"%s\"}", dest); uartSend(b);
+        double tv = p.legs[0].t_mov + p.legs[0].t_hold + p.legs[1].t_mov; run(tv);
+        double d2 = 0; for (int i = 0; i < N_MOT; i++) d2 = std::max(d2, fabs(p.legs[1].q1[i] - posDeg(i)));
+        double tot = 0; for (int q = 0; q < p.n; q++) tot += p.legs[q].t_mov + p.legs[q].t_hold; run(tot - tv + 1.0);
+        CHECK(d2 < 2.0 && maxDevPose(0) < 1.0 && !g_tr_active, "%s: volcado del tipo %d (desvío %.2f°) y regreso a home", dest, tipo, d2);
+    }
+    // 4) DESCARTE_2: espera 60 s en la cara 4 y vuelve a home; el selector llega por cfg
+    smartReset(); for (int c = 1; c <= SPM_N_CARAS; c++) { char b[80]; snprintf(b, sizeof(b), "{\"cmd\":\"cam\",\"cara\":%d}", c); send(b); run(3.4); }
+    g_out.clear(); send("{\"cfg\":\"descarte\",\"val\":2}"); CHECK(g_descarte == 2 && outHas("\"ack\":\"cfg\""), "cfg descarte=2");
+    send("{\"cfg\":\"descarte\",\"val\":7}"); CHECK(anyErr("cfg") && g_descarte == 2, "cfg descarte inválido se rechaza");
+    uartSend("{\"accion\":\"clasificar\",\"destino\":\"DESCARTE\"}"); run(30.0);
+    CHECK(g_tr_active && maxDevPose(SPM_N_CARAS) < 1.0, "DESCARTE_2: a los 30 s sigue esperando en la cara %d", SPM_N_CARAS);
+    run(34.0); CHECK(g_tr_active || maxDevPose(0) < 1.5, "DESCARTE_2: tras ~64 s empieza el regreso");
+    run(12.0); CHECK(!g_tr_active && maxDevPose(0) < 1.0, "DESCARTE_2: a los ~76 s ya está en home (desvío %.2f°)", maxDevPose(0));
+    // 4b) `stop` durante la espera de DESCARTE_2 la aborta (no hay nada que la reanude)
+    smartReset(); for (int c = 1; c <= SPM_N_CARAS; c++) { char b[80]; snprintf(b, sizeof(b), "{\"cmd\":\"cam\",\"cara\":%d}", c); send(b); run(3.4); }
+    send("{\"cfg\":\"descarte\",\"val\":2}"); send("{\"cmd\":\"clas\",\"destino\":\"DESCARTE_2\"}"); run(5.0); send("{\"cmd\":\"stop\"}"); run(0.05);
+    CHECK(!g_tr_active && g_state == ST_IDLE && anyErr("abortada"), "stop aborta DESCARTE_2");
+    // 5) rechazos: orden en curso, secuencia, cara 5 (sin implementar), cara inválida, destino inválido, checksum malo
+    smartReset(); g_uart_out.clear();
+    uartSend("{\"accion\":\"girar_posicion\",\"cara\":3}"); CHECK(anyErr("fuera_de_secuencia") && !g_tr_active, "cara 3 desde home: fuera de secuencia, sin mover");
+    g_out.clear(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":5}"); CHECK(anyErr("cara_no_implementada") && !g_tr_active, "cara 5: rechazada con error claro (4 caras implementadas)");
+    g_out.clear(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":0}"); CHECK(anyErr("cara_invalida"), "cara 0 inválida");
+    g_out.clear(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":1.5}"); CHECK(anyErr("cara_invalida"), "cara 1.5 inválida");
+    g_out.clear(); uartSend("{\"accion\":\"clasificar\",\"destino\":\"TIPO_Z\"}"); CHECK(anyErr("destino_invalido") && !g_tr_active, "destino desconocido: ignorado sin actuar");
+    unsigned long err0 = g_uart_err; handleUartLine("{\"accion\":\"girar_posicion\",\"cara\":1}|00"); handleUartLine("{\"accion\":\"girar_posicion\",\"cara\":1}"); handleUartLine("basura|1D");
+    CHECK(!g_tr_active && g_uart_err == err0 + 3, "checksum malo, sin checksum o JSON ilegible: descartados sin actuar (uart_err +%lu)", g_uart_err - err0);
+    uartSend("{\"accion\":\"activar_dispensador\"}"); uartSend("{\"accion\":\"solicitar_telemetria\"}"); CHECK(!g_tr_active && g_uart_out.empty(), "acciones aún no implementadas se ignoran en silencio");
+    uartSend("{\"accion\": \"girar_posicion\", \"cara\": 1}"); run(0.5); g_out.clear(); g_uart_out.clear();
+    uartSend("{\"accion\":\"girar_posicion\",\"cara\":2}"); send("{\"m1\":10}"); send("{\"cmd\":\"zero\"}"); send("{\"cfg\":\"kp\",\"val\":0.1}");
+    CHECK(anyErr("ocupado") && g_uart_out.empty() && g_cmd[0].fresh == false, "con una trayectoria en curso se rechazan órdenes nuevas de movimiento/cfg");
+    run(3.0); CHECK(nUart("en_posicion") == 1 && nUart("\"cara\":1") == 1, "la cara 1 sigue y confirma una sola vez; la orden rechazada no generó evento");
+    // 6) orden repetida en la misma pose: confirma sin mover
+    g_uart_out.clear(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":1}"); run(0.05); CHECK(nUart("\"cara\":1") == 1 && !g_tr_active, "cara 1 repetida: confirma sin mover");
+    // 7) stop a mitad de un tramo: aborta, sin confirmación; pose desconocida → clasificar rechazado; `home` la recupera
+    smartReset(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":1}"); run(1.0);
+    send("{\"cmd\":\"stop\"}"); run(0.05); CHECK(!g_tr_active && anyErr("abortada") && nUart("en_posicion") == 0, "stop aborta el tramo y no confirma");
+    send("{\"cmd\":\"reset\"}"); run(0.05); g_out.clear(); uartSend("{\"accion\":\"girar_posicion\",\"cara\":1}");
+    CHECK(anyErr("fuera_de_secuencia") || anyErr("pose_inicial") || g_tr_active, "tras abortar a medias no se retoma por cuenta propia");
+    g_out.clear(); if (g_tr_active) { send("{\"cmd\":\"stop\"}"); run(0.05); send("{\"cmd\":\"reset\"}"); run(0.05); }
+    uartSend("{\"accion\":\"clasificar\",\"destino\":\"TIPO_A\"}"); CHECK(anyErr("pose_desconocida") && !g_tr_active, "plato fuera de toda pose: clasificar rechazado");
+    send("{\"cmd\":\"home\"}"); CHECK(g_tr_active, "home de recuperación arranca"); run(6.0); CHECK(!g_tr_active && maxDevPose(0) < 1.0, "home de recuperación: motores a 0 (desvío %.2f°)", maxDevPose(0));
+    // 8) pose de partida errónea (ppr mal o plato movido a mano): no se ejecuta la tabla
+    smartReset(); P[0].theta = 40; run(0.005); g_out.clear();
+    send("{\"cmd\":\"cam\",\"cara\":1}"); CHECK(anyErr("fuera_de_secuencia") && !g_tr_active, "plato 40° fuera de home: no se mueve");
+    // 9) clasificar desde una cara intermedia (lote abortado tras la cara 2) y desde home
+    smartReset(); for (int c = 1; c <= 2; c++) { char b[80]; snprintf(b, sizeof(b), "{\"cmd\":\"cam\",\"cara\":%d}", c); send(b); run(3.4); }
+    uartSend("{\"accion\":\"clasificar\",\"destino\":\"TIPO_C\"}"); run(14.0); CHECK(!g_tr_active && maxDevPose(0) < 1.0, "clasificar desde la cara 2: vuelve a home");
+    smartReset(); uartSend("{\"accion\":\"clasificar\",\"destino\":\"TIPO_A\"}"); run(14.0); CHECK(!g_tr_active && maxDevPose(0) < 1.0, "clasificar desde home: vuelve a home");
+    // 10) la variante por defecto sale de la tabla generada, y las ganancias/limites de siempre no cambian
+    smartReset(); CHECK(g_descarte == SPM_DESCARTE_VARIANTE_DEFECTO, "variante de descarte por defecto = %d", SPM_DESCARTE_VARIANTE_DEFECTO);
+    // 11) la telemetría y los comandos USB de siempre siguen funcionando tras una trayectoria
+    send("{\"m1\":20}"); run(2.0); CHECK(fabs(posDeg(0) - 20) < 1.0, "consigna USB normal tras las trayectorias (pos %.2f°)", posDeg(0));
+}
+
 int main() {
-    testJson(); testUnwrap(); testReferenceProfile(); testClosedLoop(); testStream(); testVelocityEstimate(); testFaults(); testCommands(); testTelemetry(); testCapture();
+    testJson(); testUnwrap(); testReferenceProfile(); testClosedLoop(); testStream(); testVelocityEstimate(); testFaults(); testCommands(); testTelemetry(); testCapture(); testSmartPharma();
     printf("\n%d comprobaciones, %d fallas\n", g_n, g_fail);
     return g_fail ? 1 : 0;
 }

@@ -10,6 +10,11 @@
 //  Referencia     Perfil de velocidad/aceleración limitadas (movimientos sueltos) o rampa entre consignas (modo «streaming» de la interfaz).
 //  Seguridad      Detección de motor desbocado/atascado (polaridad invertida, encoder desconectado) → todos los motores a 0 hasta «reset».
 //
+//  SmartPharma (secciones 6c y 7b): trayectorias de cámara y clasificación ejecutadas a bordo desde la tabla generada `spm_trayectorias.h`, y canal UART de la
+//  Orange Pi (checksum XOR de shared/protocol_constants.h) además del USB. Ver firmware/README_firmware.md y ../PROPUESTA_trayectorias_spm.md.
+//    USB  {"cmd":"cam","cara":N} | {"cmd":"clas","destino":"TIPO_A|TIPO_B|TIPO_C|DESCARTE|DESCARTE_1|DESCARTE_2"} | {"cmd":"home"} | {"cfg":"descarte","val":1|2}
+//    UART {"accion":"girar_posicion","cara":N}|XX → {"evento":"en_posicion","cara":N}|XX      {"accion":"clasificar","destino":"..."}|XX
+//
 //  Requiere arduino-esp32 3.x (API de LEDC/timer de IDF 5 y driver/pulse_cnt.h).  Placa: ESP32S3 Dev Module, 115200 baud.
 //
 //  Protocolo (una línea JSON por mensaje, ángulos de MOTOR en grados; el mismo del brazo 3DOF + extensiones):
@@ -35,6 +40,9 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <strings.h>
+#include "spm_trayectorias.h"                       // GENERADO: tramos de cámara y clasificación (herramientas/generar_trayectorias_smartpharma.py)
+#include "../../../../shared/protocol_constants.h"  // contrato del equipo: nombres de acciones/eventos y checksum XOR (no repetir a mano)
 
 // Tipos usados como parámetros de funciones: deben ir ANTES de la primera función (el IDE de Arduino genera los prototipos al principio del archivo).
 struct JVal { char key[12]; char str[16]; float num; float arr[4]; uint8_t n_arr; uint8_t type; };   // type: 1 número, 2 texto, 3 arreglo, 4 booleano/null
@@ -82,6 +90,15 @@ static const MotorPins PINS[N_MOT] = {
 //   false = decaimiento rápido (PWM en una sola entrada, la otra en 0: fuera del pulso el puente queda libre); la tensión media es (2·duty − 1)·VM
 //           y por debajo de duty = 0.5 casi no hay par. Cada modo da un modelo distinto: controlar con el mismo con el que se identificó.
 static const bool DRIVER_DECAIMIENTO_LENTO = true;
+// Enlace UART con la Orange Pi (UART2 del mapa: GPIO 13/14). ¡RX/TX POR CONFIRMAR con el cableado! Orange Pi TX (pin 8) → PIN_OPI_RX; Orange Pi RX (pin 10) ← PIN_OPI_TX.
+#define PIN_OPI_TX      13
+#define PIN_OPI_RX      14
+#define SPM_UART_OPI_ACTIVA        1       // 0 = sin canal UART (solo USB)
+#define SPM_UART_CONFIRMA_CLASIFICAR 0     // 1 = envía un evento al terminar `clasificar`. NO existe en shared/: la Orange Pi actual no lo espera (ver PROPUESTA_trayectorias_spm.md)
+#define SPM_UART_ERRORES           0       // 1 = también por UART los rechazos (hoy solo por USB: el protocolo no define evento de error)
+#ifndef EVENTO_CLASIFICADO
+#define EVENTO_CLASIFICADO "clasificado"   // PROPUESTA (no existe en shared/protocol_constants.*): campo "destino"
+#endif
 static const uint8_t PIN_NSLEEP = PIN_NONE;                       // nSLEEP del DRV8833 si lo controla el firmware (PIN_NONE = cableado a 3.3 V)
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -198,6 +215,7 @@ int32_t hwReadRaw(int i);                             // cuenta cruda del contad
 void    hwWritePwm(int i, int16_t duty);              // ciclo de trabajo con signo (-PWM_MAX..PWM_MAX)
 void    hwSend(const char *s, int n);                 // línea hacia la interfaz
 int64_t hwNowUs();
+void    hwSendUart(const char *s, int n);             // línea hacia la Orange Pi (canal UART)
 #else
 static pcnt_unit_handle_t g_pcnt[N_MOT];
 static hw_timer_t *g_timer = NULL;
@@ -252,6 +270,15 @@ void hwSend(const char *s, int n) {
     xSemaphoreTake(g_txMutex, portMAX_DELAY);
     Serial.write((const uint8_t *)s, n);
     xSemaphoreGive(g_txMutex);
+}
+void hwSendUart(const char *s, int n) {
+#if SPM_UART_OPI_ACTIVA
+    xSemaphoreTake(g_txMutex, portMAX_DELAY);
+    Serial2.write((const uint8_t *)s, n);
+    xSemaphoreGive(g_txMutex);
+#else
+    (void)s; (void)n;
+#endif
 }
 #endif
 
@@ -463,6 +490,159 @@ static void captureFinish(uint8_t why) {
     }                                                                // si el estado ya cambió (stop → IDLE, falla → FAULT) se respeta
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  6c. TRAYECTORIAS SMARTPHARMA (cámara y clasificación)
+//  Cada plan es una lista de tramos q0 → q1 (grados de motor, 0 = home) con perfil quíntico y una espera al final (estabilización). La referencia (posición y
+//  velocidad) se la entrega al mismo lazo de control de siempre. El plan NO avanza solo entre órdenes: un `girar_posicion` ejecuta UN tramo y confirma.
+//  Una trayectoria en curso rechaza cualquier otra orden de movimiento; `stop`/`reset`/falla la abortan (los motores quedan donde están: no se reanuda sola).
+// ═══════════════════════════════════════════════════════════════════════════════
+enum TrajKind : uint8_t { TK_CAM = 1, TK_CLAS = 2, TK_HOME = 3 };
+static const float SPM_CONV_DEG = 1.0f;                // al terminar el último tramo se espera a que todos los motores estén a menos de esto de su destino
+static const float SPM_HOME_VMAX_DPS = 100.0f;         // `home` de recuperación: velocidad media máxima de los motores
+static volatile bool    g_tr_active = false;
+static volatile uint8_t g_tr_event = 0;                // 0 nada · 1 terminó · 2 abortada (lo envía trajService, nunca el lazo de control)
+static const SpmLeg *g_tr_legs = NULL;
+static uint8_t g_tr_n = 0, g_tr_idx = 0;
+static float   g_tr_t = 0;                             // s dentro del tramo actual
+static float   g_tr_q[N_MOT], g_tr_qd[N_MOT];          // referencia actual (° y °/s del eje de salida)
+static uint8_t g_tr_kind = 0, g_tr_chan = 0;           // chan: 0 USB · 1 UART (a quién se confirma)
+static int     g_tr_cara = 0;
+static char    g_tr_dest[16] = "";
+static SpmLeg  g_home_leg;                             // tramo de recuperación (pose actual → home)
+static uint8_t g_descarte = SPM_DESCARTE_VARIANTE_DEFECTO;   // 1 = DESCARTE como TIPO_A · 2 = espera SPM_DESCARTE2_ESPERA_S y home
+
+static void trajEnd(uint8_t ev) { g_tr_active = false; g_tr_event = ev; }
+
+static void trajAdvance(float dt) {
+    g_tr_t += dt;
+    for (;;) {
+        const SpmLeg &L = g_tr_legs[g_tr_idx];
+        const float tot = L.t_mov + L.t_hold;
+        if (g_tr_t < tot || g_tr_idx >= g_tr_n - 1) break;
+        g_tr_t -= tot; g_tr_idx++;
+    }
+    const SpmLeg &L = g_tr_legs[g_tr_idx];
+    float s = 1.0f, ds = 0.0f;
+    if (L.t_mov > 0 && g_tr_t < L.t_mov) {
+        const float x = g_tr_t / L.t_mov, x2 = x * x;
+        s = x2 * x * (10.0f - 15.0f * x + 6.0f * x2);
+        ds = 30.0f * x2 * (1.0f - x) * (1.0f - x) / L.t_mov;
+    }
+    for (int i = 0; i < N_MOT; i++) { g_tr_q[i] = L.q0[i] + (L.q1[i] - L.q0[i]) * s; g_tr_qd[i] = (L.q1[i] - L.q0[i]) * ds; }
+    if (g_tr_idx == g_tr_n - 1 && g_tr_t >= L.t_mov + L.t_hold) {      // plan cumplido: se confirma cuando los motores ya están en su sitio
+        float e = 0;
+        for (int i = 0; i < N_MOT; i++) e = fmaxf(e, fabsf(L.q1[i] - g_rt[i].pos * g_rt[i].dpc));
+        if (e < SPM_CONV_DEG) {
+            for (int i = 0; i < N_MOT; i++) { g_rt[i].target = L.q1[i] / g_rt[i].dpc; g_rt[i].stream = false; }
+            trajEnd(1);
+        }
+    }
+}
+
+static void trajRef(int i) {                           // referencia del motor i en cuentas (la usa controlStep igual que la del perfil normal)
+    MotorRT &m = g_rt[i]; const MotorCfg &c = g_cfg.m[i];
+    const float q = clampf(g_tr_q[i], -c.limit, c.limit);
+    m.r = q / m.dpc; m.rv = g_tr_qd[i] / m.dpc; m.target = m.r; m.stream = false;
+}
+
+// Pose del plato según los encoders: 0 = home, 1..SPM_N_CARAS = cara k, -1 = ninguna (a menos de SPM_TOL_POSE_DEG de todos los motores).
+static int trajPoseEtapa(float *dev_out = NULL) {
+    int best = -1; float bd = 1e9f;
+    for (int e = 0; e <= SPM_N_CARAS; e++) {
+        float d = 0;
+        for (int i = 0; i < N_MOT; i++) d = fmaxf(d, fabsf(SPM_POSE_Q[e][i] - g_rt[i].pos * g_rt[i].dpc));
+        if (d < bd) { bd = d; best = e; }
+    }
+    if (dev_out) *dev_out = bd;
+    return bd <= SPM_TOL_POSE_DEG ? best : -1;
+}
+
+// Rechazos: siempre por USB; por UART solo si SPM_UART_ERRORES (el protocolo no define evento de error: lo normal es que la Orange Pi agote su plazo).
+static void trajError(uint8_t chan, const char *why, const char *extra = "") {
+    sendf("{\"err\":\"traj\",\"why\":\"%s\"%s}", why, extra);
+#if SPM_UART_ERRORES
+    if (chan == 1) { char b[96]; int n = snprintf(b, sizeof(b), "{\"evento\":\"error\",\"codigo\":\"%s\"}", why); (void)n; String p(b); String l = empaquetarMensajeUart(p); hwSendUart(l.c_str(), (int)l.length()); }
+#else
+    (void)chan;
+#endif
+}
+
+static bool trajStart(uint8_t kind, const SpmLeg *legs, uint8_t n, uint8_t chan, int cara, const char *dest, bool check_start = true) {
+    if (g_tr_active)                                   { trajError(chan, "ocupado"); return false; }
+    if (g_state == ST_FAULT)                           { trajError(chan, "falla", ",\"hint\":\"usa reset\""); return false; }
+    if (g_state != ST_RUN || g_cap.active || g_cap_req.pending || g_dumping) { trajError(chan, "no_listo", ",\"hint\":\"motores libres o captura en curso: enable/reset\""); return false; }
+    if (check_start) {
+        float d = 0;
+        for (int i = 0; i < N_MOT; i++) d = fmaxf(d, fabsf(legs[0].q0[i] - g_rt[i].pos * g_rt[i].dpc));
+        if (d > SPM_TOL_POSE_DEG) { char x[96]; snprintf(x, sizeof(x), ",\"dev_deg\":%.1f,\"hint\":\"el plato no esta en la pose de partida (ppr, zero all en home o home)\"", d); trajError(chan, "pose_inicial", x); return false; }
+    }
+    portENTER_CRITICAL(&g_mux);
+    g_tr_legs = legs; g_tr_n = n; g_tr_idx = 0; g_tr_t = 0; g_tr_kind = kind; g_tr_chan = chan; g_tr_cara = cara;
+    strncpy(g_tr_dest, dest ? dest : "", sizeof(g_tr_dest) - 1); g_tr_dest[sizeof(g_tr_dest) - 1] = 0;
+    for (int i = 0; i < N_MOT; i++) { g_tr_q[i] = legs[0].q0[i]; g_tr_qd[i] = 0; }
+    g_tr_event = 0; g_tr_active = true;
+    portEXIT_CRITICAL(&g_mux);
+    return true;
+}
+
+static void sendUartEvent(const char *payload) {       // «<json>|<XOR>\n» con las funciones de shared/protocol_constants.h
+    String l = empaquetarMensajeUart(String(payload));
+    hwSendUart(l.c_str(), (int)l.length());
+}
+
+// Se llama desde la tarea de comandos (núcleo 0) y desde el banco de pruebas: envía lo que el lazo de control dejó pendiente.
+void trajService() {
+    uint8_t ev;
+    portENTER_CRITICAL(&g_mux); ev = g_tr_event; g_tr_event = 0; portEXIT_CRITICAL(&g_mux);
+    if (!ev) return;
+    if (ev == 2) { sendf("{\"err\":\"traj\",\"why\":\"abortada\",\"hint\":\"stop/reset/falla: el plato queda donde esta; no se reanuda sola\"}"); return; }
+    char b[96];
+    if (g_tr_kind == TK_CAM) {
+        sendf("{\"ack\":\"traj_done\",\"kind\":\"cam\",\"cara\":%d}", g_tr_cara);
+        if (g_tr_chan == 1) { snprintf(b, sizeof(b), "{\"evento\":\"%s\",\"cara\":%d}", EVENTO_EN_POSICION, g_tr_cara); sendUartEvent(b); }
+    } else if (g_tr_kind == TK_CLAS) {
+        sendf("{\"ack\":\"traj_done\",\"kind\":\"clas\",\"destino\":\"%s\"}", g_tr_dest);
+#if SPM_UART_CONFIRMA_CLASIFICAR
+        if (g_tr_chan == 1) { snprintf(b, sizeof(b), "{\"evento\":\"%s\",\"destino\":\"%s\"}", EVENTO_CLASIFICADO, g_tr_dest); sendUartEvent(b); }
+#endif
+    } else sendf("{\"ack\":\"traj_done\",\"kind\":\"home\"}");
+}
+
+// Órdenes (las mismas para USB y UART). `cara` 1..SPM_N_CARAS; la 5.ª de CARAS_POR_OBJETO no está implementada y se rechaza.
+static void doCamara(int cara, uint8_t chan) {
+    if (g_tr_active) { trajError(chan, "ocupado"); return; }
+    if (cara > SPM_N_CARAS && cara <= CARAS_POR_OBJETO) { trajError(chan, "cara_no_implementada", ",\"hint\":\"el firmware implementa 4 caras: usar --caras 4 en la Orange Pi\""); return; }
+    if (cara < 1 || cara > SPM_N_CARAS) { trajError(chan, "cara_invalida"); return; }
+    const int e = trajPoseEtapa();
+    if (e == cara) {                                   // ya está en esa pose (p. ej. orden repetida): se confirma sin mover
+        g_tr_kind = TK_CAM; g_tr_chan = chan; g_tr_cara = cara; g_tr_event = 1; return;
+    }
+    if (e != cara - 1) { char x[64]; snprintf(x, sizeof(x), ",\"pose_actual\":%d,\"cara\":%d", e, cara); trajError(chan, "fuera_de_secuencia", x); return; }
+    trajStart(TK_CAM, SPM_CAM[cara - 1].legs, SPM_CAM[cara - 1].n, chan, cara, "");
+}
+
+static void doClasificar(const char *destino, uint8_t chan) {
+    if (g_tr_active) { trajError(chan, "ocupado"); return; }
+    int tipo = -1; bool desc2 = false;
+    if (!strcmp(destino, DESTINO_DESCARTE)) { if (g_descarte == 2) desc2 = true; else tipo = 0; }
+    else if (!strcmp(destino, "DESCARTE_1")) tipo = 0;
+    else if (!strcmp(destino, "DESCARTE_2")) desc2 = true;
+    else for (int k = 0; k < SPM_N_TIPOS; k++) if (!strcmp(destino, SPM_TIPOS[k])) tipo = k;
+    if (tipo < 0 && !desc2) { trajError(chan, "destino_invalido"); return; }
+    const int e = trajPoseEtapa();
+    if (e < 0) { trajError(chan, "pose_desconocida", ",\"hint\":\"el plato no esta en home ni en una cara: usa home\""); return; }
+    const SpmPlan &pl = desc2 ? SPM_DESC2[e] : SPM_CLAS[tipo][e];
+    trajStart(TK_CLAS, pl.legs, pl.n, chan, 0, destino);
+}
+
+static void doHome(uint8_t chan) {                     // SOLO USB: recuperación tras un aborto (línea recta en el espacio de los motores: sin validar contra colisiones)
+    if (g_tr_active) { trajError(chan, "ocupado"); return; }
+    float dmax = 0;
+    for (int i = 0; i < N_MOT; i++) { g_home_leg.q0[i] = g_rt[i].pos * g_rt[i].dpc; g_home_leg.q1[i] = 0; dmax = fmaxf(dmax, fabsf(g_home_leg.q0[i])); }
+    g_home_leg.t_mov = fmaxf(3.0f, 1.875f * dmax / SPM_HOME_VMAX_DPS); g_home_leg.t_hold = 0.5f;
+    trajStart(TK_HOME, &g_home_leg, 1, chan, 0, "", false);
+}
+
 // Un ciclo de control para todos los motores. 'dt' es el periodo REAL medido. Lo llama la tarea de control (o el banco de pruebas).
 void controlCycle(float dt, int64_t now_us) {
     State st = g_state;
@@ -485,9 +665,15 @@ void controlCycle(float dt, int64_t now_us) {
     if (g_reset_req) {
         g_reset_req = false;
         for (int i = 0; i < N_MOT; i++) { resetMotor(i, true); }
+        if (g_tr_active) trajEnd(2);
         g_fault_mask = 0; g_state = st = ST_RUN;
     }
     if (g_cap_req.pending) captureBegin(st);
+    bool tr_on = false;                                      // trayectoria SmartPharma en curso: ella genera la referencia
+    if (g_tr_active) {
+        if (st != ST_RUN || g_fault_mask) trajEnd(2);        // stop, reset o falla: se aborta (los motores quedan donde están)
+        else { trajAdvance(dt); tr_on = g_tr_active; }
+    }
     for (int i = 0; i < N_MOT; i++) {
         MotorRT &m = g_rt[i]; const MotorCfg &c = g_cfg.m[i];
         const bool cap_motor = (st == ST_CAPTURE && g_cap.active && i == g_cap.motor);
@@ -496,14 +682,14 @@ void controlCycle(float dt, int64_t now_us) {
         portENTER_CRITICAL(&g_mux);
         fresh = g_cmd[i].fresh; cm = g_cmd[i]; g_cmd[i].fresh = false;
         portEXIT_CRITICAL(&g_mux);
-        if (fresh && st == ST_RUN) {
+        if (fresh && st == ST_RUN && !tr_on) {
             float t = clampf(cm.target_deg, -c.limit, c.limit);
             applyNewTarget(i, t / m.dpc, cm.t_arrival_us, cm.t_prev_us);
         }
         // 3) referencia + control
         float u = 0;
         if (st == ST_RUN || (st == ST_CAPTURE && !cap_motor && g_cap.hold)) {
-            referenceStep(i, dt);
+            if (tr_on) trajRef(i); else referenceStep(i, dt);
             m.u = controlStep(i, dt);
             u = m.u;
             if (faultCheck(i, dt)) { g_fault_mask |= (1 << i); }
@@ -547,6 +733,7 @@ void firmwareInit() {                                    // parte del arranque s
     applyConfigDerived();
     g_state = ST_RUN; g_fault_mask = 0; g_miss = 0; g_jit_us = 0; g_reset_req = false;
     for (int i = 0; i < N_MOT; i++) g_zero_req[i] = false;
+    g_tr_active = false; g_tr_event = 0; g_descarte = SPM_DESCARTE_VARIANTE_DEFECTO;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -613,6 +800,11 @@ static void setTarget(int i, float deg, int64_t now_us) {
 static bool cfgSet(const char *name, int motor, const JVal *val) {
     int lo = 0, hi = N_MOT - 1;
     if (motor >= 1 && motor <= N_MOT) lo = hi = motor - 1;
+    if (!strcmp(name, "descarte")) {                    // variante de DESCARTE: 1 (como TIPO_A) o 2 (espera y home); acepta 1/2 o "DESCARTE_1"/"DESCARTE_2"
+        int v = (val->type == 2) ? (!strcmp(val->str, "DESCARTE_2") ? 2 : (!strcmp(val->str, "DESCARTE_1") ? 1 : 0)) : (int)val->num;
+        if (v != 1 && v != 2) return false;
+        g_descarte = (uint8_t)v; return true;
+    }
     if (!strcmp(name, "telem_hz")) { g_cfg.telem_hz = (uint16_t)clampf(val->num, 1, 100); return true; }
     if (!strcmp(name, "fault_ms")) { g_cfg.fault_ms = (uint16_t)clampf(val->num, 100, 5000); return true; }
     for (int i = lo; i <= hi; i++) {
@@ -640,11 +832,14 @@ static bool cfgSet(const char *name, int motor, const JVal *val) {
     return true;
 }
 
+static unsigned long g_uart_ok = 0, g_uart_err = 0;   // mensajes UART válidos / descartados (checksum o formato)
+
 static void sendStatus() {
-    sendf("{\"info\":\"status\",\"st\":\"%s\",\"fault\":%u,\"hz\":%u,\"telem_hz\":%u,\"ppr\":[%.0f,%.0f,%.0f],\"ctrl\":[%u,%u,%u],\"pwm_max\":[%.2f,%.2f,%.2f],\"enc_sign\":[%d,%d,%d]}",
+    sendf("{\"info\":\"status\",\"st\":\"%s\",\"fault\":%u,\"hz\":%u,\"telem_hz\":%u,\"ppr\":[%.0f,%.0f,%.0f],\"ctrl\":[%u,%u,%u],\"pwm_max\":[%.2f,%.2f,%.2f],\"enc_sign\":[%d,%d,%d],\"pose\":%d,\"traj\":%d,\"descarte\":%u,\"uart_ok\":%lu,\"uart_err\":%lu}",
           STATE_NAME[g_state], (unsigned)g_fault_mask, (unsigned)CONTROL_HZ, (unsigned)g_cfg.telem_hz,
           g_cfg.m[0].ppr, g_cfg.m[1].ppr, g_cfg.m[2].ppr, g_cfg.m[0].ctrl, g_cfg.m[1].ctrl, g_cfg.m[2].ctrl,
-          g_cfg.m[0].pwm_max, g_cfg.m[1].pwm_max, g_cfg.m[2].pwm_max, g_cfg.m[0].enc_sign, g_cfg.m[1].enc_sign, g_cfg.m[2].enc_sign);
+          g_cfg.m[0].pwm_max, g_cfg.m[1].pwm_max, g_cfg.m[2].pwm_max, g_cfg.m[0].enc_sign, g_cfg.m[1].enc_sign, g_cfg.m[2].enc_sign, trajPoseEtapa(), (int)g_tr_active, (unsigned)g_descarte,
+          (unsigned long)g_uart_ok, (unsigned long)g_uart_err);
 }
 
 #ifdef HOST_TEST
@@ -656,6 +851,7 @@ static bool nvsSave() {
     g_cfg.magic = CFG_MAGIC;
     g_prefs.begin("spm", false);
     size_t n = g_prefs.putBytes("cfg", &g_cfg, sizeof(g_cfg));
+    g_prefs.putUChar("desc", g_descarte);               // variante de DESCARTE en su propia clave: no cambia el tamaño de Config (si no, se perdería lo ya guardado)
     g_prefs.end();
     return n == sizeof(g_cfg);
 }
@@ -663,7 +859,9 @@ static bool nvsLoad() {
     Config tmp;
     g_prefs.begin("spm", true);
     size_t n = g_prefs.getBytes("cfg", &tmp, sizeof(tmp));
+    uint8_t d = g_prefs.getUChar("desc", SPM_DESCARTE_VARIANTE_DEFECTO);
     g_prefs.end();
+    if (d == 1 || d == 2) g_descarte = d;
     if (n != sizeof(tmp) || tmp.magic != CFG_MAGIC) return false;
     g_cfg = tmp; applyConfigDerived();
     return true;
@@ -696,6 +894,7 @@ static void polarityTest(bool apply) {
 //   hold=1: los otros motores sostienen su posición con el lazo normal (def. 0: libres).
 // El ciclo de trabajo se limita a pwm_max del motor. Con los datos listos se piden con {"cmd":"dump"}.
 static void captureCommand(const JMsg &m) {
+    if (g_tr_active) { trajError(0, "ocupado"); return; }
     if (g_state == ST_FAULT || g_state == ST_TEST) { sendf("{\"err\":\"capture\",\"hint\":\"primero reset\"}"); return; }
     if (g_cap.active || g_cap_req.pending || g_dumping) { sendf("{\"err\":\"capture\",\"hint\":\"ocupado\"}"); return; }
     const JVal *mo = jget(m, "motor"), *du = jget(m, "duty"), *ms = jget(m, "ms"), *md = jget(m, "mode");
@@ -756,34 +955,41 @@ void handleLine(const char *line, int64_t now_us) {
         else if (!strcmp(c, "status"))  sendStatus();
         else if (!strcmp(c, "save"))    { if (nvsSave()) sendf("{\"ack\":\"save\"}"); else sendf("{\"err\":\"save\"}"); }
         else if (!strcmp(c, "load"))    { if (nvsLoad()) { g_reset_req = true; sendf("{\"ack\":\"load\"}"); } else sendf("{\"err\":\"load\",\"hint\":\"sin datos guardados\"}"); }
-        else if (!strcmp(c, "defaults")) { for (int i = 0; i < N_MOT; i++) g_cfg.m[i] = CFG_DEFECTO; applyConfigDerived(); g_reset_req = true; sendf("{\"ack\":\"defaults\"}"); }
-        else if (!strcmp(c, "polarity")) { const JVal *a = jget(m, "apply"); polarityTest(a && a->num != 0); }
+        else if (!strcmp(c, "defaults")) { if (g_tr_active) { trajError(0, "ocupado"); return; } for (int i = 0; i < N_MOT; i++) g_cfg.m[i] = CFG_DEFECTO; g_descarte = SPM_DESCARTE_VARIANTE_DEFECTO; applyConfigDerived(); g_reset_req = true; sendf("{\"ack\":\"defaults\"}"); }
+        else if (!strcmp(c, "polarity")) { if (g_tr_active) { trajError(0, "ocupado"); return; } const JVal *a = jget(m, "apply"); polarityTest(a && a->num != 0); }
         else if (!strcmp(c, "capture"))  captureCommand(m);
         else if (!strcmp(c, "dump"))     captureDump();
+        else if (!strcmp(c, "cam"))      { const JVal *a = jget(m, "cara"); doCamara(a ? (int)a->num : 0, 0); }
+        else if (!strcmp(c, "clas"))     { const JVal *d = jget(m, "destino"); if (d && d->type == 2) doClasificar(d->str, 0); else trajError(0, "destino_invalido"); }
+        else if (!strcmp(c, "home"))     doHome(0);
         else sendf("{\"err\":\"cmd\"}");
         return;
     }
     const JVal *cfg = jget(m, "cfg");
     if (cfg && cfg->type == 2) {
         const JVal *v = jget(m, "val"), *mo = jget(m, "motor");
+        if (g_tr_active && strcmp(cfg->str, "descarte")) { trajError(0, "ocupado"); return; }
         if (!v) { sendf("{\"err\":\"cfg\",\"hint\":\"falta val\"}"); return; }
         if (cfgSet(cfg->str, mo ? (int)mo->num : 0, v)) sendf("{\"ack\":\"cfg\",\"name\":\"%s\"}", cfg->str); else sendf("{\"err\":\"cfg\",\"name\":\"%s\"}", cfg->str);
         return;
     }
     const JVal *z = jget(m, "zero");
     if (z) {
+        if (g_tr_active) { trajError(0, "ocupado"); return; }
         if (z->type == 2) { for (int i = 0; i < N_MOT; i++) g_zero_req[i] = true; }
         else { int n = (int)z->num; if (n >= 1 && n <= N_MOT) g_zero_req[n - 1] = true; else { sendf("{\"err\":\"zero\"}"); return; } }
         sendf("{\"ack\":\"zero\"}"); return;
     }
     const JVal *du = jget(m, "duty");
-    if (du) {                                              // lazo abierto para pruebas (identificación): {"duty":N,"val":x}
+    if (du) {                                              // lazo abierto
+        if (g_tr_active) { trajError(0, "ocupado"); return; }       // lazo abierto para pruebas (identificación): {"duty":N,"val":x}
         const JVal *v = jget(m, "val"); int n = (int)du->num;
         if (!v || n < 1 || n > N_MOT) { sendf("{\"err\":\"duty\"}"); return; }
         portENTER_CRITICAL(&g_mux); g_cmd[n - 1].duty_open = clampf(v->num, -1, 1); portEXIT_CRITICAL(&g_mux);
         sendf("{\"ack\":\"duty\"}"); return;
     }
     const JVal *mo = jget(m, "motor"), *po = jget(m, "pos");
+    if ((mo && po) || jget(m, "m1") || jget(m, "m2") || jget(m, "m3")) { if (g_tr_active) { trajError(0, "ocupado", ",\"hint\":\"trayectoria en curso: stop o reset para abortar\""); return; } }
     if (mo && po) {
         int n = (int)mo->num;
         if (n < 1 || n > N_MOT) { sendf("{\"err\":\"motor\"}"); return; }
@@ -793,6 +999,38 @@ void handleLine(const char *line, int64_t now_us) {
     static const char *K[N_MOT] = { "m1", "m2", "m3" };
     for (int i = 0; i < N_MOT; i++) { const JVal *v = jget(m, K[i]); if (v && v->type == 1) { setTarget(i, v->num, now_us); any = true; } }
     if (!any) sendf("{\"err\":\"unknown\"}");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  7b. CANAL UART DE LA ORANGE PI  («<json>|<XOR hex>»; ver shared/protocol_constants.h)
+//  Línea con checksum inválido o JSON ilegible: se descarta sin actuar (regla del repo). Acciones que este firmware aún no implementa (activar_dispensador,
+//  alarma local, solicitar_telemetria: S-08, S-09, S-13) se ignoran. No hay ningún temporizador que reanude nada por cuenta propia.
+// ═══════════════════════════════════════════════════════════════════════════════
+void handleUartLine(const char *line) {
+    const char *bar = strrchr(line, UART_SEPARADOR_CHECKSUM);
+    if (!bar) { g_uart_err++; return; }
+    char payload[200]; const size_t pl = (size_t)(bar - line);
+    if (pl == 0 || pl >= sizeof(payload)) { g_uart_err++; return; }
+    memcpy(payload, line, pl); payload[pl] = 0;
+    char chk[8]; int k = 0;                                // checksum recibido: 2 dígitos hex (sin espacios ni \r)
+    for (const char *q = bar + 1; *q && k < 7; q++) if (*q != ' ' && *q != '\r') chk[k++] = *q;
+    chk[k] = 0;
+    char esperado[4]; snprintf(esperado, sizeof(esperado), "%02X", calcularChecksumXor(String(payload)));
+    if (k != 2 || strcasecmp(chk, esperado) != 0) { g_uart_err++; return; }
+    JMsg m;
+    if (!jsonParse(payload, m)) { g_uart_err++; return; }
+    g_uart_ok++;
+    const JVal *acc = jget(m, "accion");
+    if (!acc || acc->type != 2) return;
+    if (!strcmp(acc->str, ACCION_GIRAR_POSICION)) {
+        const JVal *c = jget(m, "cara");
+        if (!c || c->type != 1 || c->num != (float)(int)c->num) { trajError(1, "cara_invalida"); return; }
+        doCamara((int)c->num, 1);
+    } else if (!strcmp(acc->str, ACCION_CLASIFICAR)) {
+        const JVal *d = jget(m, "destino");
+        if (!d || d->type != 2) { trajError(1, "destino_invalido"); return; }
+        doClasificar(d->str, 1);
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -857,15 +1095,28 @@ static void taskTelemetry(void *) {
 
 static void taskCommands(void *) {
     char buf[240]; int n = 0;
+    char ubuf[240]; int un = 0;                          // línea del UART de la Orange Pi
     for (;;) {
         int c = Serial.read();
-        if (c < 0) { vTaskDelay(pdMS_TO_TICKS(1)); continue; }
-        if (c == '\n') {
-            buf[n] = 0;
-            if (n > 0) handleLine(buf, hwNowUs());
-            n = 0;
-        } else if (n < (int)sizeof(buf) - 1) buf[n++] = (char)c;
-        else n = 0;                                      // línea demasiado larga: se descarta
+        int u = SPM_UART_OPI_ACTIVA ? Serial2.read() : -1;
+        trajService();                                   // confirmaciones pendientes de la trayectoria (el lazo de control no envía nada)
+        if (c < 0 && u < 0) { vTaskDelay(pdMS_TO_TICKS(1)); continue; }
+        if (c >= 0) {
+            if (c == '\n') {
+                buf[n] = 0;
+                if (n > 0) handleLine(buf, hwNowUs());
+                n = 0;
+            } else if (n < (int)sizeof(buf) - 1) buf[n++] = (char)c;
+            else n = 0;                                  // línea demasiado larga: se descarta
+        }
+        if (u >= 0) {
+            if (u == '\n') {
+                ubuf[un] = 0;
+                if (un > 0) handleUartLine(ubuf);
+                un = 0;
+            } else if (un < (int)sizeof(ubuf) - 1) ubuf[un++] = (char)u;
+            else { un = 0; g_uart_err++; }
+        }
     }
 }
 
@@ -874,6 +1125,10 @@ void setup() {
     firmwareInit();
     Serial.setRxBufferSize(1024);
     Serial.begin(BAUD);
+#if SPM_UART_OPI_ACTIVA
+    Serial2.setRxBufferSize(512);
+    Serial2.begin(UART_BAUDRATE, SERIAL_8N1, PIN_OPI_RX, PIN_OPI_TX);   // enlace con la Orange Pi (115200, constante de shared/)
+#endif
     delay(200);
     g_txMutex = xSemaphoreCreateMutex();
     nvsLoad();                                           // si hay configuración guardada, reemplaza a los valores por defecto

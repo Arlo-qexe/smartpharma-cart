@@ -32,10 +32,15 @@ def main(argv=None):
     p = sub.add_parser("caja_motores", help="programa de la caja con los motores IDENTIFICADOS y su lazo de posición (identificacion/*.json)"); p.add_argument("--salida", default="salida")
     p.add_argument("--azimut", type=float, default=0.0); p.add_argument("--espera", type=float, default=5.0)
     p.add_argument("--tope-vel", type=float, default=130.0, help="tope de velocidad por motor (°/s) al planificar")
+    p = sub.add_parser("smartpharma", help="trayectorias SmartPharma (cámara, clasificación, descarte): JSON, CSV, cabecera del firmware y gráficas", add_help=False)
+    p.add_argument("args", nargs=argparse.REMAINDER)
     sub.add_parser("colisiones", help="recalcula el mapa de colisiones con el CAD (varios minutos)")
     p = sub.add_parser("mapa", help="mapa del espacio de trabajo"); p.add_argument("--salida", default="salida")
     p.add_argument("--torsion", type=float, default=0.0)
     a = ap.parse_args(argv)
+    if a.cmd == "smartpharma":
+        from .smartpharma_salida import main as main_sp
+        return main_sp(a.args)
     spm = SPM(); trans, lim = cargar_config()
 
     if a.cmd == "ik":
