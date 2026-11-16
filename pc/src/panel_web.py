@@ -18,6 +18,8 @@ Rutas:
     POST /api/ciclo/iniciar                 el regente ordena iniciar el ciclo de auditoría: la Orange
                                             Pi la recoge en su próxima consulta (informe 4.7). Cuerpo
                                             opcional {"cantidad": N}: cajas a procesar (sin él, sin límite)
+    POST /api/desplazamiento/ordenar        el regente ordena llevar el carrito a un punto: {"punto": N}; la Orange Pi
+                                            lo recoge por consulta (informe 4.10); exige turno y ciclo sin correr
     POST /api/ciclo/detener                 el regente ordena detener el ciclo: la Orange Pi lo recoge
                                             antes del siguiente objeto (informe 4.8)
     GET  /api/inventario[/agrupado]         inventario de cajas (solo lectura): q, destino, revision, venc, mostrar,
@@ -70,6 +72,9 @@ from usuarios import (  # noqa: E402
 import exportar  # noqa: E402
 from estado_panel import (  # noqa: E402
     CERRADA_SIN_DECISION,
+    DESPL_CICLO_EN_CURSO,
+    DESPL_PUNTO_INVALIDO,
+    DESPL_YA_ORDENADO,
     DESTINO_INVALIDO,
     DETENCION_ORDENADA,
     INICIO_CANTIDAD_INVALIDA,
@@ -95,6 +100,7 @@ _ESTATICOS = {
 _RE_FOTO = re.compile(r"^/foto/(\d+)/(\d+)$")
 _RE_RESOLVER = re.compile(r"^/api/alarmas/(\d+)/resolver$")
 _RE_CICLO = re.compile(r"^/api/ciclo/(iniciar|detener)$")
+_RE_DESPLAZAMIENTO = re.compile(r"^/api/desplazamiento/ordenar$")
 _RE_INVENTARIO = re.compile(r"^/api/inventario/(\d+)/(editar|eliminar|restaurar)$")
 _MAX_CUERPO_INVENTARIO_BYTES = 8192     # las notas admiten 500 caracteres (hasta ~2 KB en UTF-8)
 _HTTP_ERRORES_INVENTARIO = {"caja_inexistente": 404, "caja_eliminada": 409, "ya_eliminada": 409, "no_eliminada": 409}
@@ -135,6 +141,8 @@ def _configuracion() -> list:
         {"nombre": "Puerto TCP (consulta de decisión)", "valor": str(pc.TCP_PUERTO_DECISION_DEFECTO)},
         {"nombre": "Intervalo de consulta de decisión", "valor": f"{pc.INTERVALO_CONSULTA_DECISION_S} s"},
         {"nombre": "Vigencia de la orden de inicio del ciclo", "valor": f"{pc.VIGENCIA_ORDEN_CICLO_S} s"},
+        {"nombre": "Vigencia de la orden de desplazamiento", "valor": f"{pc.VIGENCIA_ORDEN_DESPLAZAMIENTO_S} s"},
+        {"nombre": "Espera de llegada del carrito (Orange Pi)", "valor": f"{pc.TIMEOUT_DESPLAZAMIENTO_S} s"},
         {"nombre": "Timeout de conexión TCP", "valor": f"{pc.TIMEOUT_CONEXION_TCP_S} s"},
         {"nombre": "Timeout de respuesta del reconocimiento", "valor": f"{pc.TIMEOUT_RESPUESTA_RECONOCIMIENTO_S} s"},
         {"nombre": "Límite total de transacción", "valor": f"{pc.TIMEOUT_TOTAL_TRANSACCION_S} s"},
@@ -535,10 +543,11 @@ class _Handler(BaseHTTPRequestHandler):
         m_asistente = _RE_ASISTENTE.match(ruta)
         m = _RE_RESOLVER.match(ruta)
         m_ciclo = _RE_CICLO.match(ruta)
+        m_despl = _RE_DESPLAZAMIENTO.match(ruta)
         m_sesion = _RE_SESION.match(ruta)
         m_usuarios = _RE_USUARIOS.match(ruta)
         m_inventario = _RE_INVENTARIO.match(ruta)
-        if (not m and not m_ciclo and not m_sesion and not m_usuarios and not m_inventario
+        if (not m and not m_ciclo and not m_despl and not m_sesion and not m_usuarios and not m_inventario
                 and not (m_asistente and m_asistente.group(1) != "estado")):
             self._json(404, {"error": "no encontrado"})
             return
@@ -553,6 +562,23 @@ class _Handler(BaseHTTPRequestHandler):
             return
         if m_inventario:
             self._post_inventario(int(m_inventario.group(1)), m_inventario.group(2))
+            return
+        if m_despl:
+            ok, responsable = self._autorizar(PERMISO_OPERAR, "desplazar_carrito")
+            if not ok:
+                return
+            punto = self._leer_cuerpo_json().get("punto")
+            resultado = self.server.estado.ordenar_desplazamiento(punto, responsable=responsable)
+            if resultado == DESPL_PUNTO_INVALIDO:
+                self._json(400, {"error": "punto_invalido"})
+            elif resultado == DESPL_CICLO_EN_CURSO:
+                self._json(409, {"error": "ciclo_en_curso"})
+            elif resultado == DESPL_YA_ORDENADO:
+                self._json(409, {"error": "ya_ordenado"})
+            else:
+                log.info("%s ordenó llevar el carrito al punto %s (la Orange Pi lo recoge en su próxima consulta)",
+                         responsable, punto)
+                self._json(200, {"ok": True, "resultado": resultado})
             return
         if m_ciclo and m_ciclo.group(1) == "detener":
             ok, responsable = self._autorizar(PERMISO_OPERAR, "detener_ciclo")

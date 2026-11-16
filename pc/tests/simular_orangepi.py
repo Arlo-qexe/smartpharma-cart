@@ -28,16 +28,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mock_orangepi_client import (  # noqa: E402
-    _leer_respuesta, consultar_decision, consultar_estado_ciclo, consultar_orden_ciclo, enviar_telemetria,
-    telemetria_de_ejemplo,
+    _leer_respuesta, consultar_decision, consultar_estado_ciclo, consultar_orden_ciclo,
+    consultar_orden_desplazamiento, enviar_resultado_desplazamiento, enviar_telemetria, telemetria_de_ejemplo,
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
     CARAS_POR_OBJETO_DEFECTO, CARAS_POR_OBJETO_VALIDAS, CICLO_DETENER, CLAVE_CICLO_JSON, CLAVE_DESTINO_JSON, CLAVE_ESTADO_DECISION_JSON,
-    CLAVE_ORDEN_CICLO_JSON, CLAVE_RESULTADO_JSON, ESTADO_DECISION_NINGUNA, ESTADO_DECISION_RESUELTA,
+    CLAVE_DESPLAZAMIENTO_JSON, CLAVE_ORDEN_CICLO_JSON, CLAVE_PUNTO_JSON, CLAVE_RESULTADO_JSON, DESPLAZAMIENTO_IR, ESTADO_DECISION_NINGUNA, ESTADO_DECISION_RESUELTA,
     FRAMING_STRUCT_FORMAT, INTERVALO_CONSULTA_DECISION_S, INTERVALO_ENVIO_TELEMETRIA_PC_S, ORDEN_CICLO_INICIAR,
-    RESULTADO_ERROR_REVISION_MANUAL, TCP_PUERTO_DEFECTO,
+    RESULTADO_DESPLAZAMIENTO_LLEGADA, RESULTADO_ERROR_REVISION_MANUAL, TCP_PUERTO_DEFECTO,
 )
 
 FOTOS_DEFECTO = Path(__file__).resolve().parents[2] / "IA" / "dataset_ia" / "roboflow" / "roboflow_v1.zip"
@@ -69,12 +69,27 @@ def enviar_lote(imagenes, ip, puerto=TCP_PUERTO_DEFECTO):
         return _leer_respuesta(s)[CLAVE_RESULTADO_JSON]
 
 
-def esperar(consulta, clave, valor, ip, texto):
+def atender_desplazamiento(ip, segundos):
+    """Como la Orange Pi real mientras espera la orden de inicio: pregunta si hay que llevar el carrito
+    a un punto; si sí, 'se desplaza' `segundos` (ESP32-S3 simulada) y avisa de la llegada."""
+    respuesta = consultar_orden_desplazamiento(ip)
+    if respuesta.get(CLAVE_DESPLAZAMIENTO_JSON) != DESPLAZAMIENTO_IR:
+        return
+    punto = respuesta[CLAVE_PUNTO_JSON]
+    print(f"Desplazándome al punto {punto} (simulado, {segundos:g} s)…", flush=True)
+    time.sleep(segundos)
+    enviar_resultado_desplazamiento(punto, RESULTADO_DESPLAZAMIENTO_LLEGADA, ip)
+    print(f"En el punto {punto}.", flush=True)
+
+
+def esperar(consulta, clave, valor, ip, texto, entre_consultas=None):
     avisado = False
     while True:
         try:
             if consulta(ip)[clave] == valor:
                 return
+            if entre_consultas:
+                entre_consultas()
         except OSError:
             pass
         if not avisado:
@@ -125,6 +140,8 @@ def main():
                    help="fotos por caja (las primeras N caras); 4 simula la opción `--caras 4` de la Orange Pi")
     p.add_argument("--sin-telemetria", action="store_true",
                    help="no enviar la telemetría inventada de la Orange Pi y la ESP32-S3 (por defecto, cada 5 s)")
+    p.add_argument("--pausa-desplazamiento", type=float, default=5.0, metavar="S",
+                   help="segundos que tarda el carrito simulado en llegar al punto pedido con «Llevar a punto»")
     p.add_argument("--pausa", type=float, default=2.0, help="segundos entre cajas (movimiento del carrito)")
     a = p.parse_args()
 
@@ -141,7 +158,8 @@ def main():
     while True:
         if not a.sin_orden:
             esperar(consultar_orden_ciclo, CLAVE_ORDEN_CICLO_JSON, ORDEN_CICLO_INICIAR, a.ip,
-                    "Esperando que el regente pulse «Iniciar recorrido» en el panel…")
+                    "Esperando que el regente pulse «Iniciar recorrido» en el panel…",
+                    entre_consultas=lambda: atender_desplazamiento(a.ip, a.pausa_desplazamiento))
         print("Recorrido iniciado.", flush=True)
         detenido = False
         n = 0

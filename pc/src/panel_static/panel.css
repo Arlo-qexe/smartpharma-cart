@@ -97,7 +97,19 @@ main { margin-top: 14px; }
   padding: 16px 28px; border: 0; border-radius: 8px;
   background: var(--teal); color: #fff; font: 800 18px system-ui, sans-serif;
 }
-.boton-recorrido:disabled, .boton-detener:disabled { opacity: .55; cursor: not-allowed; }
+.boton-recorrido:disabled, .boton-detener:disabled, .boton-posicionar:disabled { opacity: .55; cursor: not-allowed; }
+.boton-posicionar {
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 16px 28px; border: 0; border-radius: 8px;
+  background: var(--tinta); color: #fff; font: 800 18px system-ui, sans-serif;
+}
+.boton-posicionar .play { color: var(--tinta); }
+.recorrido-controles.posicionar { margin-top: 14px; }
+.cantidad select {
+  min-width: 120px; padding: 12px 10px; border: 1px solid var(--tinta); border-radius: 8px;
+  font: 700 18px system-ui, sans-serif; background: #fff;
+}
+.cantidad select:disabled { opacity: .55; }
 .boton-detener {
   display: inline-flex; align-items: center; gap: 12px;
   padding: 16px 28px; border: 0; border-radius: 8px;

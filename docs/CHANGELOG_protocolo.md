@@ -14,6 +14,31 @@ Formato de cada entrada:
 
 ---
 
+## 2026-11-16 — Arlo-qexe (con Claude Code, lado PC)
+- **Nuevo: llevar el carrito a un punto** (pedido del usuario: botón «Llevar a punto» en el panel; el carrito se desplaza con dos
+  motores en tracción diferencial y la ESP32-S3 tiene las trayectorias prefabricadas). Detalle en `arquitectura_comunicacion.md`,
+  secciones 4.10 y 5.7. Sigue el patrón del giro de caras: la PC pide, la Orange Pi ordena a la ESP32-S3 y espera la confirmación de llegada.
+- **PC → Orange Pi (por consulta, 4.10):** `{"consulta": "orden_desplazamiento"}` → `{"desplazamiento": "ninguno"}` o
+  `{"desplazamiento": "ir", "punto": N}`; orden de un solo uso que vence a los 60 s. La Orange Pi consulta **solo con el recorrido parado**
+  (mientras espera `iniciar`); la PC rechaza la orden si hay un recorrido en marcha, deteniéndose o con la orden de inicio pendiente.
+- **Orange Pi → ESP32-S3 (UART, 5.7):** `{"accion": "desplazar_a", "punto": N}`; la ESP32-S3 confirma con `{"evento": "en_destino", "punto": N}`.
+  La Orange Pi espera hasta `TIMEOUT_DESPLAZAMIENTO_S` (60 s); sin confirmación, fallo **sin reintento ni alarma local**.
+- **Orange Pi → PC, al terminar (4.10):** `{"consulta": "resultado_desplazamiento", "punto": N, "resultado": "llegada"|"fallo"}` → `{"ok": true}`
+  (o `consulta_invalida`); si la PC no contesta, se descarta.
+- Constantes nuevas en `shared/protocol_constants.py`: `CONSULTA_ORDEN_DESPLAZAMIENTO`, `CONSULTA_RESULTADO_DESPLAZAMIENTO`, `CLAVE_DESPLAZAMIENTO_JSON`,
+  `DESPLAZAMIENTO_NINGUNO`, `DESPLAZAMIENTO_IR`, `CLAVE_PUNTO_JSON`, `CLAVE_RESULTADO_DESPLAZAMIENTO_JSON`, `RESULTADO_DESPLAZAMIENTO_LLEGADA`,
+  `RESULTADO_DESPLAZAMIENTO_FALLO`, `PUNTOS_DESPLAZAMIENTO` (`(1, 2, 3)`, **valor inicial a definir con los puntos reales**), `TIMEOUT_DESPLAZAMIENTO_S`,
+  `VIGENCIA_ORDEN_DESPLAZAMIENTO_S`, `ACCION_DESPLAZAR_A`, `EVENTO_EN_DESTINO`. `protocol_constants.h` recibe `ACCION_DESPLAZAR_A` y `EVENTO_EN_DESTINO`.
+- **Compatible hacia atrás:** una Orange Pi que no consulta `orden_desplazamiento` sigue funcionando (el botón queda en «ordenado» hasta que la orden vence);
+  una ESP32-S3 que no conoce `desplazar_a` la ignora (la Orange Pi lo anota como fallo).
+- **Impacto para orange-pi (S-15):** consultar `orden_desplazamiento` en el bucle de espera de `iniciar`; al recibir `ir`, enviar `desplazar_a`, esperar
+  `en_destino` hasta `TIMEOUT_DESPLAZAMIENTO_S` y avisar a la PC con `resultado_desplazamiento`; no consultar mientras se desplaza.
+  **Impacto para esp32-firmware (S-16):** ejecutar la trayectoria prefabricada del punto y responder `en_destino`; ignorar puntos desconocidos.
+  **Impacto para pc (PC-25):** hecho (consultas en el puerto 5001, botón y estado en el panel, registro de eventos).
+- Esquema: `orangepi_a_pc__consulta_orden_desplazamiento`, `pc_a_orangepi__respuesta_orden_desplazamiento`, `orangepi_a_esp32__desplazar_a`,
+  `esp32_a_orangepi__en_destino`, `orangepi_a_pc__resultado_desplazamiento`, `pc_a_orangepi__respuesta_resultado_desplazamiento`.
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`, `shared/schemas/messages.schema.json`, `docs/arquitectura_comunicacion.md`.
+
 ## 2026-11-15 (2) — Arlo-qexe (con Claude Code, lado PC)
 - **Las 4 caras pasan a ser el valor por defecto** (decisión del usuario; medido con 27 cajas: sin la cara 5 el reconocimiento no
   empeora y el ciclo se acorta ~3-4 s). Constante nueva `CARAS_POR_OBJETO_DEFECTO` (= `CARAS_POR_OBJETO_REDUCIDO` = 4) en

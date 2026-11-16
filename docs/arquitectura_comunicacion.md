@@ -252,6 +252,31 @@ corta, puerto `TCP_PUERTO_DECISION_DEFECTO`, framing de 4.2.
 - Además, la Orange Pi permite **monitorear la telemetría desde su propia terminal** (sin PC). Eso es local de la
   Orange Pi y **no es parte del contrato**.
 
+### 4.10 Llevar el carrito a un punto (PC → Orange Pi)
+
+Decisión (PC-25/S-15/S-16, pedida por el usuario el 2026-11-16): el carrito tiene cierta autonomía para moverse por la
+farmacia (dos motores en tracción diferencial con control dinámico) y la **ESP32-S3 tiene prefabricada la trayectoria de cada
+punto**. El regente pulsa **«Llevar a punto»** en el panel, elige el punto y la PC se lo pide a la Orange Pi, que se lo pide a
+la ESP32-S3 y espera la confirmación de llegada, igual que con el giro de las caras. Como la Orange Pi nunca recibe
+conexiones, la orden viaja **por consulta**, en el mismo canal que 4.5, 4.7 y 4.8 (conexión TCP corta, puerto
+`TCP_PUERTO_DECISION_DEFECTO`, framing de 4.2).
+
+- **Cuándo:** solo con el **recorrido parado**: la Orange Pi consulta cada `INTERVALO_CONSULTA_DECISION_S` mientras espera la
+  orden `iniciar` (4.7). Con un recorrido en marcha, deteniéndose o con la orden de inicio pendiente, la PC rechaza la orden
+  (el panel deshabilita el botón): el carrito no se mueve con un objeto en vuelo (principio secuencial).
+- **Consulta:** `{"consulta": "orden_desplazamiento"}`. **Respuestas:** `{"desplazamiento": "ninguno"}` (seguir esperando) o
+  `{"desplazamiento": "ir", "punto": N}`, con `N` en `PUNTOS_DESPLAZAMIENTO` (valor inicial `1, 2, 3`: cuando se definan los puntos
+  reales de la farmacia se amplía o se renombra; la ESP32-S3 los mapea a sus trayectorias).
+- **Un solo uso.** La PC entrega `ir` una vez; una orden que nadie recoge **vence** a los `VIGENCIA_ORDEN_DESPLAZAMIENTO_S` (60 s).
+  Mientras se desplaza la Orange Pi **no consulta**: si vuelve a preguntar tras recibir la orden, la PC entiende que reinició y da
+  el desplazamiento por fallido (el panel lo muestra).
+- **Resultado:** al terminar (llegada o fallo) la Orange Pi envía **una vez**
+  `{"consulta": "resultado_desplazamiento", "punto": N, "resultado": "llegada" | "fallo"}` y la PC responde `{"ok": true}` (o
+  `consulta_invalida`). Si la PC no contesta, se descarta. La PC además da por perdido un desplazamiento sin resultado pasados
+  `TIMEOUT_DESPLAZAMIENTO_S` + 15 s, para que el botón no quede bloqueado.
+- **Fallo = sin reintento y sin alarma local.** Con el carrito en movimiento no se repite una orden a ciegas, y no hay objeto en
+  vuelo; el panel avisa y el regente decide. Todo queda en el registro de eventos (quién lo pidió, a qué punto, cuánto tardó).
+
 ## 5. Protocolo de control físico (Orange Pi ↔ ESP32-S3)
 
 ### 5.1 Decisión: enlace serie con estructura de mensaje y suma de verificación
@@ -290,6 +315,8 @@ uno de los cinco giros de rotación durante la ráfaga de fotos.
 | Orange Pi → ESP32-S3 | `{"accion": "activar_alarma_local"}` | Enciende el indicador físico ante un fallo de red prolongado |
 | Orange Pi → ESP32-S3 | `{"accion": "desactivar_alarma_local"}` | Apaga el indicador físico cuando la PC vuelve a responder (sección 4.6) |
 | Orange Pi → ESP32-S3 | `{"accion": "clasificar", "destino": "TIPO_X"}` | Ordena accionar el mecanismo de clasificación |
+| Orange Pi → ESP32-S3 | `{"accion": "desplazar_a", "punto": N}` | Lleva el carrito al punto N con su trayectoria prefabricada (sección 5.7) |
+| ESP32-S3 → Orange Pi | `{"evento": "en_destino", "punto": N}` | Confirma que el carrito llegó al punto N |
 | Orange Pi → ESP32-S3 | `{"accion": "solicitar_telemetria"}` | Pide el estado de sensores y actuadores (sección 5.6) |
 | ESP32-S3 → Orange Pi | `{"evento": "telemetria", ...}` | Responde a la petición anterior; puede llegar en cualquier momento |
 
@@ -357,6 +384,16 @@ retrasar ni alterar el ciclo de auditoría.
   Ejemplo (233 bytes): `{"evento":"telemetria","t_ms":123456,"estado":"reposo","alarma":false,"giro_dps":[0.1,-0.2,0.0],
   "corriente_ma":[120,95],"enc":[1200,-300,0,55,900],"pwm":[0,0,0,0,0,0,0,0,0,0,0],"uart_ok":120,"uart_err":0,
   "heap":210000,"temp_c":41.5}`.
+
+### 5.7 Desplazamiento del carrito (UART)
+
+Orden de la PC (4.10) que la Orange Pi traduce a la ESP32-S3: `{"accion": "desplazar_a", "punto": N}`. La ESP32-S3 ejecuta la
+trayectoria prefabricada del punto `N` con el control de los dos motores de tracción y, al llegar, responde
+`{"evento": "en_destino", "punto": N}` (el mismo `N`). Sigue el patrón de `girar_posicion` / `en_posicion`: la Orange Pi espera la
+confirmación hasta `TIMEOUT_DESPLAZAMIENTO_S` (60 s, a calibrar; es mucho mayor que un giro porque el carrito recorre una
+distancia). Una orden con un punto que la ESP32-S3 no conoce debe **ignorarse** (la Orange Pi lo verá como falta de confirmación).
+La ESP32-S3 sigue sin temporizadores propios de reanudación (5.2): no repite ni decide nada por su cuenta. Mientras se mueve,
+`estado` de la telemetría (5.6) puede ser `"moviendo"`.
 
 ## 6. Proceso de captura de imágenes
 
@@ -447,6 +484,9 @@ no la copies a mano en otro lugar.
 | Cada cuánto la Orange Pi pide la telemetría a la ESP32-S3 | 2 s | `INTERVALO_SOLICITUD_TELEMETRIA_ESP_S` |
 | Plazo de respuesta de la ESP32-S3 a esa petición | 0,5 s | `TIMEOUT_RESPUESTA_TELEMETRIA_ESP_S` |
 | Cada cuánto la Orange Pi envía la telemetría a la PC | 5 s | `INTERVALO_ENVIO_TELEMETRIA_PC_S` |
+| Puntos de destino del carrito | 1, 2, 3 (a definir) | `PUNTOS_DESPLAZAMIENTO` |
+| Espera de la Orange Pi a `en_destino` | 60 s (calibrar) | `TIMEOUT_DESPLAZAMIENTO_S` |
+| Vigencia de la orden de desplazamiento | 60 s | `VIGENCIA_ORDEN_DESPLAZAMIENTO_S` |
 
 ---
 

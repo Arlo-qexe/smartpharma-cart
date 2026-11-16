@@ -21,7 +21,11 @@ from protocol_constants import (  # noqa: E402
     CLAVE_RESULTADO_JSON,
     CONSULTA_DECISION_REGENTE,
     CONSULTA_ESTADO_CICLO,
+    CLAVE_PUNTO_JSON,
+    CLAVE_RESULTADO_DESPLAZAMIENTO_JSON,
     CONSULTA_ORDEN_CICLO,
+    CONSULTA_ORDEN_DESPLAZAMIENTO,
+    CONSULTA_RESULTADO_DESPLAZAMIENTO,
     CONSULTA_TELEMETRIA,
     FRAMING_STRUCT_FORMAT,
     TCP_PUERTO_DECISION_DEFECTO,
@@ -58,6 +62,25 @@ def consultar_orden_ciclo(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
     """Imita UNA consulta de la Orange Pi al arrancar (informe 4.7): devuelve
     {"orden": "esperando"} o {"orden": "iniciar"}."""
     consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_ORDEN_CICLO}).encode("utf-8")
+    with socket.create_connection((ip, puerto), timeout=3) as sock:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
+        return _leer_respuesta(sock)
+
+
+def consultar_orden_desplazamiento(ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
+    """Imita UNA consulta de la Orange Pi mientras espera la orden de inicio (informe 4.10): devuelve
+    {"desplazamiento": "ninguno"} o {"desplazamiento": "ir", "punto": N}."""
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_ORDEN_DESPLAZAMIENTO}).encode("utf-8")
+    with socket.create_connection((ip, puerto), timeout=3) as sock:
+        sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
+        return _leer_respuesta(sock)
+
+
+def enviar_resultado_desplazamiento(punto, resultado, ip="127.0.0.1", puerto=TCP_PUERTO_DECISION_DEFECTO):
+    """Imita el aviso de la Orange Pi al terminar de desplazarse (informe 4.10): `resultado` es
+    "llegada" o "fallo". Devuelve {"ok": true} o {"error": "consulta_invalida"}."""
+    consulta = json.dumps({CLAVE_CONSULTA_JSON: CONSULTA_RESULTADO_DESPLAZAMIENTO, CLAVE_PUNTO_JSON: punto,
+                           CLAVE_RESULTADO_DESPLAZAMIENTO_JSON: resultado}).encode("utf-8")
     with socket.create_connection((ip, puerto), timeout=3) as sock:
         sock.sendall(struct.pack(FRAMING_STRUCT_FORMAT, len(consulta)) + consulta)
         return _leer_respuesta(sock)

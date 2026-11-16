@@ -23,15 +23,24 @@ from protocol_constants import (  # noqa: E402
     CLAVE_CICLO_JSON,
     CLAVE_DESTINO_JSON,
     CLAVE_ESTADO_DECISION_JSON,
+    CLAVE_DESPLAZAMIENTO_JSON,
     CLAVE_ORDEN_CICLO_JSON,
+    CLAVE_PUNTO_JSON,
+    DESPLAZAMIENTO_IR,
+    DESPLAZAMIENTO_NINGUNO,
     DESTINO_DESCARTE,
     ESTADO_DECISION_NINGUNA,
     ESTADO_DECISION_PENDIENTE,
     ESTADO_DECISION_RESUELTA,
     ORDEN_CICLO_ESPERANDO,
     ORDEN_CICLO_INICIAR,
+    PUNTOS_DESPLAZAMIENTO,
+    RESULTADO_DESPLAZAMIENTO_FALLO,
+    RESULTADO_DESPLAZAMIENTO_LLEGADA,
     RESULTADO_ERROR_REVISION_MANUAL,
+    TIMEOUT_DESPLAZAMIENTO_S,
     VIGENCIA_ORDEN_CICLO_S,
+    VIGENCIA_ORDEN_DESPLAZAMIENTO_S,
 )
 
 from telemetria import HistorialTelemetria
@@ -90,6 +99,24 @@ DETENCION_YA_ORDENADA = "ya_ordenada"
 ORDEN_CANCELADA = "orden_cancelada"       # la Orange Pi aún no había recogido el inicio
 SIN_CICLO = "sin_ciclo"
 
+# Desplazamiento del carrito a un punto (informe 4.10). `sin_orden` = nada pedido o ya terminó el
+# anterior; `ordenado` = el regente pulsó y la Orange Pi aún no lo recogió; `en_camino` = la Orange
+# Pi lo recogió y espera que la ESP32-S3 confirme la llegada; `llegada` / `fallo` = resultado final.
+DESPL_SIN_ORDEN = "sin_orden"
+DESPL_ORDENADO = "ordenado"
+DESPL_EN_CAMINO = "en_camino"
+DESPL_LLEGADA = "llegada"
+DESPL_FALLO = "fallo"
+# Margen extra sobre TIMEOUT_DESPLAZAMIENTO_S antes de dar por perdido un desplazamiento en camino
+# cuyo resultado nunca llegó a la PC (la Orange Pi se apagó, o el mensaje se descartó).
+MARGEN_RESULTADO_DESPLAZAMIENTO_S = 15.0
+
+# Resultados de ordenar_desplazamiento()
+DESPL_ORDEN_OK = "ordenado"
+DESPL_YA_ORDENADO = "ya_ordenado"
+DESPL_PUNTO_INVALIDO = "punto_invalido"
+DESPL_CICLO_EN_CURSO = "ciclo_en_curso"
+
 # Una Orange Pi sin contacto durante más de esto se muestra como desconectada. Consulta
 # cada 2 s mientras espera y una vez por objeto durante el ciclo (~20 s o más con la
 # mecánica real): valor inicial, calibrar.
@@ -120,6 +147,8 @@ class EstadoPanel:
         self._ciclo = {"estado": CICLO_INACTIVO, "cantidad": None, "iniciadas": 0,
                        "motivo_fin": None, "ts_fin": None,
                        "iniciado_por": None, "detencion_ordenada_por": None}
+        self._desplaz = {"estado": DESPL_SIN_ORDEN, "punto": None, "ordenado_por": None,
+                         "ts_ordenado": None, "ts_entregado": None, "ts_fin": None}
         self._contacto = {"ip": None, "ts": None}   # último mensaje válido de la Orange Pi
         self.telemetria = HistorialTelemetria()     # ESP32-S3 y Orange Pi, solo en RAM (PC-24); no va al registro
         self._auditoria = None                      # registro de eventos (auditoria.py), opcional
@@ -440,6 +469,88 @@ class EstadoPanel:
             c["iniciadas"] += 1
             return {CLAVE_CICLO_JSON: CICLO_CONTINUAR}
 
+    # -- desplazamiento del carrito a un punto (informe 4.10) ----------------------
+    def _vencer_desplazamiento_locked(self) -> None:
+        """Una orden que la Orange Pi no recoge a tiempo vence; un desplazamiento en camino cuyo
+        resultado no llega (Orange Pi apagada, mensaje descartado) se da por perdido: así el botón
+        no queda bloqueado para siempre."""
+        d = self._desplaz
+        ahora = time.time()
+        if d["estado"] == DESPL_ORDENADO and ahora - d["ts_ordenado"] >= VIGENCIA_ORDEN_DESPLAZAMIENTO_S:
+            self._evento("desplazamiento_orden_vencida", RESPONSABLE_SISTEMA,
+                         punto=d["punto"], ordenado_por=d.get("ordenado_por"))
+            d.update(estado=DESPL_SIN_ORDEN, ts_ordenado=None)
+        elif (d["estado"] == DESPL_EN_CAMINO
+              and ahora - d["ts_entregado"] >= TIMEOUT_DESPLAZAMIENTO_S + MARGEN_RESULTADO_DESPLAZAMIENTO_S):
+            self._evento("desplazamiento_fallo", RESPONSABLE_SISTEMA, punto=d["punto"],
+                         motivo="no llegó el resultado de la Orange Pi", ordenado_por=d.get("ordenado_por"))
+            d.update(estado=DESPL_FALLO, ts_fin=ahora)
+
+    def ordenar_desplazamiento(self, punto, responsable: str = RESPONSABLE_SIN_SESION) -> str:
+        """El regente pulsó "Llevar a punto". Solo se acepta con el ciclo de auditoría sin correr
+        (ni en marcha, ni deteniéndose, ni con la orden de inicio pendiente): el carrito no se
+        mueve con un objeto en vuelo."""
+        with self._lock:
+            if isinstance(punto, bool) or not isinstance(punto, int) or punto not in PUNTOS_DESPLAZAMIENTO:
+                return DESPL_PUNTO_INVALIDO
+            self._vencer_orden_locked()
+            self._vencer_desplazamiento_locked()
+            if self._ciclo["estado"] != CICLO_INACTIVO or self._orden["estado"] != ORDEN_SIN_ORDEN:
+                return DESPL_CICLO_EN_CURSO
+            d = self._desplaz
+            if d["estado"] in (DESPL_ORDENADO, DESPL_EN_CAMINO):
+                return DESPL_YA_ORDENADO
+            d.update(estado=DESPL_ORDENADO, punto=punto, ordenado_por=responsable,
+                     ts_ordenado=time.time(), ts_entregado=None, ts_fin=None)
+            self._evento("desplazamiento_ordenado", responsable, punto=punto,
+                         vigencia_s=VIGENCIA_ORDEN_DESPLAZAMIENTO_S)
+            return DESPL_ORDEN_OK
+
+    def consultar_orden_desplazamiento(self) -> dict:
+        """Respuesta a la consulta de la Orange Pi. Entregar `ir` se confirma aparte, con
+        confirmar_entrega_desplazamiento(), una vez enviada la respuesta: si el envío falla, la
+        orden sigue vigente para la siguiente consulta."""
+        with self._lock:
+            self._vencer_desplazamiento_locked()
+            d = self._desplaz
+            if d["estado"] == DESPL_EN_CAMINO:
+                # La Orange Pi no consulta mientras se desplaza: si pregunta, reinició.
+                self._evento("desplazamiento_fallo", RESPONSABLE_SISTEMA, punto=d["punto"],
+                             motivo="la Orange Pi volvió a consultar (se reinició)",
+                             ordenado_por=d.get("ordenado_por"))
+                d.update(estado=DESPL_FALLO, ts_fin=time.time())
+            if d["estado"] == DESPL_ORDENADO:
+                return {CLAVE_DESPLAZAMIENTO_JSON: DESPLAZAMIENTO_IR, CLAVE_PUNTO_JSON: d["punto"]}
+            return {CLAVE_DESPLAZAMIENTO_JSON: DESPLAZAMIENTO_NINGUNO}
+
+    def confirmar_entrega_desplazamiento(self) -> None:
+        with self._lock:
+            d = self._desplaz
+            if d["estado"] == DESPL_ORDENADO:
+                d.update(estado=DESPL_EN_CAMINO, ts_entregado=time.time())
+                self._evento("desplazamiento_iniciado", d.get("ordenado_por") or RESPONSABLE_SISTEMA,
+                             punto=d["punto"])
+
+    def registrar_resultado_desplazamiento(self, punto, resultado) -> bool:
+        """La Orange Pi informa cómo terminó. False si el mensaje no cumple el contrato (la PC
+        responde `consulta_invalida`). Un resultado que ya no se esperaba (p. ej. la PC reinició) no
+        es un error del mensaje: se anota en el registro y se acepta."""
+        if (isinstance(punto, bool) or not isinstance(punto, int) or punto not in PUNTOS_DESPLAZAMIENTO
+                or resultado not in (RESULTADO_DESPLAZAMIENTO_LLEGADA, RESULTADO_DESPLAZAMIENTO_FALLO)):
+            return False
+        with self._lock:
+            d = self._desplaz
+            esperado = d["estado"] == DESPL_EN_CAMINO and d["punto"] == punto
+            tipo = "desplazamiento_llegada" if resultado == RESULTADO_DESPLAZAMIENTO_LLEGADA else "desplazamiento_fallo"
+            if esperado:
+                d.update(estado=DESPL_LLEGADA if resultado == RESULTADO_DESPLAZAMIENTO_LLEGADA else DESPL_FALLO,
+                         ts_fin=time.time())
+                self._evento(tipo, d.get("ordenado_por") or RESPONSABLE_SISTEMA, punto=punto,
+                             segundos=round(time.time() - d["ts_entregado"], 1))
+            else:
+                self._evento(tipo, RESPONSABLE_SISTEMA, punto=punto, sin_orden_en_curso=True)
+            return True
+
     def foto(self, lote_id: int, indice: int) -> bytes | None:
         with self._lock:
             for lote in self._lotes:
@@ -449,6 +560,15 @@ class EstadoPanel:
                         return imagenes[indice]
                     return None
             return None
+
+    def _snapshot_desplazamiento_locked(self) -> dict:
+        self._vencer_desplazamiento_locked()
+        d = self._desplaz
+        restante = (max(0, int(VIGENCIA_ORDEN_DESPLAZAMIENTO_S - (time.time() - d["ts_ordenado"])))
+                    if d["estado"] == DESPL_ORDENADO else None)
+        return {"estado": d["estado"], "punto": d["punto"], "ordenado_por": d.get("ordenado_por"),
+                "restante_s": restante, "ts_ordenado": d["ts_ordenado"], "ts_entregado": d["ts_entregado"],
+                "ts_fin": d["ts_fin"], "puntos": list(PUNTOS_DESPLAZAMIENTO)}
 
     def snapshot(self) -> dict:
         """Vista serializable a JSON (sin bytes de imagen), la más reciente primero."""
@@ -495,6 +615,7 @@ class EstadoPanel:
                     "ordenada_por": o.get("ordenada_por"),
                     "ts_ultima_consulta": self._ts_ultima_consulta_orden,
                 },
+                "desplazamiento": self._snapshot_desplazamiento_locked(),
                 "ts_servidor": time.time(),
                 "arranque": self._arranque,      # para saber si una caja del inventario aún tiene sus fotos en RAM
                 "alarma_activa": any(a["activa"] for a in alarmas),

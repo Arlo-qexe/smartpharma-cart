@@ -522,6 +522,155 @@
         }
       ]
     },
+    "orangepi_a_pc__consulta_orden_desplazamiento": {
+      "type": "object",
+      "description": "Consulta TCP corta de la Orange Pi a la PC (puerto TCP_PUERTO_DECISION_DEFECTO) mientras espera la orden de inicio del ciclo. Ver informe 4.10.",
+      "properties": {
+        "consulta": {
+          "const": "orden_desplazamiento"
+        }
+      },
+      "required": [
+        "consulta"
+      ],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_orden_desplazamiento": {
+      "description": "Respuesta de la PC: nada que hacer, o llevar el carrito al punto indicado (orden de un solo uso).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "desplazamiento": {
+              "const": "ninguno"
+            }
+          },
+          "required": [
+            "desplazamiento"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "desplazamiento": {
+              "const": "ir"
+            },
+            "punto": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": [
+            "desplazamiento",
+            "punto"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "const": "consulta_invalida"
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "orangepi_a_esp32__desplazar_a": {
+      "type": "object",
+      "description": "Ordena llevar el carrito al punto N (trayectoria prefabricada en la ESP32-S3). Se confirma con en_destino. Ver informe 5.7.",
+      "properties": {
+        "accion": {
+          "const": "desplazar_a"
+        },
+        "punto": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "accion",
+        "punto"
+      ],
+      "additionalProperties": false
+    },
+    "esp32_a_orangepi__en_destino": {
+      "type": "object",
+      "description": "El carrito llegó al punto N. Ver informe 5.7.",
+      "properties": {
+        "evento": {
+          "const": "en_destino"
+        },
+        "punto": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "evento",
+        "punto"
+      ],
+      "additionalProperties": false
+    },
+    "orangepi_a_pc__resultado_desplazamiento": {
+      "type": "object",
+      "description": "Resultado del desplazamiento (llegó o falló), enviado una vez por la Orange Pi a la PC. Ver informe 4.10.",
+      "properties": {
+        "consulta": {
+          "const": "resultado_desplazamiento"
+        },
+        "punto": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "resultado": {
+          "enum": [
+            "llegada",
+            "fallo"
+          ]
+        }
+      },
+      "required": [
+        "consulta",
+        "punto",
+        "resultado"
+      ],
+      "additionalProperties": false
+    },
+    "pc_a_orangepi__respuesta_resultado_desplazamiento": {
+      "description": "Respuesta de la PC al resultado del desplazamiento.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ok": {
+              "const": true
+            }
+          },
+          "required": [
+            "ok"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "error": {
+              "const": "consulta_invalida"
+            }
+          },
+          "required": [
+            "error"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
     "pc_a_orangepi__respuesta_clasificacion": {
       "type": "object",
       "description": "Respuesta TCP de la PC tras procesar (o rechazar) el lote de imágenes.",

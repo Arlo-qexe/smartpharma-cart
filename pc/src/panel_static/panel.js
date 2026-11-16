@@ -113,6 +113,7 @@ function renderLectura(lote) {
 
 function renderInicio() {
   renderRecorrido();
+  renderPosicionar();
   const lote = loteMostrado();
   const fotos = $("fotos");
 
@@ -239,6 +240,73 @@ function renderRecorrido() {
       : "Inicia tu turno para operar el recorrido. ") + texto.textContent;
   }
 }
+
+// Botón "Llevar a punto": ordena a la Orange Pi mover el carrito a un punto de trayectoria
+// prefabricada (informe 4.10). La Orange Pi lo recoge por consulta cuando no hay recorrido y la
+// PC muestra cómo avanza: ordenado → en camino → llegó / falló. Solo con el recorrido parado.
+let puntosCargados = "";
+function renderPosicionar() {
+  const d = estado.desplazamiento;
+  if (!d) return;
+  const lista = d.puntos.join(",");
+  const sel = $("punto-desplazamiento");
+  if (lista !== puntosCargados) {              // se llena una vez (y si cambia el contrato)
+    const previo = sel.value;
+    sel.replaceChildren(...d.puntos.map((p) => {
+      const o = document.createElement("option");
+      o.value = String(p);
+      o.textContent = `Punto ${p}`;
+      return o;
+    }));
+    if (previo) sel.value = previo;
+    puntosCargados = lista;
+  }
+  const boton = $("boton-posicionar");
+  const texto = $("posicionar-estado");
+  const c = estado.ciclo;
+  const o = estado.orden_ciclo;
+  const ocupado = d.estado === "ordenado" || d.estado === "en_camino";
+  const recorrido = c.estado !== "inactivo" || o.estado === "ordenada";
+  let msg;
+  if (d.estado === "ordenado") {
+    msg = `Orden enviada al punto ${d.punto}: esperando que la Orange Pi la recoja (vence en ${d.restante_s} s).`;
+  } else if (d.estado === "en_camino") {
+    msg = `El carrito va hacia el punto ${d.punto}: esperando la confirmación de llegada.`;
+  } else if (d.estado === "llegada") {
+    msg = `El carrito llegó al punto ${d.punto} (${fmtHora(d.ts_fin)}).`;
+  } else if (d.estado === "fallo") {
+    msg = `No se confirmó la llegada al punto ${d.punto} (${fmtHora(d.ts_fin)}): revisa el carrito y el REGISTRO antes de repetir.`;
+  } else {
+    const hace = o.ts_ultima_consulta ? estado.ts_servidor - o.ts_ultima_consulta : null;
+    msg = hace !== null && hace < 10
+      ? "La Orange Pi está esperando órdenes."
+      : "La Orange Pi no ha consultado hace poco (puede estar apagada o en un recorrido).";
+  }
+  if (recorrido && !ocupado) msg = "Detén el recorrido para mover el carrito: no se desplaza con una caja en curso.";
+  boton.disabled = ocupado || recorrido;
+  sel.disabled = ocupado || recorrido;
+  if (!puedeOperar()) {                        // sin turno se mira, no se opera
+    boton.disabled = true;
+    sel.disabled = true;
+    msg = "Inicia tu turno para mover el carrito. " + msg;
+  }
+  texto.textContent = msg;
+}
+
+$("boton-posicionar").addEventListener("click", async () => {
+  const punto = Number($("punto-desplazamiento").value);
+  if (!Number.isInteger(punto)) return;
+  $("boton-posicionar").disabled = true;       // evita doble clic mientras responde
+  try {
+    const r = await fetch("/api/desplazamiento/ordenar", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ punto }),
+    });
+    if (r.status === 401 || r.status === 403) {
+      $("posicionar-estado").textContent = "Tu turno no está abierto o venció: inicia turno para operar.";
+    }
+  } catch (e) { /* el siguiente refresco muestra el estado real */ }
+  refrescar();
+});
 
 // Indicador de conexión con la Orange Pi: se basa en el último mensaje recibido de ella
 // (consulta o lote), no en un ping; la PC no puede iniciar conexiones hacia ella.
@@ -560,7 +628,7 @@ const MOTIVOS_TURNO = {
   clave_restablecida: "se restableció su clave",
 };
 const ACCIONES = {
-  iniciar_ciclo: "iniciar el recorrido", detener_ciclo: "detener el recorrido", resolver_alarma: "resolver una alarma",
+  iniciar_ciclo: "iniciar el recorrido", detener_ciclo: "detener el recorrido", desplazar_carrito: "llevar el carrito a un punto", resolver_alarma: "resolver una alarma",
   asistente_confirmar: "confirmar una acción del asistente", listar_usuarios: "ver los usuarios",
   administrar_usuarios: "administrar usuarios", editar_caja: "editar una caja",
   eliminar_caja: "eliminar una caja", restaurar_caja: "restaurar una caja",
@@ -597,6 +665,18 @@ const EVENTOS = {
     `Orden de detener el recorrido (${iniciadas(d.cajas_iniciadas)}).`],
   ciclo_detenido: ["Recorrido detenido", (d) =>
     `Recorrido detenido: ${MOTIVOS_FIN[d.motivo] || v(d.motivo)} (${iniciadas(d.cajas_iniciadas)}; lo inició ${v(d.iniciado_por)}).`],
+  desplazamiento_ordenado: ["Desplazamiento ordenado", (d) => `Orden de llevar el carrito al punto ${v(d.punto)}.`],
+  desplazamiento_iniciado: ["Desplazamiento iniciado", (d) => `La Orange Pi recogió la orden: el carrito va al punto ${v(d.punto)}.`],
+  desplazamiento_llegada: ["Carrito en destino", (d) => d.sin_orden_en_curso
+    ? `La Orange Pi informó la llegada al punto ${v(d.punto)} sin una orden en curso (la PC pudo reiniciar).`
+    : `El carrito llegó al punto ${v(d.punto)} en ${v(d.segundos)} s.`],
+  desplazamiento_fallo: ["Desplazamiento fallido", (d) => d.motivo
+    ? `El carrito no confirmó la llegada al punto ${v(d.punto)}: ${d.motivo}.`
+    : d.sin_orden_en_curso
+      ? `La Orange Pi informó un fallo al ir al punto ${v(d.punto)} sin una orden en curso (la PC pudo reiniciar).`
+      : `El carrito no llegó al punto ${v(d.punto)} (la ESP32-S3 no confirmó a tiempo).`],
+  desplazamiento_orden_vencida: ["Orden de desplazamiento vencida", (d) =>
+    `La orden de ${v(d.ordenado_por)} de ir al punto ${v(d.punto)} venció sin que la Orange Pi la recogiera.`],
   ciclo_orden_cancelada: ["Orden cancelada", () => "Se canceló la orden de inicio antes de que la Orange Pi la recogiera."],
   ciclo_orden_vencida: ["Orden vencida", (d) => `La orden de inicio de ${v(d.ordenada_por)} venció sin que la Orange Pi la recogiera.`],
   caja_editada: ["Caja editada", (d) =>
@@ -626,7 +706,7 @@ const EVENTOS = {
 const etiquetaEvento = (tipo) => (EVENTOS[tipo] ? EVENTOS[tipo][0] : tipo);
 const claseEvento = (tipo) =>
   (tipo === "alarma_abierta" || tipo === "login_bloqueado") ? "rojo"
-    : ["ciclo_orden_vencida", "ciclo_interrumpido", "login_fallido", "accion_denegada"].includes(tipo) ? "amarillo" : "";
+    : ["ciclo_orden_vencida", "ciclo_interrumpido", "login_fallido", "accion_denegada", "desplazamiento_fallo", "desplazamiento_orden_vencida"].includes(tipo) ? "amarillo" : "";
 function describirEvento(e) {
   const f = EVENTOS[e.tipo];
   return f ? f[1](e.detalle || {}) : JSON.stringify(e.detalle);

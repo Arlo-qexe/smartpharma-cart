@@ -125,6 +125,7 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
 - `src/auditoria.py` — **registro de eventos** persistente (SQLite, solo escritura, cadena de hashes). Ver abajo.
 - `src/inventario.py` — inventario de cajas (Parte C): una fila por caja auditada. Ver abajo.
 - `src/exportar.py` — exportación a CSV del inventario y del registro (Parte E).
+- `tests/test_desplazamiento.py` — pruebas del desplazamiento del carrito (PC-25).
 - `src/telemetria.py` — historial en RAM de la telemetría de la ESP32-S3 y de la Orange Pi (PC-24). Ver abajo.
 - `src/usuarios.py` — usuarios, turnos y permisos (Parte B); `src/usuarios_cli.py` + `scripts/usuarios.sh` — consola para crear el primer administrador. Ver abajo.
 - `src/panel_web.py` + `src/panel_static/` — panel de control web (HTML/CSS/JS propios, sin dependencias).
@@ -242,5 +243,12 @@ la Orange Pi no podría conectarse). **El hostname no se usa**: en Ubuntu resuel
   Panel: pestaña TELEMETRÍA (`GET /api/telemetria`, libre, se pide solo con la pestaña abierta): tarjetas ESP32-S3 / Orange Pi,
   barras PWM, gráficos de los últimos minutos y aviso de «datos viejos» (tres envíos sin llegar) o de lectura vieja de la
   ESP32-S3. `bash scripts/simular_orangepi.sh` envía telemetría inventada cada 5 s (`--sin-telemetria` la omite).
+- **Llevar el carrito a un punto (PC-25, informe 4.10 y 5.7):** botón «Llevar a punto» + selector de punto en Inicio
+  (`POST /api/desplazamiento/ordenar`, exige turno). La PC deja una orden de **un solo uso** (`estado_panel.py::ordenar_desplazamiento`) que la
+  Orange Pi recoge con `consulta: orden_desplazamiento` (puerto 5001) **solo con el recorrido parado**; se rechaza (409) si hay un recorrido en marcha,
+  deteniéndose o con la orden de inicio pendiente. Estados: `ordenado` (vence a los 60 s si nadie la recoge) → `en_camino` → `llegada` / `fallo`; la
+  Orange Pi avisa con `consulta: resultado_desplazamiento` y, si ese aviso no llega, la PC da el desplazamiento por perdido a los `TIMEOUT_DESPLAZAMIENTO_S` + 15 s.
+  Sin reintento ni alarma local. Todo queda en el registro (`desplazamiento_*`). Los puntos son `PUNTOS_DESPLAZAMIENTO` (`1, 2, 3`, a definir);
+  la trayectoria de cada uno la tiene la ESP32-S3. `bash scripts/simular_orangepi.sh` atiende la orden (`--pausa-desplazamiento`). Falta el lado Orange Pi (S-15) y el firmware (S-16).
 - Las fotos del panel salen de RAM (últimos `MAX_LOTES_CON_FOTOS` lotes), con
   `Cache-Control: no-store`; nunca se escriben a disco.

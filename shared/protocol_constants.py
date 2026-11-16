@@ -160,6 +160,51 @@ CICLO_CONTINUAR = "continuar"
 CICLO_DETENER = "detener"
 
 # ---------------------------------------------------------------------------
+# Desplazamiento del carrito a un punto (PC -> Orange Pi -> ESP32-S3) — informe 4.10 y 5.7.
+# El carrito se mueve con dos motores en tracción diferencial; la ESP32-S3 tiene la trayectoria de
+# cada punto PREFABRICADA y la ejecuta con su control. El regente pulsa "Llevar a punto" en el panel;
+# como la Orange Pi nunca recibe conexiones, la orden viaja por CONSULTA (mismo canal, puerto y
+# framing que orden_ciclo), y solo se entrega con el ciclo de auditoría sin correr (entre recorridos).
+#
+# Tramo PC -> Orange Pi (la Orange Pi consulta cada INTERVALO_CONSULTA_DECISION_S mientras espera la
+# orden `iniciar`, es decir, mientras no hay recorrido):
+#   Consulta:  {"consulta": "orden_desplazamiento"}
+#   Respuesta: {"desplazamiento": "ninguno"}                  nada que hacer: seguir consultando
+#              {"desplazamiento": "ir", "punto": <N>}          <N> está en PUNTOS_DESPLAZAMIENTO
+#              {"error": "consulta_invalida"}
+# La orden es de UN solo uso (la PC la entrega una vez) y vence a los VIGENCIA_ORDEN_DESPLAZAMIENTO_S si
+# nadie la recoge. Mientras la Orange Pi se desplaza NO consulta: si vuelve a preguntar tras recibir la
+# orden, la PC entiende que reinició y da el desplazamiento por fallido.
+#
+# Tramo Orange Pi -> ESP32-S3 (UART), igual que el giro de caras:
+#   Orange Pi -> ESP32-S3: {"accion": "desplazar_a", "punto": <N>}
+#   ESP32-S3 -> Orange Pi: {"evento": "en_destino", "punto": <N>}      al llegar
+# La Orange Pi espera `en_destino` hasta TIMEOUT_DESPLAZAMIENTO_S; sin él, el desplazamiento falla.
+# Sin reintento automático (con el carrito en movimiento no se repite una orden a ciegas) y sin alarma
+# local: no hay objeto en vuelo.
+#
+# Tramo Orange Pi -> PC, al terminar (éxito o fallo), UNA vez (si la PC no contesta se descarta):
+#   Mensaje:   {"consulta": "resultado_desplazamiento", "punto": <N>, "resultado": "llegada" | "fallo"}
+#   Respuesta: {"ok": true}   |   {"error": "consulta_invalida"}
+# ---------------------------------------------------------------------------
+CONSULTA_ORDEN_DESPLAZAMIENTO = "orden_desplazamiento"
+CONSULTA_RESULTADO_DESPLAZAMIENTO = "resultado_desplazamiento"
+CLAVE_DESPLAZAMIENTO_JSON = "desplazamiento"
+DESPLAZAMIENTO_NINGUNO = "ninguno"
+DESPLAZAMIENTO_IR = "ir"
+CLAVE_PUNTO_JSON = "punto"
+CLAVE_RESULTADO_DESPLAZAMIENTO_JSON = "resultado"
+RESULTADO_DESPLAZAMIENTO_LLEGADA = "llegada"
+RESULTADO_DESPLAZAMIENTO_FALLO = "fallo"
+# Puntos de destino que la ESP32-S3 conoce (cada uno con su trayectoria prefabricada). Valor inicial:
+# se amplía o renombra cuando se definan los puntos reales de la farmacia (la ESP32-S3 los mapea).
+PUNTOS_DESPLAZAMIENTO = (1, 2, 3)
+TIMEOUT_DESPLAZAMIENTO_S = 60.0                # lo que la Orange Pi espera `en_destino`; valor inicial, calibrar
+VIGENCIA_ORDEN_DESPLAZAMIENTO_S = 60.0         # una orden que nadie recoge vence; valor inicial
+ACCION_DESPLAZAR_A = "desplazar_a"             # Orange Pi -> ESP32-S3; campo adicional: "punto"
+EVENTO_EN_DESTINO = "en_destino"               # ESP32-S3 -> Orange Pi; campo adicional: "punto"
+
+# ---------------------------------------------------------------------------
 # Telemetría (ESP32-S3 -> Orange Pi -> PC) — informe 4.9 y 5.6. NO es control: es solo
 # observación, de MEJOR ESFUERZO, y nunca puede frenar ni alterar el ciclo de auditoría.
 #

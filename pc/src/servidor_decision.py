@@ -20,12 +20,18 @@ from protocol_constants import (  # noqa: E402
     CLAVE_ERROR_JSON,
     CLAVE_ESTADO_DECISION_JSON,
     CLAVE_OK_JSON,
+    CLAVE_DESPLAZAMIENTO_JSON,
     CLAVE_ORDEN_CICLO_JSON,
+    CLAVE_PUNTO_JSON,
+    CLAVE_RESULTADO_DESPLAZAMIENTO_JSON,
     CICLO_DETENER,
     CONSULTA_DECISION_REGENTE,
     CONSULTA_ESTADO_CICLO,
     CONSULTA_ORDEN_CICLO,
+    CONSULTA_ORDEN_DESPLAZAMIENTO,
+    CONSULTA_RESULTADO_DESPLAZAMIENTO,
     CONSULTA_TELEMETRIA,
+    DESPLAZAMIENTO_IR,
     ERROR_CONSULTA_INVALIDA,
     ORDEN_CICLO_INICIAR,
     TIMEOUT_INACTIVIDAD_RECEPCION_S,
@@ -50,7 +56,7 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 return
             tipo = consulta.get(CLAVE_CONSULTA_JSON)
             if tipo in (CONSULTA_DECISION_REGENTE, CONSULTA_ORDEN_CICLO, CONSULTA_ESTADO_CICLO,
-                        CONSULTA_TELEMETRIA):
+                        CONSULTA_TELEMETRIA, CONSULTA_ORDEN_DESPLAZAMIENTO, CONSULTA_RESULTADO_DESPLAZAMIENTO):
                 self.server.estado.registrar_contacto(self.client_address[0])
             if tipo == CONSULTA_DECISION_REGENTE:
                 respuesta = self.server.estado.consultar_decision(self.client_address[0])
@@ -67,6 +73,23 @@ class _ManejadorConsulta(socketserver.BaseRequestHandler):
                 respuesta = self.server.estado.consultar_estado_ciclo()
                 enviar_json(conn, respuesta)
                 self._registrar_si_cambio(tipo, respuesta)
+            elif tipo == CONSULTA_ORDEN_DESPLAZAMIENTO:
+                respuesta = self.server.estado.consultar_orden_desplazamiento()
+                enviar_json(conn, respuesta)
+                if respuesta[CLAVE_DESPLAZAMIENTO_JSON] == DESPLAZAMIENTO_IR:
+                    # Solo cuando el envío salió bien: si falló, la orden sigue vigente.
+                    self.server.estado.confirmar_entrega_desplazamiento()
+                    log.info("%s recibió la orden de desplazarse al punto %s", self.client_address[0],
+                             respuesta[CLAVE_PUNTO_JSON])
+            elif tipo == CONSULTA_RESULTADO_DESPLAZAMIENTO:
+                if self.server.estado.registrar_resultado_desplazamiento(
+                        consulta.get(CLAVE_PUNTO_JSON), consulta.get(CLAVE_RESULTADO_DESPLAZAMIENTO_JSON)):
+                    log.info("%s informó del desplazamiento al punto %s: %s", self.client_address[0],
+                             consulta.get(CLAVE_PUNTO_JSON), consulta.get(CLAVE_RESULTADO_DESPLAZAMIENTO_JSON))
+                    enviar_json(conn, {CLAVE_OK_JSON: True})
+                else:
+                    log.warning("Resultado de desplazamiento inválido de %s", self.client_address[0])
+                    enviar_json(conn, {CLAVE_ERROR_JSON: ERROR_CONSULTA_INVALIDA})
             elif tipo == CONSULTA_TELEMETRIA:
                 # Mejor esfuerzo (informe 4.9): solo RAM, sin registro de eventos y sin una línea de log
                 # por mensaje (llega uno cada 5 s).
