@@ -44,7 +44,7 @@ El simulador corre en un entorno virtual propio (`.venv/`, no se copia entre equ
 
 ```bash
 cd ~/Documents/simulador_spm
-python -m unittest discover -s tests          # 62 pruebas (la interfaz y el serial se prueban con la ventana oculta y un ESP32 simulado; la identificación, con capturas sintéticas y un firmware falso)
+python -m unittest discover -s tests          # 128 pruebas (112 + 16 de SmartPharma; 4 fallos previos sin relación con SmartPharma, ver PROPUESTA) (la interfaz y el serial se prueban con la ventana oculta y un ESP32 simulado; la identificación, con capturas sintéticas y un firmware falso)
 python ejemplos/ejemplo_basico.py
 python -m spm ik --inclinacion 12 --azimut 40 --torsion 5     # ángulos de NNR y de motor
 python -m spm fk 10 -20 5                                      # grados de motor -> orientación
@@ -97,3 +97,12 @@ Pose inicial (disco horizontal) 5 s → giro de 90° (2 s) y 5 s en cada cara (0
 ## Firmware de la ESP32-S3 (`firmware/`)
 
 `firmware/spm_esp32s3/spm_esp32s3.ino` controla los 3 motores DC con encoder del mecanismo y responde a la pestaña «Serial / ESP32»: PWM por hardware (LEDC 20 kHz), encoders en cuadratura X4 por hardware (PCNT), timer de hardware a 1 kHz que despierta una tarea de control en el núcleo 1 (periodo real medido, ciclos perdidos contados), referencia con perfil/streaming, PID de posición o cascada P→PI seleccionables por motor, y corte de seguridad por polaridad invertida/atasco. Detalles, pines, protocolo y puesta en marcha en `firmware/README_firmware.md`. **Compilado para ESP32-S3 con arduino-esp32 3.3.12 (343 KB de flash, 23 KB de RAM, sin avisos) y probado en el PC** (`firmware/test_host/run_tests.sh`: 75 comprobaciones con planta simulada; y la interfaz real contra el mismo código del firmware ejecutándose en el PC), **pero nunca ejecutado en la placa ni con motores reales**; las ganancias por defecto no están sintonizadas. La interfaz envía sola los «pulsos/vuelta» al firmware al conectar. Para sintonizar con datos hay un **modo de captura** (`capture`/`dump`, 104 comprobaciones en el PC) y `herramientas/identificar_motor.py`; el driver cableado es un **TB6612FNG** (ver `firmware/IDENTIFICACION.md`).
+
+## Trayectorias SmartPharma (cámara, clasificación y descarte)
+
+Generadas por `spm/smartpharma.py` desde `datos/smartpharma_config.json` (azimuts del entorno medidos en el CAD con `offset_azimut_base_deg`, `t_mov` 2,5 s + `t_estab` 0,5 s, volcado 28°, espera de DESCARTE_2...). Todo se planifica en el espacio de los motores (articular, perfil quíntico, parada en cada punto), que es lo que ejecuta el firmware, y se valida contra el mapa de colisiones (≥ 1,5 mm), singularidades y el tope medido del motor 1.
+
+- **Home** = plato horizontal, motores a 0. **Cámara**: cara 1 (home → torsión −7°), 2 (−97°), 3 (−187°), 4 (−277°): cada cara del plato lleva una cara lateral de la caja de frente a la cámara (azimut 70,3°); solo torsión negativa por el tope del motor 1 (−85°). **Clasificar**: desde la cara 4 → aproximación (8° hacia el slot) → volcado (28°) → mantener 1 s → home. **Orden de slots** (izquierda → derecha viendo desde el dispensador): TIPO_A −94,5°, TIPO_B −178,6°, TIPO_C 115,6°. **DESCARTE_1** = TIPO_A; **DESCARTE_2** = espera 60 s en la cara 4 y home.
+- `python -m spm smartpharma [--config x.json] [--descarte 2] [--sin-graficas]` (o `python herramientas/generar_trayectorias_smartpharma.py`, ~50 s) escribe `trayectorias_smartpharma/` (JSON, CSV de puntos de paso, muestras por trayectoria, tabla de poses, gráficas) y la cabecera `firmware/spm_esp32s3/spm_trayectorias.h` (no editar a mano; una prueba comprueba que está al día).
+- Interfaz, pestaña Trayectoria: ejemplos «SmartPharma · …» (cara 1-4, 4 caras paso a paso, Clasificar TIPO_A/B/C, DESCARTE_1/2, Ciclo completo) y botón «Siguiente paso ▶» que transmite un punto de paso por clic. Pestaña Serial: botones Cara 1-4, Clasificar, Home y selector de DESCARTE que mandan las órdenes de la tabla del firmware (`{"cmd":"cam"|"clas"|"home"}`). **Con una placa real mueven los motores.**
+- Detalle de decisiones, conflictos con el protocolo y dudas: `../PROPUESTA_trayectorias_spm.md`. Sin probar con hardware.

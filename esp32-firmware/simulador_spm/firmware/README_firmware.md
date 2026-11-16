@@ -91,3 +91,16 @@ El repositorio define que la ESP32-S3 recibe órdenes de la Orange Pi por UART c
 - Sin probar con motores reales: compilado para ESP32-S3 (ver abajo) y probado en el PC con una planta simulada, pero nunca ejecutado en la placa.
 - Sin medición de corriente (la protección es por movimiento, no por corriente); un motor bloqueado con poca energía puede calentar el BTS7960 hasta que salte la falla (≤ 0.5 s).
 - Un solo conjunto de ganancias por motor; no hay planificación de ganancias ni compensación de la carga (el mecanismo cuelga de los motores por su propio peso).
+
+## SmartPharma: trayectorias a bordo y canal UART de la Orange Pi
+
+`spm_trayectorias.h` (GENERADO por `herramientas/generar_trayectorias_smartpharma.py`) trae los tramos q0→q1 en grados de motor; el ejecutor (sección 6c del `.ino`) los recorre con perfil quíntico entregando referencia y velocidad al mismo lazo de control (con `stop`/`reset`/falla se aborta y no se reanuda). El canal UART (sección 7b, `Serial2`, pines 13/14 **por confirmar**) valida el checksum XOR con `shared/protocol_constants.h`:
+
+| Entrada | Efecto |
+|---|---|
+| UART `{"accion":"girar_posicion","cara":N}` (1..4) | un tramo de cámara (3 s) → `{"evento":"en_posicion","cara":N}`; solo desde la pose anterior; cara 5 rechazada |
+| UART `{"accion":"clasificar","destino":"TIPO_A\|TIPO_B\|TIPO_C\|DESCARTE"}` | trayectoria completa desde la pose actual; sin evento de fin salvo `SPM_UART_CONFIRMA_CLASIFICAR 1` (no existe en `shared/`) |
+| USB `{"cmd":"cam","cara":N}`, `{"cmd":"clas","destino":...}`, `{"cmd":"home"}` | lo mismo desde el simulador; `home` = línea recta en motores desde la pose actual (recuperación, sin validar colisiones) |
+| USB `{"cfg":"descarte","val":1\|2}` (+ `save`) | DESCARTE: 1 = como TIPO_A, 2 = espera 60 s y home (choca con la regla «sin temporizadores internos»: ver PROPUESTA) |
+
+La pose de partida se comprueba con los encoders (±4°); si no coincide (ppr mal, plato movido) no se mueve. Mientras hay una trayectoria se rechazan `m1..m3`, `motor/pos`, `zero`, `duty`, `capture`, `polarity` y `cfg`. La variante de descarte se guarda en una clave propia de la NVS (no cambia `Config`: lo guardado hasta ahora sigue valiendo). `test_host/` ahora incluye `Arduino.h` (mínimo, para `shared/protocol_constants.h`) y `esp32_host` expone también un segundo pty para el UART de la Orange Pi. Pruebas: 158 comprobaciones (54 nuevas). Compilado con arduino-esp32 3.3.12 (354 KB de flash). **Nunca ejecutado en la placa.**
