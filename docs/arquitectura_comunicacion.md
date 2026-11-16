@@ -360,11 +360,10 @@ retrasar ni alterar el ciclo de auditoría.
 
 ## 6. Proceso de captura de imágenes
 
-### 6.1 Ráfaga de 5 fotos por objeto (o 4, opcional)
+### 6.1 Ráfaga de 4 fotos por objeto (o 5, opcional)
 
-Por defecto son `CARAS_POR_OBJETO` (5) caras. **Alternativa de 4 caras** (`CARAS_POR_OBJETO_REDUCIDO`,
-pensada en reunión para acortar el ciclo): la elige **solo la Orange Pi**, con una opción local (p. ej.
-`--caras 4`), porque es quien comanda giros y fotos. Pide las caras 1 a 4 (`girar_posicion`, `"cara": 1..N`) y
+Por defecto son `CARAS_POR_OBJETO_DEFECTO` (**4**) caras, decidido el 2026-11-15; el máximo del mecanismo sigue siendo `CARAS_POR_OBJETO` (5).
+La **opción de 5 caras** la elige **solo la Orange Pi**, con una opción local (`--caras 5`), porque es quien comanda giros y fotos. Pide las caras 1 a 4 (`girar_posicion`, `"cara": 1..N`) y
 envía un lote de 4 imágenes; la PC acepta de 1 a `MAX_IMAGENES_POR_LOTE` imágenes y no necesita que se le avise
 cuántas vendrán, y la ESP32-S3 sigue entendiendo `cara` de 1 a 5. **No cambia ningún mensaje ni el framing.** Qué cara
 se omite depende de la posición física de cada una en el mecanismo y de cuál aporta menos al reconocimiento (a medir).
@@ -439,7 +438,7 @@ no la copies a mano en otro lugar.
 | Límite total de transacción con la PC | 30 s | `TIMEOUT_TOTAL_TRANSACCION_S` |
 | Pausa de estabilización mecánica | 0.3 s | `PAUSA_ESTABILIZACION_MECANICA_S` |
 | Tiempo de convergencia de autoenfoque | 0.5 s | `TIEMPO_CONVERGENCIA_AUTOENFOQUE_S` |
-| Caras fotografiadas por objeto | 5 (4 con la opción de la Orange Pi) | `CARAS_POR_OBJETO`, `CARAS_POR_OBJETO_REDUCIDO` |
+| Caras fotografiadas por objeto | 4 por defecto (5 con `--caras 5`) | `CARAS_POR_OBJETO_DEFECTO`, `CARAS_POR_OBJETO_REDUCIDO`, `CARAS_POR_OBJETO` |
 | Umbral de votación del reconocimiento | Mayoría simple (>50%) | `UMBRAL_VOTACION_MAYORIA` |
 | Puerto de consulta de decisión del regente | 5001 | `TCP_PUERTO_DECISION_DEFECTO` |
 | Intervalo de consulta de decisión | 2 s | `INTERVALO_CONSULTA_DECISION_S` |

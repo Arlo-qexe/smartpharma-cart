@@ -28,6 +28,7 @@ from protocol_constants import (  # noqa: E402
     ACCION_CLASIFICAR,
     ACCION_GIRAR_POSICION,
     CARAS_POR_OBJETO,
+    CARAS_POR_OBJETO_DEFECTO,
     CARAS_POR_OBJETO_VALIDAS,
     EVENTO_EN_POSICION,
     EVENTO_OBJETO_EN_POSICION,
@@ -176,7 +177,7 @@ def main(argv=None):
     ap.add_argument("--retraso-esp", type=float, default=RETRASO_POR_DEFECTO_S,
                     help="con --simular-esp: segundos que tarda cada movimiento en confirmarse "
                          "(def. %(default)s; mayor que 5 simula un fallo mecánico)")
-    ap.add_argument("--caras", type=int, choices=CARAS_POR_OBJETO_VALIDAS, default=CARAS_POR_OBJETO,
+    ap.add_argument("--caras", type=int, choices=CARAS_POR_OBJETO_VALIDAS, default=CARAS_POR_OBJETO_DEFECTO,
                     help="fotos por objeto: %(choices)s (def. %(default)s). Con 4 se piden las caras "
                          "1 a 4 y el lote lleva 4 imágenes (informe 6.1)")
     args = ap.parse_args(argv)
@@ -204,8 +205,7 @@ def main(argv=None):
     telemetria.iniciar()
 
     try:
-        if args.caras != CARAS_POR_OBJETO:
-            print(f"[main] Se fotografían {args.caras} caras por objeto (--caras)")
+        print(f"[main] Se fotografían {args.caras} caras por objeto")
         if args.sin_orden:
             print("[main] --sin-orden: no se espera la orden de inicio de la PC")
         else:

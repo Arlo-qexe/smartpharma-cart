@@ -542,6 +542,7 @@ estados a la misma consulta, sin otro canal.
 
 | Fecha | Quién | Cambio |
 |---|---|---|
+| 2026-11-15 | Arlo-qexe (lado PC, con Claude Code) | Las 4 caras pasan a ser el valor por defecto (`CARAS_POR_OBJETO_DEFECTO`); `--caras 5` vuelve a 5. Tocado `orange-pi/src/main.py` (solo el valor por defecto) a pedido del usuario. Sin cambios de mensajes. |
 | 2026-11-15 | Arlo-qexe (lado PC, con Claude Code) | PC-24 `[x]` del lado PC: la PC atiende `telemetria` (puerto 5001), la guarda solo en RAM y la muestra en la pestaña TELEMETRÍA; el simulador envía telemetría inventada. Pendiente: probar con la Orange Pi real. Sin cambios de contrato. |
 | 2026-11-15 | Arlo-qexe (lado Orange Pi, con Claude Code) | S-12 y S-14 `Hecha` (lado Orange Pi): telemetría (OP-28: lector UART por evento, envío a la PC cada 5 s, monitor local) y opción `--caras 4` (OP-29). Sin cambios de contrato. |
 | 2026-11-11 | Arlo-qexe (lado PC, con Claude Code) | Opción de 4 caras en vez de 5 definida en `shared/` (sin cambios de mensajes ni de framing); S-14 abierta para la Orange Pi. El simulador de la PC gana `--caras`. |

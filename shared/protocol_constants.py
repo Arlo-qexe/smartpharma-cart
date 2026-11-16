@@ -319,14 +319,16 @@ LIMITE_REINTENTOS_INTRODUCIR_OBJETO = 5   # reintentos de ACCION_ACTIVAR_DISPENS
 # ---------------------------------------------------------------------------
 # Captura de imágenes
 # ---------------------------------------------------------------------------
-CARAS_POR_OBJETO = 5                       # valor por defecto y máximo: posiciones del mecanismo
+CARAS_POR_OBJETO = 5                       # máximo: posiciones del mecanismo
 # Alternativa aprobada en reunión: fotografiar solo 4 caras. La elige la Orange Pi (que comanda giros
-# y fotos) con una opción local, p. ej. `--caras 4`; sin ella se usan CARAS_POR_OBJETO. Las caras se
+# y fotos) con una opción local `--caras 4|5`; sin ella se usa CARAS_POR_OBJETO_DEFECTO (4, decidido
+# el 2026-11-15: el reconocimiento no empeora sin la cara 5 y el ciclo se acorta). Las caras se
 # piden siempre de la 1 a la N (`girar_posicion`, "cara": 1..N), así que 4 caras = caras 1 a 4.
 # La PC acepta un lote de 1 a MAX_IMAGENES_POR_LOTE imágenes (o 0 si falló la captura) y no necesita
 # que se le avise cuántas vendrán; la ESP32-S3 sigue entendiendo "cara" de 1 a CARAS_POR_OBJETO.
 CARAS_POR_OBJETO_REDUCIDO = 4
 CARAS_POR_OBJETO_VALIDAS = (CARAS_POR_OBJETO_REDUCIDO, CARAS_POR_OBJETO)
+CARAS_POR_OBJETO_DEFECTO = CARAS_POR_OBJETO_REDUCIDO   # caras que fotografía la Orange Pi si no se pide otra cosa
 MAX_IMAGENES_POR_LOTE = CARAS_POR_OBJETO   # ver "Límites de validación del framing"
 PAUSA_ESTABILIZACION_MECANICA_S = 0.3      # valor inicial; calibrar con hardware real
 TIEMPO_CONVERGENCIA_AUTOENFOQUE_S = 0.5    # valor inicial; calibrar con hardware real

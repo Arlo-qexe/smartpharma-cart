@@ -9,7 +9,7 @@
 #                                                       # sueltas; no es parte del contrato)
 #   bash orange-pi/scripts/start_Opi.sh --simular-esp   # simula la ESP32-S3 (cámara y PC reales);
 #                                                       # opcional --retraso-esp SEGUNDOS (def. 2.5)
-#   bash orange-pi/scripts/start_Opi.sh --caras 4      # fotografía 4 caras en vez de 5 (informe 6.1)
+#   bash orange-pi/scripts/start_Opi.sh --caras 5      # fotografía 5 caras (por defecto son 4; informe 6.1)
 # Cualquier otro argumento se pasa tal cual a src/main.py.
 # Telemetría local (Orange Pi + última de la ESP32-S3), en OTRA terminal: bash orange-pi/scripts/telemetria.sh
 #

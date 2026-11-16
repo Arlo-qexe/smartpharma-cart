@@ -14,6 +14,14 @@ Formato de cada entrada:
 
 ---
 
+## 2026-11-15 (2) — Arlo-qexe (con Claude Code, lado PC)
+- **Las 4 caras pasan a ser el valor por defecto** (decisión del usuario; medido con 27 cajas: sin la cara 5 el reconocimiento no
+  empeora y el ciclo se acorta ~3-4 s). Constante nueva `CARAS_POR_OBJETO_DEFECTO` (= `CARAS_POR_OBJETO_REDUCIDO` = 4) en
+  `protocol_constants.py` y `.h`. `CARAS_POR_OBJETO` (5) sigue siendo el máximo del mecanismo y de `MAX_IMAGENES_POR_LOTE`.
+- **No cambia ningún mensaje ni el framing.** Impacto para orange-pi: `--caras` pasa a tener 4 por defecto (`--caras 5` para
+  volver a 5); se tocó solo ese valor en `main.py` y el comentario de `start_Opi.sh`. ESP32-S3 y PC: ninguno.
+- Archivos: `shared/protocol_constants.py`, `shared/protocol_constants.h`, `docs/arquitectura_comunicacion.md`.
+
 ## 2026-11-11 — Arlo-qexe (con Claude Code, lado PC)
 - **Opción de fotografiar 4 caras en vez de 5** (idea de la reunión: ciclo más corto). La decide la **Orange Pi**, que
   comanda giros y fotos, con una opción local (`--caras 4`); por defecto sigue en 5. Detalle en

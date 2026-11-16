@@ -34,7 +34,7 @@ from mock_orangepi_client import (  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "shared"))
 from protocol_constants import (  # noqa: E402
-    CARAS_POR_OBJETO, CARAS_POR_OBJETO_VALIDAS, CICLO_DETENER, CLAVE_CICLO_JSON, CLAVE_DESTINO_JSON, CLAVE_ESTADO_DECISION_JSON,
+    CARAS_POR_OBJETO_DEFECTO, CARAS_POR_OBJETO_VALIDAS, CICLO_DETENER, CLAVE_CICLO_JSON, CLAVE_DESTINO_JSON, CLAVE_ESTADO_DECISION_JSON,
     CLAVE_ORDEN_CICLO_JSON, CLAVE_RESULTADO_JSON, ESTADO_DECISION_NINGUNA, ESTADO_DECISION_RESUELTA,
     FRAMING_STRUCT_FORMAT, INTERVALO_CONSULTA_DECISION_S, INTERVALO_ENVIO_TELEMETRIA_PC_S, ORDEN_CICLO_INICIAR,
     RESULTADO_ERROR_REVISION_MANUAL, TCP_PUERTO_DEFECTO,
@@ -121,7 +121,7 @@ def main():
     p.add_argument("--repetir", action="store_true", help="volver a empezar al terminar las cajas")
     p.add_argument("--lote-vacio-cada", type=int, default=0, metavar="N",
                    help="cada N.ª caja envía un lote vacío (simula un fallo de captura)")
-    p.add_argument("--caras", type=int, default=CARAS_POR_OBJETO, choices=CARAS_POR_OBJETO_VALIDAS,
+    p.add_argument("--caras", type=int, default=CARAS_POR_OBJETO_DEFECTO, choices=CARAS_POR_OBJETO_VALIDAS,
                    help="fotos por caja (las primeras N caras); 4 simula la opción `--caras 4` de la Orange Pi")
     p.add_argument("--sin-telemetria", action="store_true",
                    help="no enviar la telemetría inventada de la Orange Pi y la ESP32-S3 (por defecto, cada 5 s)")
