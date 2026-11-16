@@ -42,7 +42,7 @@ source .venv/bin/activate      # en cada terminal nueva
 bash scripts/start_Opi.sh              # verifica UART, cámara y red; espera "Iniciar recorrido" de la PC
 bash scripts/start_Opi.sh --verificar  # solo comprueba y sale (no lanza main.py)
 bash scripts/start_Opi.sh --sin-orden  # sin orden de inicio ni control de continuar/detener de la PC (pruebas sueltas, fuera del contrato)
-bash scripts/start_Opi.sh --caras 4    # 4 fotos por objeto en vez de 5 (informe 6.1; por defecto 5)
+bash scripts/start_Opi.sh --caras 5    # 5 fotos por objeto en vez de 4 (informe 6.1; por defecto 4)
 bash scripts/telemetria.sh             # en OTRA terminal: telemetría de la Orange Pi y la última de la ESP32-S3 (local, sin PC)
 bash scripts/start_Opi.sh --simular-esp  # sin la ESP32-S3: la simula (cámara y PC reales); --retraso-esp SEG (def. 2.5; >5 simula un fallo)
 ```

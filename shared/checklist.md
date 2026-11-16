@@ -394,7 +394,7 @@ con el contrato (hay que corregir) · `[?]` sin definir, requiere decisión.
   Probado sin hardware (78 pruebas pasan) y en una corrida con el mock de la PC (recibió el mensaje con los tres campos).
   *Sigue pendiente:* probarla con la PC real cuando atienda `telemetria` (**PC-24**; mientras no, responde
   `consulta_invalida` y se descarta) y con la ESP32-S3 real (**S-13**, **OP-16**).
-- [x] **OP-29** Opción de 4 caras (**S-14**, informe 6.1; 2026-11-15): `--caras 4|5` en `main.py` (por defecto 5; otro valor
+- [x] **OP-29** Opción de 4 caras (**S-14**, informe 6.1; 2026-11-15): `--caras 4|5` en `main.py` (por defecto 4 desde el 2026-11-15, `--caras 5` vuelve a 5; otro valor
   se rechaza) y en `start_Opi.sh`, que la pasa tal cual. Con 4 se piden las caras 1 a 4 y el lote lleva 4 imágenes; no cambia
   ningún mensaje. Elige las primeras N caras (no las salta): si se quiere omitir otra, se discute en S-14.
 - [x] **OP-17** `orange-pi/requirements-lock.txt` generado con `pip freeze` (commit `6a3fb71`).

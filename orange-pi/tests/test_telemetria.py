@@ -284,13 +284,13 @@ class Caras(unittest.TestCase):
         self.assertEqual(pedidas, [1, 2, 3, 4])
         self.assertEqual(len(imagenes), 4)
 
-    def test_por_defecto_son_5(self):
+    def test_con_5_caras_se_piden_las_caras_1_a_5(self):
         imagenes, pedidas = self.capturar(5)
         self.assertEqual(pedidas, [1, 2, 3, 4, 5])
         self.assertEqual(len(imagenes), 5)
 
     def test_main_pasa_caras_al_ciclo_y_rechaza_valores_invalidos(self):
-        for argv, esperado in (([], 5), (["--caras", "4"], 4), (["--caras", "5"], 5)):
+        for argv, esperado in (([], 4), (["--caras", "4"], 4), (["--caras", "5"], 5)):
             with mock.patch.object(main, "EnlaceSimulado"), \
                     mock.patch.object(main, "buscar_camara_por_nombre"), \
                     mock.patch.object(main, "DescubridorPC"), \
