@@ -1,0 +1,7 @@
+# KiCad: copias de seguridad, bloqueos y preferencias locales
+*-backups/
+*.lck
+*.kicad_prl
+*.kicad_sch-bak
+*.zip
+fp-info-cache
