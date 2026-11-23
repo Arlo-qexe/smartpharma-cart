@@ -160,6 +160,7 @@ code { background: #fff; padding: 1px 5px; border-radius: 4px; }
 .fotos a { cursor: zoom-in; }
 
 .inicio-grid { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.inicio-grid.sin-asistente { grid-template-columns: minmax(0, 1fr); }
 .inicio-principal { min-width: 0; }
 .asistente-lateral {
   position: sticky; top: 12px; min-width: 0;

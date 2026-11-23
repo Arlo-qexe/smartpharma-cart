@@ -1404,12 +1404,21 @@ async function cargarEstadoAsistente() {
   renderAsistente();
 }
 
+// Con el asistente desactivado no se muestra nada de él (ni el aviso): el bloque se oculta y el
+// panel principal ocupa todo el ancho. Mientras se consulta su estado también queda oculto, para
+// que no parpadee un aviso que luego desaparece.
+function mostrarAsistente(visible) {
+  $("asistente").hidden = !visible;
+  document.querySelector(".inicio-grid").classList.toggle("sin-asistente", !visible);
+}
+
 function renderAsistente() {
   if (!chat.cargado) {
+    mostrarAsistente(false);
     cargarEstadoAsistente();
-    $("asistente-aviso").textContent = "Consultando al asistente…";
     return;
   }
+  mostrarAsistente(chat.disponible);
   const aviso = $("asistente-aviso");
   $("chat").hidden = !chat.disponible;
   $("chat-form").hidden = !chat.disponible;
