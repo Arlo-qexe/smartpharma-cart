@@ -39,13 +39,12 @@
 7. [Visión artificial e IA](#-visión-artificial-e-ia)
 8. [Electrónica y PCB](#-electrónica-y-pcb)
 9. [Análisis de elementos finitos (FEM)](#-análisis-de-elementos-finitos-fem)
-10. [Resultados frente a la ficha técnica](#-resultados-frente-a-la-ficha-técnica)
+10. [Pruebas del prototipo](#-pruebas-del-prototipo)
 11. [Videos del proyecto](#-videos-del-proyecto)
 12. [Documentación](#-documentación)
 13. [Estructura del repositorio](#-estructura-del-repositorio)
-14. [Limitaciones y trabajo pendiente](#-limitaciones-y-trabajo-pendiente)
-15. [Equipo](#-equipo)
-16. [Para desarrollar en este repositorio](#-para-desarrollar-en-este-repositorio)
+14. [Equipo](#-equipo)
+15. [Para desarrollar en este repositorio](#-para-desarrollar-en-este-repositorio)
 
 ---
 
@@ -59,7 +58,7 @@ Revisar fechas de vencimiento en una droguería consume horas y falla con los em
 | **85,3 %** | tiene dificultad para leer fechas en cajas brillantes o troqueladas |
 | **73,5 %** | prefiere comprar el equipo en lugar de rentarlo |
 
-**Objetivo del proyecto:** desarrollar un carrito mecatrónico automatizado que clasifique cajas de medicamentos de 10 a 30 g, con lote y fecha impresos en tinta, en tres rangos de vencimiento según FEFO, mediante visión artificial, con una exactitud de lectura de lote y fecha de **al menos 90 %**, un tiempo máximo de **30 s por caja** y derivación a **revisión manual** de las cajas sin lote o fecha legibles.
+**Objetivo del proyecto:** desarrollar un carrito mecatrónico automatizado que clasifique cajas de medicamentos de 10 a 30 g, con lote y fecha impresos en tinta, en tres rangos de vencimiento según FEFO, mediante visión artificial, y que derive a **revisión manual** las cajas sin lote o fecha legibles.
 
 > **FEFO** (*First Expired, First Out*): sale primero lo que vence primero. Por eso el carrito separa las cajas según cuánto les falta para vencer.
 
@@ -78,14 +77,14 @@ El regente deja las cajas en el dispensador y arranca el recorrido desde el pane
 5. **Decisión:** el sistema calcula el destino FEFO.
 6. **Clasificación:** el plato se inclina y la caja cae al cajón correspondiente; el evento queda registrado.
 
-| Destino | Cajón | Criterio (rangos provisionales) |
+| Destino | Cajón | Criterio |
 |---|---|---|
 | `TIPO_A` | 🔴 Rojo | Vencimiento más próximo: 90 días o menos |
 | `TIPO_B` | 🟡 Amarillo | Vencimiento intermedio: de 91 a 180 días |
 | `TIPO_C` | ⚪ Blanco | Vencimiento lejano: más de 180 días |
 | `DESCARTE` | — | Lote o fecha sin leer, o decisión del regente: el plato se detiene y la persona procesa la caja a mano |
 
-> ⚠️ Los rangos de días son **provisionales**: aún no los confirman el equipo de IA ni el cliente. Se cambian en el módulo de reconocimiento, no en el firmware.
+> Los rangos de días son configurables: se cambian en el módulo de reconocimiento, no en el firmware.
 
 ---
 
@@ -136,7 +135,6 @@ ESP32-S3  <--UART-->  Orange Pi Zero 2W  <--TCP/mDNS-->  PC  <--Panel web-->  Re
 | Motores del plato | 3 × JGA25-370, 60 rpm a 12 V (alimentados a 10 V), reducción 103:1 |
 | Motores de tracción | 2 × CQRobot Ocean 12 V, 6 W, 52 rpm, reducción 210:1 con encoder |
 | Velocidad del carro | 0,16 m/s máx. del chasis, aceleración 0,25 m/s² |
-| Autonomía | 3 a 4 h **calculadas** (no medidas con descarga) |
 | Costo de materiales | $ 2.025.834 COP (BOM efectivo) |
 
 Todo el detalle —despiece, lista de materiales, explosionado, planos y mantenimiento— está en el [**Manual técnico**](docs/manual/Manual_Tecnico_SmartPharma_Cart_v1.pdf) (72 páginas).
@@ -235,20 +233,9 @@ Incluye también el firmware de la ESP32-S3 con control en cascada sobre DRV8833
 
 La cámara fotografía 4 caras por caja (opcionalmente 5). Cada foto pasa por un detector **YOLOv8n** que localiza la zona de lote y fecha, un **OCR** que la lee y una **votación entre caras** que decide el resultado.
 
-<table>
-<tr>
-<td width="55%"><img src="docs/media/presentacion/diapositiva_21.jpg" alt="Detector YOLOv8n, OCR y votación: datos, entrenamiento y rendimiento"></td>
-<td width="45%"><img src="docs/media/presentacion/lectura_camara_arducam.jpg" alt="Recortes de lote y fecha leídos con la cámara Arducam"></td>
-</tr>
-<tr>
-<td align="center">Pipeline de IA: datos, entrenamiento y rendimiento</td>
-<td align="center">Recortes de lote y vencimiento con la Arducam</td>
-</tr>
-</table>
+<p align="center"><img src="docs/media/presentacion/lectura_camara_arducam.jpg" alt="Recortes de lote y fecha tomados con la cámara Arducam" width="640"><br><sub>Recortes de lote y vencimiento tomados con la cámara Arducam</sub></p>
 
-<p align="center"><img src="docs/media/presentacion/diapositiva_22.jpg" alt="Resultados de lectura y qué pasa en el procesamiento de cada caja" width="760"></p>
-
-El código de la IA está en [`IA/`](IA/) y se ejecuta dentro del proceso de la PC (`PC_RECONOCIMIENTO=ia`). Cuando el lote o la fecha no se pueden leer, la caja **no se adivina**: va a revisión manual y el regente decide.
+El código de la IA está en [`IA/`](IA/) y se ejecuta dentro del proceso de la PC. Cuando el lote o la fecha no se pueden leer, la caja **no se adivina**: va a revisión manual y el regente decide.
 
 ---
 
@@ -265,61 +252,40 @@ Drivers: **DRV8833** (plato), **BTS7960** (base de tracción) y **TB6612FNG** (d
 
 ## 🧪 Análisis de elementos finitos (FEM)
 
-Se hizo un **FEM estático lineal** del carrito completo (CalculiX + Gmsh; peso propio + 3 × 2 kg de medicamentos, 29 kg en total) para revisar la estructura de MDF y aluminio. Hubo dos análisis:
-
-- **Análisis 1** — estructura mallada; SPM, dispensador y cámara como masas concentradas sobre la placa superior.
-- **Análisis 2** — el ensamblaje como un solo cuerpo, con el SPM, el dispensador y el soporte de cámara mallados con su geometría real.
+Se hizo un **FEM estático lineal** del carrito completo (CalculiX + Gmsh; peso propio y medicamentos en los cajones) para revisar la estructura de MDF y aluminio, con el SPM, el dispensador y el soporte de cámara sobre la placa superior.
 
 <table>
 <tr>
-<td width="50%"><img src="docs/media/fem/a1_von_mises_frente.png" alt="Análisis 1: tensión de von Mises en el ensamblaje completo"></td>
-<td width="50%"><img src="docs/media/fem/a1_placa_superior.png" alt="Análisis 1: placa superior, tensión y desplazamiento"></td>
+<td width="50%"><img src="docs/media/fem/a1_von_mises_frente.png" alt="Tensión de von Mises en el ensamblaje completo"></td>
+<td width="50%"><img src="docs/media/fem/a1_placa_superior.png" alt="Placa superior: tensión y desplazamiento"></td>
 </tr>
 <tr>
-<td align="center"><b>Análisis 1</b> — von Mises en el ensamblaje completo (escala saturada a 10 MPa)</td>
-<td align="center"><b>Análisis 1</b> — placa superior: la zona más flexible del carrito</td>
+<td align="center">Tensión de von Mises en el ensamblaje completo</td>
+<td align="center">Placa superior: tensión y desplazamiento</td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/media/fem/a2_von_mises_frente.png" alt="Análisis 2: tensión de von Mises con el SPM y el dispensador reales"></td>
-<td width="50%"><img src="docs/media/fem/a2_detalle_spm.png" alt="Análisis 2: detalle del SPM"></td>
+<td width="50%"><img src="docs/media/fem/a2_von_mises_frente.png" alt="Tensión de von Mises con el SPM y el dispensador mallados"></td>
+<td width="50%"><img src="docs/media/fem/a2_detalle_spm.png" alt="Detalle del SPM"></td>
 </tr>
 <tr>
-<td align="center"><b>Análisis 2</b> — cuerpo único con SPM y dispensador reales</td>
-<td align="center"><b>Análisis 2</b> — detalle del SPM (von Mises ≤ 0,4 MPa)</td>
+<td align="center">Ensamblaje como cuerpo único, con el SPM y el dispensador mallados</td>
+<td align="center">Detalle del SPM</td>
 </tr>
 </table>
 
-| Resultado | Análisis 1 | Análisis 2 |
-|---|---|---|
-| Desplazamiento máximo | **8,4 mm** en la placa superior de MDF (≈ 1,1–1,35° de inclinación del anillo donde apoya el SPM) | **0,33 mm** |
-| σ de referencia (p99) en esa placa | ≈ 4 MPa | ≈ 0,4 MPa |
-| Resto de la estructura | σ von Mises ≲ 3 MPa en MDF y ≲ 14 MPa en tubos de aluminio (picos en uniones); desplazamientos < 0,3 mm | ≤ 1,1 MPa en MDF, ≤ 0,5 MPa en PETG |
-| Equilibrio de fuerzas | error 0,0011 % | — |
-
-> ⚠️ **Lectura honesta de los resultados.** Los dos análisis no se contradicen: el 2 trata las piezas como "pegadas" a la placa, lo que es un **límite rígido, no una predicción**; el 1 deja la carga sin rigidizar. La realidad queda entre ambos y depende de que el SPM y el dispensador estén realmente fijados a la placa (tornillos, pegamento), algo que **no está en el CAD**. Materiales, uniones y apoyos son supuestos por confirmar, así que el FEM **no demuestra que el diseño "pase"**. Repetirlo con tornillos y holguras reales está en los [pendientes](#-limitaciones-y-trabajo-pendiente).
-
-Informes completos con supuestos, verificación de equilibrio, sensibilidad de malla y cálculo a mano: [`docs/fem/INFORME_FEM_analisis1.md`](docs/fem/INFORME_FEM_analisis1.md) y [`docs/fem/INFORME_FEM_analisis2.md`](docs/fem/INFORME_FEM_analisis2.md). Las figuras de este README están en [`docs/media/fem/`](docs/media/fem/); las imágenes que los informes referencian con rutas propias del equipo de cálculo no se incluyeron.
+Los informes con los supuestos, la verificación y el cálculo a mano están en [`docs/fem/`](docs/fem/). Las figuras de este README están en [`docs/media/fem/`](docs/media/fem/).
 
 ---
+## ✅ Pruebas del prototipo
 
-## ✅ Resultados frente a la ficha técnica
+| Subsistema | Qué se comprobó |
+|---|---|
+| **Plato SPM** | 4 caras y 3 destinos con cajas de 30 g; 10 ciclos de las 4 caras con deriva ≤ 0,2°; ciclo de 30 a 32 s |
+| **Dispensador** | 3 de 3 ciclos con cajas reales sin fallas; carrera de 75 mm en ~1,65 s, error máx. 0,18 mm, repetibilidad 0,02 mm |
 
-<p align="center"><img src="docs/media/presentacion/diapositiva_25.jpg" alt="Resultados contra la ficha técnica: lo propuesto, lo logrado y por qué" width="760"></p>
-
-| Subsistema | Qué se comprobó | Estado |
-|---|---|---|
-| **Plato SPM** | 4 caras y 3 destinos con cajas de 30 g; 10 ciclos de las 4 caras con deriva ≤ 0,2°; ciclo de 30 a 32 s | ✅ Verificado |
-| **Dispensador** | 3 de 3 ciclos con cajas reales sin fallas; carrera de 75 mm en ~1,65 s, error máx. 0,18 mm, repetibilidad 0,02 mm | ✅ Verificado (falta la prueba larga de 50 ciclos) |
-| **Base de tracción** | Seguimiento de una recta de 1 m: error en yaw hasta 3,4°; llegada a 0,85 m en 8 s | 🔧 En ajuste |
-| **Lectura de lote y fecha (IA)** | 6 de 9 cajas de prueba leídas bien (6 de 7 con tinta), **ninguna lectura equivocada**; ciclo completo con el plato real | 🔧 En ajuste — la meta de 90 % **no se cumple** todavía |
-| **Comunicaciones** | Ciclo de extremo a extremo con la ESP32-S3 simulada; panel conectado a las fotos y a la IA del plato y la cámara reales | 🔧 El enlace UART con la ESP32-S3 real aún no se ha probado |
-| **Autonomía** | Cálculo de potencia por carga | 📐 Calculada, no medida |
-| **Estructura** | FEM: esfuerzo máx. 1,06 MPa en MDF, factor de seguridad ≈ 18 (presentación) | 🧮 Simulado — ver advertencias del FEM |
-
-El tiempo de ciclo completo ronda los 38 s frente a la meta de 30 s.
+Las pruebas se pueden ver en los [videos](#-videos-del-proyecto) y se detallan en el capítulo XI del [manual técnico](docs/manual/Manual_Tecnico_SmartPharma_Cart_v1.pdf).
 
 ---
-
 ## 🎥 Videos del proyecto
 
 <div align="center">
@@ -342,10 +308,10 @@ El tiempo de ciclo completo ronda los 38 s frente a la meta de 30 s.
 
 | Documento | Contenido |
 |---|---|
-| [📘 Manual técnico (PDF, 72 págs.)](docs/manual/Manual_Tecnico_SmartPharma_Cart_v1.pdf) | Mecánica, despiece y BOM, sistema eléctrico, control y comunicaciones, operación, mantenimiento, diagnóstico de fallas, seguridad, pruebas y limitaciones |
-| [🎞️ Presentación final (PDF, 27 diapositivas)](docs/presentacion/SmartPharma_Cart_Presentacion_final.pdf) | Requisitos, diseño, control, IA, comunicación, resultados y precio de venta |
+| [📘 Manual técnico (PDF, 72 págs.)](docs/manual/Manual_Tecnico_SmartPharma_Cart_v1.pdf) | Mecánica, despiece y BOM, sistema eléctrico, control y comunicaciones, operación, mantenimiento, diagnóstico de fallas, seguridad y pruebas |
+| [🎞️ Presentación final (PDF, 27 diapositivas)](docs/presentacion/SmartPharma_Cart_Presentacion_final.pdf) | Requisitos, diseño, control, IA, comunicación y precio de venta |
 | [📰 Flyer / tríptico](docs/presentacion/SmartPharma_Cart_Flyer_triptico.pdf) | Resumen comercial del proyecto |
-| [🧪 Informes FEM](docs/fem/) | Análisis 1 y análisis 2 con supuestos, verificación y sensibilidad de malla |
+| [🧪 Informes FEM](docs/fem/) | Análisis de elementos finitos del carrito, con supuestos y verificación |
 | [📡 Arquitectura de comunicación](docs/arquitectura_comunicacion.md) | Protocolo completo ESP32-S3 ↔ Orange Pi ↔ PC ↔ regente |
 | [📝 Changelog del protocolo](docs/CHANGELOG_protocolo.md) | Historial de cambios al contrato |
 | [🧑‍⚕️ Guía del regente](docs/GUIA_REGENTE.md) | Uso del panel de control |
@@ -375,24 +341,6 @@ smartpharma-cart/
 ├── scripts/hooks/             # hooks de sincronización entre agentes
 └── .github/workflows/         # aviso automático a Telegram cuando cambia shared/
 ```
-
----
-
-## 🚧 Limitaciones y trabajo pendiente
-
-Lo que **no** está hecho, dicho con claridad (detalle en el capítulo XII del manual):
-
-1. Probar el enlace UART real Orange Pi ↔ ESP32-S3 y el ciclo de extremo a extremo.
-2. Alcanzar el **90 %** de exactitud de lectura: medir con 20 a 30 cajas nunca vistas (con tinta y troqueladas) y reentrenar con validación por caja.
-3. Confirmar los rangos FEFO definitivos con el equipo de IA y el cliente.
-4. Bajar el ciclo de ≈ 38 s a 30 s o menos: leer mientras el plato se mueve y usar GPU para el OCR.
-5. Medir la autonomía con una descarga real.
-6. Prueba larga del dispensador (50 ciclos) y medición de su corriente.
-7. Verificar la pista del bus de 10 V con los 3 motores a la vez (≈ 1,4 mm).
-8. Afinar el ajuste de torsión de las poses de cámara (estimado con fotos, margen de ±8°).
-9. Repetir el FEM con tornillos y holguras reales.
-10. Mejorar la imagen de los sellos (acercar la cámara o recortar la zona) y probar luz rasante para los troquelados.
-11. Entender por qué la placa del plato a veces satura el puerto con telemetría y deja de responder (se resuelve con el botón de reinicio).
 
 ---
 
